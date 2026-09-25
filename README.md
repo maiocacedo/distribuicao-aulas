@@ -1,0 +1,77 @@
+# Distribuição de Aulas
+
+Aplicativo de desktop para montar a grade horária de um curso: cadastro de
+professores, disciplinas e salas, montagem manual da grade e geração automática
+de um horário sem conflitos.
+
+Sucessor do programa em JavaFX que vive em
+`../Programa - Distribuição de Aulas`, que continua servindo de referência.
+
+## Pilha
+
+React + TypeScript (Vite) numa janela Tauri v2, com SQLite local via
+`tauri-plugin-sql`. O banco é um arquivo, copiável de uma máquina para outra.
+
+## Antes de começar
+
+Além do Node.js (18 ou mais novo), o lado Tauri compila Rust de verdade, então
+a máquina precisa de:
+
+- **Rust**, via [rustup](https://rustup.rs);
+- no Windows, as **Build Tools do Visual Studio** com a carga de trabalho
+  "Desenvolvimento para desktop com C++" — é ela que traz o linker;
+- o **WebView2**, que já vem no Windows 11 e no 10 atualizado.
+
+O passo a passo por sistema operacional está em
+<https://v2.tauri.app/start/prerequisites/>.
+
+## Como rodar
+
+```bash
+npm install
+npm run tauri dev
+```
+
+A primeira execução compila as dependências Rust e leva alguns minutos; as
+seguintes são rápidas, porque o resultado fica em `src-tauri/target/`. Essa
+pasta e `node_modules/` são cache — somam vários gigabytes, se refazem sozinhas
+e nunca devem ser copiadas de uma máquina para outra.
+
+Na primeira abertura o app cria o banco no diretório de dados do aplicativo e
+roda as migrações declaradas em `src-tauri/src/lib.rs`, que são os arquivos
+de `scripts/migracoes/`.
+
+Um arquivo de migração já publicado nunca é editado — bancos existentes não o
+executariam de novo. Toda alteração de esquema é um arquivo novo com o próximo
+número, acrescentado também à lista em `lib.rs`.
+
+## Estrutura
+
+| Caminho | O que é |
+|---|---|
+| `docs/regras.md` | **As regras da grade.** Leia antes de mexer no gerador. |
+| `scripts/migracoes/` | O esquema, em migrações numeradas. Fonte única: criam o banco do app e o da conversão. |
+| `scripts/migrar.py` | Converte o banco do programa antigo. Uso pontual. |
+| `src/db.ts` | Conexão com o SQLite e utilitários de consulta. |
+| `src/tipos.ts` | Tipos do domínio, espelhando o esquema. |
+| `src-tauri/` | Lado Rust: registro dos plugins e migrações. |
+
+## Massa de teste
+
+O banco da aplicação nasce vazio. Para desenvolver contra dados realistas —
+22 professores, 55 disciplinas, 16 salas e uma grade de verdade — gere uma cópia
+a partir do banco antigo:
+
+```bash
+python scripts/migrar.py "../Programa - Distribuição de Aulas/distribuicaodb.db" -o distribuicao.db
+```
+
+O script relata tudo que inferiu e confere a consistência do resultado. Ele
+deduz propriedades a partir de nomes de disciplinas e salas do banco antigo;
+`--sem-heuristicas-de-nome` desliga isso. Detalhes em `docs/regras.md`.
+
+## Regra de ouro
+
+Nada no sistema decide comportamento pelo **nome** de uma disciplina, sala ou
+professor — só por campos. Cursos diferentes chamam as mesmas coisas por nomes
+diferentes.

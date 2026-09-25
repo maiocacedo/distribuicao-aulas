@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>
+body{margin:0;background:#E7E8EB;font-family:'Segoe UI',system-ui,sans-serif;color:#1B1D23}
+a{color:#3D5AB9}a:hover{color:#2E479C}
+</style>
+</helmet>
+<section style="padding:56px;display:flex;flex-direction:column;gap:72px;width:max-content">
+<div style="display:flex;flex-direction:column;gap:10px;max-width:980px">
+  <div style="font-size:24px;font-weight:700;letter-spacing:-0.01em">Distribuição de Aulas — redesign</div>
+  <div style="font-size:13px;line-height:1.65;color:#565B66;text-wrap:pretty">Ferramenta profissional de trabalho denso, para sessões longas de precisão. Uma direção sóbria: fontes do sistema (Segoe UI + Consolas), claro e escuro por tokens, e cor apenas onde carrega significado — a identidade de disciplinas e professores é sempre texto. Abaixo: as três telas nos dois temas, os seis estados da célula lado a lado, e o sistema visual com a intenção de cada decisão.</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:18px">
+  <div style="display:flex;flex-direction:column;gap:6px;max-width:980px">
+    <div style="font-size:17px;font-weight:700">1 · Montagem da grade</div>
+    <div style="font-size:12.5px;line-height:1.6;color:#565B66;text-wrap:pretty">A tela inteira serve ao gesto selecionar → posicionar: pendências coladas à esquerda da grade, nada entre elas. Cálculo III está selecionada — células azuis tracejadas aceitam a aula, células listradas dizem por que não, na própria célula, sem caça a tooltip. Tarde e noite escurecem porque o turno deste período é a manhã: a fronteira de turno é estrutura (faixa rotulada que interrompe a malha), não cor. O azul, o vermelho e o âmbar guardam significado fixo — apto, impedido, tolerado — e por isso a paleta aguenta 20+ disciplinas sem virar circo.</div>
+  </div>
+  <div style="display:flex;gap:36px;align-items:flex-start">
+
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8F939E">Claro</div>
+      <div data-screen-label="Grade · claro" style="width:1400px;height:900px;display:flex;overflow:hidden;border-radius:8px;box-shadow:0 10px 30px rgba(20,22,28,0.16),0 0 0 1px rgba(20,22,28,0.06);background:var(--bg);color:var(--tx);font-size:13px;--bg:#F2F2F4;--panel:#FBFBFC;--inset:#ECECEF;--card:#FFFFFF;--line:#DDDEE3;--lineS:#B4B8C2;--tx:#1B1D23;--tx2:#565B66;--tx3:#8F939E;--acc:#3D5AB9;--onAcc:#FFFFFF;--accBg:#EAEEF9;--accLine:#93A5DC;--neg:#A63D33;--off:#EDEBE3;--warnDot:#C29224;--hover:rgba(27,29,35,0.05);--stripe:rgba(27,29,35,0.07);--shadow:rgba(20,22,28,0.08)">
+        <div style="width:216px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:12px 10px;gap:2px">
+          <div style="font-size:10.5px;letter-spacing:0.08em;text-transform:uppercase;color:var(--tx3);padding:2px 10px 10px">Distribuição de Aulas</div>
+          <div style="margin:0 2px 10px;padding:8px 10px;border-radius:5px;background:var(--inset);box-shadow:inset 0 0 0 1px var(--line)">
+            <div style="font-size:10px;color:var(--tx3);margin-bottom:1px">Curso · 2026/2</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+              <div style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Engenharia de Computação</div>
+              <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 4l3 3 3-3" stroke="var(--tx3)" fill="none" stroke-width="1.5"></path></svg>
+            </div>
+          </div>
+          <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--tx3);padding:6px 10px 4px">Curso</div>
+          <sc-for list="{{navGrade.curso}}" as="it" hint-placeholder-count="3"><div style="{{it.style}}">{{it.label}}</div></sc-for>
+          <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--tx3);padding:16px 10px 4px">Instituição</div>
+          <sc-for list="{{navGrade.inst}}" as="it" hint-placeholder-count="4"><div style="{{it.style}}">{{it.label}}</div></sc-for>
+        </div>
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+          <div style="padding:14px 20px 10px;display:flex;align-items:center;gap:12px">
+            <div style="font-size:17px;font-weight:700">Grade horária</div>
+            <div style="font-size:11px;color:var(--tx3)">Engenharia de Computação · 2026/2</div>
+            <div style="flex:1"></div>
+            <div style="font-size:12.5px;color:var(--tx);padding:6px 14px;border-radius:4px;background:var(--panel);box-shadow:inset 0 0 0 1px var(--lineS)">Gerar grade automática</div>
+          </div>
+          <div style="padding:0 20px 12px;display:flex;gap:4px;align-items:center">
+            <sc-for list="{{periodTabs}}" as="t" hint-placeholder-count="8"><div style="{{t.style}}">{{t.label}}</div></sc-for>
+            <div style="flex:1"></div>
+            <div style="font-size:11px;color:var(--tx3)">18 de 72 posições ocupadas</div>
+          </div>
+          <div style="flex:1;min-height:0;display:flex;gap:14px;padding:0 20px 16px">
+            <div style="width:264px;flex-shrink:0;background:var(--panel);border-radius:6px;box-shadow:inset 0 0 0 1px var(--line);display:flex;flex-direction:column;overflow:hidden">
+              <div style="padding:12px 14px 8px;display:flex;justify-content:space-between;align-items:baseline">
+                <div style="font-size:12.5px;font-weight:700">Pendências</div>
+                <div style="font-size:10.5px;color:var(--tx3)">4 de 9 fechadas</div>
+              </div>
+              <div style="flex:1;overflow:hidden;padding:0 6px;display:flex;flex-direction:column;gap:1px">
+                <sc-for list="{{pend}}" as="p" hint-placeholder-count="6">
+                  <div style="{{p.style}}">
+                    <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">
+                      <div style="{{p.nameStyle}}">{{p.name}}</div>
+                      <div style="font-family:Consolas,monospace;font-size:10.5px;color:var(--tx2);white-space:nowrap">{{p.prog}}</div>
+                    </div>
+                    <div style="font-size:11px;color:var(--tx2)">{{p.prof}}</div>
+                    <div style="height:3px;border-radius:2px;background:var(--line);overflow:hidden;margin-top:4px"><div style="{{p.bar}}"></div></div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="padding:10px 14px;font-size:10.5px;line-height:1.5;color:var(--tx3);border-top:1px solid var(--line)">Selecione uma pendência e clique num horário livre. Esc cancela a seleção.</div>
+            </div>
+            <div style="flex:1;min-width:0;background:var(--panel);border-radius:6px;box-shadow:inset 0 0 0 1px var(--line);padding:12px;display:flex;flex-direction:column;gap:8px">
+              <div style="flex:1;display:grid;grid-template-columns:56px repeat(6,minmax(0,1fr));gap:1px;background:var(--line);box-shadow:0 0 0 1px var(--line);align-content:start">
+                <div style="background:var(--panel)"></div>
+                <sc-for list="{{days}}" as="d" hint-placeholder-count="6"><div style="background:var(--panel);padding:6px 8px;font-size:11.5px;font-weight:600;color:var(--tx2)">{{d}}</div></sc-for>
+                <sc-for list="{{gridRows}}" as="row" hint-placeholder-count="12">
+                  <sc-if value="{{row.divider}}" hint-placeholder-val="{{false}}">
+                    <div style="grid-column:1/-1;background:var(--panel);padding:5px 8px 3px 60px;display:flex;gap:8px;align-items:baseline">
+                      <span style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--tx2)">{{row.label}}</span>
+                      <span style="font-size:10.5px;color:var(--tx3)">{{row.note}}</span>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{row.slot}}" hint-placeholder-val="{{true}}">
+                    <div style="background:var(--panel);padding:6px 8px 0 0;text-align:right;font-family:Consolas,monospace;font-size:10px;color:var(--tx3)">{{row.time}}</div>
+                    <sc-for list="{{row.cells}}" as="c" hint-placeholder-count="6">
+                      <div style="{{c.style}}">
+                        <sc-if value="{{c.occ}}" hint-placeholder-val="{{false}}">
+                          <div style="font-size:11.5px;font-weight:600;line-height:1.28;color:var(--tx);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">{{c.name}}</div>
+                          <div style="margin-top:auto;font-size:10px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{c.meta}}</div>
+                        </sc-if>
+                        <sc-if value="{{c.lock}}" hint-placeholder-val="{{false}}">
+                          <svg width="9" height="11" viewBox="0 0 9 11" style="position:absolute;top:5px;right:5px"><rect x="0.5" y="4.5" width="8" height="6" rx="1" fill="var(--tx3)"></rect><path d="M2.5 4.5V3a2 2 0 0 1 4 0v1.5" stroke="var(--tx3)" fill="none" stroke-width="1.3"></path></svg>
+                        </sc-if>
+                        <sc-if value="{{c.dot}}" hint-placeholder-val="{{false}}">
+                          <div style="position:absolute;top:5px;right:5px;width:6px;height:6px;border-radius:3px;background:var(--warnDot)"></div>
+                        </sc-if>
+                        <sc-if value="{{c.apt}}" hint-placeholder-val="{{false}}">
+                          <div style="font-size:12px;color:var(--acc);font-weight:600">Alocar</div>
+                        </sc-if>
+                        <sc-if value="{{c.reason}}" hint-placeholder-val="{{false}}">
+                          <div style="font-size:9.5px;line-height:1.3;color:var(--neg)">{{c.reason}}</div>
+                        </sc-if>
+                      </div>
+                    </sc-for>
+                  </sc-if>
+                </sc-for>
+              </div>
+              <div style="display:flex;gap:18px;align-items:center;padding:2px 4px 0">
+                <sc-for list="{{legendItems}}" as="l" hint-placeholder-count="4">
+                  <div style="display:flex;align-items:center;gap:6px"><div style="{{l.sw}}"></div><span style="font-size:11px;color:var(--tx2)">{{l.label}}</span></div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8F939E">Escuro</div>
+      <div data-screen-label="Grade · escuro" style="width:1400px;height:900px;display:flex;overflow:hidden;border-radius:8px;box-shadow:0 10px 30px rgba(20,22,28,0.28),0 0 0 1px rgba(20,22,28,0.2);background:var(--bg);color:var(--tx);font-size:13px;--bg:#121316;--panel:#1A1C20;--inset:#141519;--card:#25282F;--line:#2C2F36;--lineS:#4A4E59;--tx:#E8EAEF;--tx2:#A6ABB5;--tx3:#6E737D;--acc:#93A9F0;--onAcc:#101523;--accBg:#20283F;--accLine:#4C5FA6;--neg:#E29188;--off:#191813;--warnDot:#D8B04C;--hover:rgba(232,234,239,0.06);--stripe:rgba(232,234,239,0.08);--shadow:rgba(0,0,0,0.35)">
+        <div style="width:216px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:12px 10px;gap:2px">
+          <div style="font-size:10.5px;letter-spacing:0.08em;text-transform:uppercase;color:var(--tx3);padding:2px 10px 10px">Distribuição de Aulas</div>
+          <div style="margin:0 2px 10px;padding:8px 10px;border-radius:5px;background:var(--inset);box-shadow:inset 0 0 0 1px var(--line)">
+            <div style="font-size:10px;color:var(--tx3);margin-bottom:1px">Curso · 2026/2</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+              <div style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Engenharia de Computação</div>
+              <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 4l3 3 3-3" stroke="var(--tx3)" fill="none" stroke-width="1.5"></path></svg>
+            </div>
+          </div>
+          <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--tx3);padding:6px 10px 4px">Curso</div>
+          <sc-for list="{{navGrade.curso}}" as="it" hint-placeholder-count="3"><div style="{{it.style}}">{{it.label}}</div></sc-for>
+          <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--tx3);padding:16px 10px 4px">Instituição</div>
+          <sc-for list="{{navGrade.inst}}" as="it" hint-placeholder-count="4"><div style="{{it.style}}">{{it.label}}</div></sc-for>
+        </div>
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+          <div style="padding:14px 20px 10px;display:flex;align-items:center;gap:12px">
+            <div style="font-size:17px;font-weight:700">Grade horária</div>
+            <div style="font-size:11px;color:var(--tx3)">Engenharia de Computação · 2026/2</div>
+            <div style="flex:1"></div>
+            <div style="font-size:12.5px;color:var(--tx);padding:6px 14px;border-radius:4px;background:var(--panel);box-shadow:inset 0 0 0 1px var(--lineS)">Gerar grade automática</div>
+          </div>
+          <div style="padding:0 20px 12px;display:flex;gap:4px;align-items:center">
+            <sc-for list="{{periodTabs}}" as="t" hint-placeholder-count="8"><div style="{{t.style}}">{{t.label}}</div></sc-for>
+            <div style="flex:1"></div>
+            <div style="font-size:11px;color:var(--tx3)">18 de 72 posições ocupadas</div>
+          </div>
+          <div style="flex:1;min-height:0;display:flex;gap:14px;padding:0 20px 16px">
+            <div style="width:264px;flex-shrink:0;background:var(--panel);border-radius:6px;box-shadow:inset 0 0 0 1px var(--line);display:flex;flex-direction:column;overflow:hidden">
+              <div style="padding:12px 14px 8px;display:flex;justify-content:space-between;align-items:baseline">
+                <div style="font-size:12.5px;font-weight:700">Pendências</div>
+                <div style="font-size:10.5px;color:var(--tx3)">4 de 9 fechadas</div>
+              </div>
+              <div style="flex:1;overflow:hidden;padding:0 6px;display:flex;flex-direction:column;gap:1px">
+                <sc-for list="{{pend}}" as="p" hint-placeholder-count="6">
+                  <div style="{{p.style}}">
+                    <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">
+                      <div style="{{p.nameStyle}}">{{p.name}}</div>
+                      <div style="font-family:Consolas,monospace;font-size:10.5px;color:var(--tx2);white-space:nowrap">{{p.prog}}</div>
+                    </div>
+                    <div style="font-size:11px;color:var(--tx2)">{{p.prof}}</div>
+                    <div style="height:3px;border-radius:2px;background:var(--line);overflow:hidden;margin-top:4px"><div style="{{p.bar}}"></div></div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="padding:10px 14px;font-size:10.5px;line-height:1.5;color:var(--tx3);border-top:1px solid var(--line)">Selecione uma pendência e clique num horário livre. Esc cancela a seleção.</div>
+            </div>
+            <div style="flex:1;min-width:0;background:var(--panel);border-radius:6px;box-shadow:inset 0 0 0 1px var(--line);padding:12px;display:flex;flex-direction:column;gap:8px">
+              <div style="flex:1;display:grid;grid-template-columns:56px repeat(6,minmax(0,1fr));gap:1px;background:var(--line);box-shadow:0 0 0 1px var(--line);align-content:start">
+                <div style="background:var(--panel)"></div>
+                <sc-for list="{{days}}" as="d" hint-placeholder-count="6"><div style="background:var(--panel);padding:6px 8px;font-size:11.5px;font-weight:600;color:var(--tx2)">{{d}}</div></sc-for>
+                <sc-for list="{{gridRows}}" as="row" hint-placeholder-count="12">
+                  <sc-if value="{{row.divider}}" hint-placeholder-val="{{false}}">
+                    <div style="grid-column:1/-1;background:var(--panel);padding:5px 8px 3px 60px;display:flex;gap:8px;align-items:baseline">
+                      <span style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--tx2)">{{row.label}}</span>
+                      <span style="font-size:10.5px;color:var(--tx3)">{{row.note}}</span>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{row.slot}}" hint-placeholder-val="{{true}}">
+                    <div style="background:var(--panel);padding:6px 8px 0 0;text-align:right;font-family:Consolas,monospace;font-size:10px;color:var(--tx3)">{{row.time}}</div>
+                    <sc-for list="{{row.cells}}" as="c" hint-placeholder-count="6">
+                      <div style="{{c.style}}">
+                        <sc-if value="{{c.occ}}" hint-placeholder-val="{{false}}">
+                          <div style="font-size:11.5px;font-weight:600;line-height:1.28;color:var(--tx);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">{{c.name}}</div>
+                          <div style="margin-top:auto;font-size:10px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{c.meta}}</div>
+                        </sc-if>
+                        <sc-if value="{{c.lock}}" hint-placeholder-val="{{false}}">
+                          <svg width="9" height="11" viewBox="0 0 9 11" style="position:absolute;top:5px;right:5px"><rect x="0.5" y="4.5" width="8" height="6" rx="1" fill="var(--tx3)"></rect><path d="M2.5 4.5V3a2 2 0 0 1 4 0v1.5" stroke="var(--tx3)" fill="none" stroke-width="1.3"></path></svg>
+                        </sc-if>
+                        <sc-if value="{{c.dot}}" hint-placeholder-val="{{false}}">
+                          <div style="position:absolute;top:5px;right:5px;width:6px;height:6px;border-radius:3px;background:var(--warnDot)"></div>
+                        </sc-if>
+                        <sc-if value="{{c.apt}}" hint-placeholder-val="{{false}}">
+                          <div style="font-size:12px;color:var(--acc);font-weight:600">Alocar</div>
+                        </sc-if>
+                        <sc-if value="{{c.reason}}" hint-placeholder-val="{{false}}">
+                          <div style="font-size:9.5px;line-height:1.3;color:var(--neg)">{{c.reason}}</div>
+                        </sc-if>
+                      </div>
+                    </sc-for>
+                  </sc-if>
+                </sc-for>
+              </div>
+              <div style="display:flex;gap:18px;align-items:center;padding:2px 4px 0">
+                <sc-for list="{{legendItems}}" as="l" hint-placeholder-count="4">
+                  <div style="display:flex;align-items:center;gap:6px"><div style="{{l.sw}}"></div><span style="font-size:11px;color:var(--tx2)">{{l.label}}</span></div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+<div style="display:flex;flex-direction:column;gap:18px">
+  <div style="display:flex;flex-direction:column;gap:6px;max-width:980px">
+    <div style="font-size:17px;font-weight:700">2 · Os seis estados da célula</div>
+    <div style="font-size:12.5px;line-height:1.6;color:#565B66;text-wrap:pretty">O sexto estado é uma condição da linha e coexiste com os demais — por isso aparece vazio e ocupado. Nenhum estado depende só de cor: tracejado, listras, cadeado, escurecimento e texto carregam o significado junto, nos dois temas.</div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <div data-screen-label="Estados · claro" style="display:grid;grid-template-columns:repeat(7,186px);gap:16px;padding:20px;border-radius:8px;box-shadow:0 0 0 1px rgba(20,22,28,0.06);background:var(--bg);color:var(--tx);--bg:#F2F2F4;--panel:#FBFBFC;--inset:#ECECEF;--card:#FFFFFF;--line:#DDDEE3;--lineS:#B4B8C2;--tx:#1B1D23;--tx2:#565B66;--tx3:#8F939E;--acc:#3D5AB9;--accBg:#EAEEF9;--accLine:#93A5DC;--neg:#A63D33;--off:#EDEBE3;--warnDot:#C29224;--stripe:rgba(27,29,35,0.07);--shadow:rgba(20,22,28,0.08)">
+      <sc-for list="{{demoCells}}" as="dm" hint-placeholder-count="7">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="{{dm.c.style}}">
+            <sc-if value="{{dm.c.occ}}" hint-placeholder-val="{{false}}">
+              <div style="font-size:11.5px;font-weight:600;line-height:1.28;color:var(--tx);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">{{dm.c.name}}</div>
+              <div style="margin-top:auto;font-size:10px;color:var(--tx2)">{{dm.c.meta}}</div>
+            </sc-if>
+            <sc-if value="{{dm.c.lock}}" hint-placeholder-val="{{false}}">
+              <svg width="9" height="11" viewBox="0 0 9 11" style="position:absolute;top:5px;right:5px"><rect x="0.5" y="4.5" width="8" height="6" rx="1" fill="var(--tx3)"></rect><path d="M2.5 4.5V3a2 2 0 0 1 4 0v1.5" stroke="var(--tx3)" fill="none" stroke-width="1.3"></path></svg>
+            </sc-if>
+            <sc-if value="{{dm.c.dot}}" hint-placeholder-val="{{false}}">
+              <div style="position:absolute;top:5px;right:5px;width:6px;height:6px;border-radius:3px;background:var(--warnDot)"></div>
+            </sc-if>
+            <sc-if value="{{dm.c.apt}}" hint-placeholder-val="{{false}}">
+              <div style="font-size:12px;color:var(--acc);font-weight:600">Alocar</div>
+            </sc-if>
+            <sc-if value="{{dm.c.reason}}" hint-placeholder-val="{{false}}">
+              <div style="font-size:9.5px;line-height:1.3;color:var(--neg)">{{dm.c.reason}}</div>
+            </sc-if>
+          </div>
+          <div style="font-size:11px;font-weight:700;color:var(--tx)">{{dm.cap}}</div>
+          <div style="font-size:10.5px;line-height:1.5;color:var(--tx2);text-wrap:pretty">{{dm.just}}</div>
+        </div>
+      </sc-for>
+    </div>
+    <div data-screen-label="Estados · escuro" style="display:grid;grid-template-columns:repeat(7,186px);gap:16px;padding:20px;border-radius:8px;box-shadow:0 0 0 1px rgba(20,22,28,0.2);background:var(--bg);color:var(--tx);--bg:#121316;--panel:#1A1C20;--inset:#141519;--card:#25282F;--line:#2C2F36;--lineS:#4A4E59;--tx:#E8EAEF;--tx2:#A6ABB5;--tx3:#6E737D;--acc:#93A9F0;--accBg:#20283F;--accLine:#4C5FA6;--neg:#E29188;--off:#191813;--warnDot:#D8B04C;--stripe:rgba(232,234,239,0.08);--shadow:rgba(0,0,0,0.35)">
+      <sc-for list="{{demoCells}}" as="dm" hint-placeholder-count="7">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="{{dm.c.style}}">
+            <sc-if value="{{dm.c.occ}}" hint-placeholder-val="{{false}}">
+              <div style="font-size:11.5px;font-weight:600;line-height:1.28;color:var(--tx);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">{{dm.c.name}}</div>
+              <div style="margin-top:auto;font-size:10px;color:var(--tx2)">{{dm.c.meta}}</div>
+            </sc-if>
+            <sc-if value="{{dm.c.lock}}" hint-placeholder-val="{{false}}">
+              <svg width="9" height="11" viewBox="0 0 9 11" style="position:absolute;top:5px;right:5px"><rect x="0.5" y="4.5" width="8" height="6" rx="1" fill="var(--tx3)"></rect><path d="M2.5 4.5V3a2 2 0 0 1 4 0v1.5" stroke="var(--tx3)" fill="none" stroke-width="1.3"></path></svg>
+            </sc-if>
+            <sc-if value="{{dm.c.dot}}" hint-placeholder-val="{{false}}">
+              <div style="position:absolute;top:5px;right:5px;width:6px;height:6px;border-radius:3px;background:var(--warnDot)"></div>
+            </sc-if>
+            <sc-if value="{{dm.c.apt}}" hint-placeholder-val="{{false}}">
+              <div style="font-size:12px;color:var(--acc);font-weight:600">Alocar</div>
+            </sc-if>
+            <sc-if value="{{dm.c.reason}}" hint-placeholder-val="{{false}}">
+              <div style="font-size:9.5px;line-height:1.3;color:var(--neg)">{{dm.c.reason}}</div>
+            </sc-if>
+          </div>
+          <div style="font-size:11px;font-weight:700;color:var(--tx)">{{dm.cap}}</div>
+          <div style="font-size:10.5px;line-height:1.5;color:var(--tx2);text-wrap:pretty">{{dm.just}}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:18px">
+  <div style="display:flex;flex-direction:column;gap:6px;max-width:980px">
+    <div style="font-size:17px;font-weight:700">3 · Lista — Professores</div>
+    <div style="font-size:12.5px;line-height:1.6;color:#565B66;text-wrap:pretty">Linhas de 38 px, números tabulares alinhados à direita, ordenação por clique no cabeçalho (seta na coluna ativa). Editar e remover aparecem no pouso do mouse — 60 linhas com botões permanentes viram poluição; a coluna reserva o espaço para nada saltar. O subtítulo declara o escopo: registro da instituição, comum a todos os cursos.</div>
+  </div>
+  <div style="display:flex;gap:36px;align-items:flex-start">
+
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8F939E">Claro</div>
+      <div data-screen-label="Professores · claro" style="width:1400px;height:900px;display:flex;overflow:hidden;border-radius:8px;box-shadow:0 10px 30px rgba(20,22,28,0.16),0 0 0 1px rgba(20,22,28,0.06);background:var(--bg);color:var(--tx);font-size:13px;--bg:#F2F2F4;--panel:#FBFBFC;--inset:#ECECEF;--card:#FFFFFF;--line:#DDDEE3;--lineS:#B4B8C2;--tx:#1B1D23;--tx2:#565B66;--tx3:#8F939E;--acc:#3D5AB9;--onAcc:#FFFFFF;--accBg:#EAEEF9;--accLine:#93A5DC;--neg:#A63D33;--off:#EDEBE3;--warnDot:#C29224;--hover:rgba(27,29,35,0.05);--stripe:rgba(27,29,35,0.07);--shadow:rgba(20,22,28,0.08)">
+        <div style="width:216px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:12px 10px;gap:2px">
+          <div style="font-size:10.5px;letter-spacing:0.08em;text-transform:uppercase;color:var(--tx3);padding:2px 10px 10px">Distribuição de Aulas</div>
+          <div style="margin:0 2px 10px;padding:8px 10px;border-radius:5px;background:var(--inset);box-shadow:inset 0 0 0 1px var(--line)">
+            <div style="font-size:10px;color:var(--tx3);margin-bottom:1px">Curso · 2026/2</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+              <div style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Engenharia de Computação</div>
+              <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 4l3 3 3-3" stroke="var(--tx3)" fill="none" stroke-width="1.5"></path></svg>
+            </div>
+          </div>
+          <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--tx3);padding:6px 10px 4px">Curso</div>
+          <sc-for list="{{navProf.curso}}" as="it" hint-placeholder-count="3"><div style="{{it.style}}">{{it.label}}</div></sc-for>
+          <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--tx3);padding:16px 10px 4px">Instituição</div>
+          <sc-for list="{{navProf.inst}}" as="it" hint-placeholder-count="4"><div style="{{it.style}}">{{it.label}}</div></sc-for>
+        </div>
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+          <div style="padding:14px 20px 12px;display:flex;align-items:center;gap:12px">
+            <div style="font-size:17px;font-weight:700">Professores</div>
+            <div style="font-size:11px;color:var(--tx3)">Instituição · comum a todos os cursos</div>
+            <div style="flex:1"></div>
+            <div style="width:240px;padding:7px 10px;border-radius:4px;background:var(--inset);font-size:12.5px;color:var(--tx3);box-shadow:inset 0 0 0 1px var(--line)">Filtrar por nome…</div>
+            <div style="font-size:11px;color:var(--tx3)">22 registros</div>
+            <div style="padding:7px 14px;border-radius:4px;background:var(--acc);color:var(--onAcc);font-weight:600;font-size:12.5px">Novo professor</div>
+          </div>
+          <div style="flex:1;min-height:0;margin:0 20px 20px;background:var(--panel);border-radius:6px;box-shadow:inset 0 0 0 1px var(--line);overflow:hidden;display:flex;flex-direction:column">
+            <div style="display:grid;grid-template-columns:minmax(0,1fr) 104px 84px 120px 104px 84px;align-items:center;min-height:34px;padding:0 4px">
+              <div style="padding:0 12px;font-size:11px;font-weight:600;color:var(--tx)">Nome <span style="color:var(--acc)">▴</span></div>
+              <div style="padding:0 12px;font-size:11px;font-weight:600;color:var(--tx2);text-align:right">Disciplinas</div>
+              <div style="padding:0 12px;font-size:11px;font-weight:600;color:var(--tx2);text-align:right">Aulas</div>
+              <div style="padding:0 12px;font-size:11px;font-weight:600;color:var(--tx2)">Preferência</div>
+              <div style="padding:0 12px;font-size:11px;font-weight:600;color:var(--tx2);text-align:right">Restrições</div>
+              <div></div>
+            </div>
+            <sc-for list="{{profRows}}" as="pr" hint-placeholder-count="10">
+              <div style="{{pr.style}}">
+                <div style="padding:0 12px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{pr.name}}</div>
+                <div style="padding:0 12px;text-align:right;font-family:Consolas,monospace;font-size:12px">{{pr.d}}</div>
+                <div style="padding:0 12px;text-align:right;font-family:Consolas,monospace;font-size:12px">{{pr.a}}</div>
+                <div style="padding:0 12px;font-size:12px;color:var(--tx2)">{{pr.pref}}</div>
+                <div style="padding:0 12px;text-align:right;font-family:Consolas,monospace;font-size:12px">{{pr.r}}</div>
+                <div style="{{pr.act}}">
+                  <div style="width:24px;height:24px;border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--tx2);background:var(--card);box-shadow:inset 0 0 0 1px var(--lineS)"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M1.5 10.5l0.7-2.6 6.2-6.2 1.9 1.9-6.2 6.2z" fill="none" stroke="currentColor" stroke-width="1.1"></path></svg></div>
+                  <div style="width:24px;height:24px;border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--neg);background:var(--card);box-shadow:inset 0 0 0 1px var(--lineS)"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 3h8M4.5 3V1.5h3V3M3 3l0.6 7.5h4.8L9 3" fill="none" stroke="currentColor" stroke-width="1.1"></path></svg></div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8F939E">Escuro</div>
+      <div data-screen-label="Professores · escuro" style="width:1400px;height:900px;display:flex;overflow:hidden;border-radius:8px;box-shadow:0 10px 30px rgba(20,22,28,0.28),0 0 0 1px rgba(20,22,28,0.2);background:var(--bg);color:var(--tx);font-size:13px;--bg:#121316;--panel:#1A1C20;--inset:#141519;--card:#25282F;--line:#2C2F36;--lineS:#4A4E59;--tx:#E8EAEF;--tx2:#A6ABB5;--tx3:#6E737D;--acc:#93A9F0;--onAcc:#101523;--accBg:#20283F;--accLine:#4C5FA6;--neg:#E29188;--off:#191813;--warnDot:#D8B04C;--hover:rgba(232,234,239,0.06);--stripe:rgba(232,234,239,0.08);--shadow:rgba(0,0,0,0.35)">
+        <div style="width:216px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:12px 10px;gap:2px">
+          <div style="font-size:10.5px;letter-spacing:0.08em;text-transform:uppercase;color:var(--tx3);padding:2px 10px 10px">Distribuição de Aulas</div>
+          <div style="margin:0 2px 10px;padding:8px 10px;border-radius:5px;background:var(--inset);box-shadow:inset 0 0 0 1px var(--line)">
+            <div style="font-size:10px;color:var(--tx3);margin-bottom:1px">Curso · 2026/2</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+              <div style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Engenharia de Computação</div>
+              <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 4l3 3 3-3" stroke="var(--tx3)" fill="none" stroke-width="1.5"></path></svg>
+            </div>
+          </div>
+          <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--tx3);padding:6px 10px 4px">Curso</div>
+          <sc-for list="{{navProf.curso}}" as="it" hint-placeholder-count="3"><div style="{{it.style}}">{{it.label}}</div></sc-for>
+          <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--tx3);padding:16px 10px 4px">Instituição</div>
+          <sc-for list="{{navProf.inst}}" as="it" hint-placeholder-count="4"><div style="{{it.style}}">{{it.label}}</div></sc-for>
+        </div>
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+          <div style="padding:14px 20px 12px;display:flex;align-items:center;gap:12px">
+            <div style="font-size:17px;font-weight:700">Professores</div>
+            <div style="font-size:11px;color:var(--tx3)">Instituição · comum a todos os cursos</div>
+            <div style="flex:1"></div>
+            <div style="width:240px;padding:7px 10px;border-radius:4px;background:var(--inset);font-size:12.5px;color:var(--tx3);box-shadow:inset 0 0 0 1px var(--line)">Filtrar por nome…</div>
+            <div style="font-size:11px;color:var(--tx3)">22 registros</div>
+            <div style="padding:7px 14px;border-radius:4px;background:var(--acc);color:var(--onAcc);font-weight:600;font-size:12.5px">Novo professor</div>
+          </div>
+          <div style="flex:1;min-height:0;margin:0 20px 20px;background:var(--panel);border-radius:6px;box-shadow:inset 0 0 0 1px var(--line);overflow:hidden;display:flex;flex-direction:column">
+            <div style="display:grid;grid-template-columns:minmax(0,1fr) 104px 84px 120px 104px 84px;align-items:center;min-height:34px;padding:0 4px">
+              <div style="padding:0 12px;font-size:11px;font-weight:600;color:var(--tx)">Nome <span style="color:var(--acc)">▴</span></div>
+              <div style="padding:0 12px;font-size:11px;font-weight:600;color:var(--tx2);text-align:right">Disciplinas</div>
+              <div style="padding:0 12px;font-size:11px;font-weight:600;color:var(--tx2);text-align:right">Aulas</div>
+              <div style="padding:0 12px;font-size:11px;font-weight:600;color:var(--tx2)">Preferência</div>
+              <div style="padding:0 12px;font-size:11px;font-weight:600;color:var(--tx2);text-align:right">Restrições</div>
+              <div></div>
+            </div>
+            <sc-for list="{{profRows}}" as="pr" hint-placeholder-count="10">
+              <div style="{{pr.style}}">
+                <div style="padding:0 12px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{pr.name}}</div>
+                <div style="padding:0 12px;text-align:right;font-family:Consolas,monospace;font-size:12px">{{pr.d}}</div>
+                <div style="padding:0 12px;text-align:right;font-family:Consolas,monospace;font-size:12px">{{pr.a}}</div>
+                <div style="padding:0 12px;font-size:12px;color:var(--tx2)">{{pr.pref}}</div>
+                <div style="padding:0 12px;text-align:right;font-family:Consolas,monospace;font-size:12px">{{pr.r}}</div>
+                <div style="{{pr.act}}">
+                  <div style="width:24px;height:24px;border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--tx2);background:var(--card);box-shadow:inset 0 0 0 1px var(--lineS)"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M1.5 10.5l0.7-2.6 6.2-6.2 1.9 1.9-6.2 6.2z" fill="none" stroke="currentColor" stroke-width="1.1"></path></svg></div>
+                  <div style="width:24px;height:24px;border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--neg);background:var(--card);box-shadow:inset 0 0 0 1px var(--lineS)"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 3h8M4.5 3V1.5h3V3M3 3l0.6 7.5h4.8L9 3" fill="none" stroke="currentColor" stroke-width="1.1"></path></svg></div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+<div style="display:flex;flex-direction:column;gap:18px">
+  <div style="display:flex;flex-direction:column;gap:6px;max-width:980px">
+    <div style="font-size:17px;font-weight:700">4 · Formulário — Cadastro de disciplina</div>
+    <div style="font-size:12.5px;line-height:1.6;color:#565B66;text-wrap:pretty">Uma coluna com rótulos acima: leitura vertical única, sem zigue-zague. Opções de efeito não óbvio carregam uma linha de explicação junto ao controle. A divisão de carga valida na própria linha do total (fecha em azul, erra em vermelho e desabilita o salvar); os quatro requisitos de sala são rádios mutuamente exclusivos com o controle dependente embutido — e desabilitado quando o modo não é o ativo. O campo Nome mostra o anel de foco de teclado.</div>
+  </div>
+  <div style="display:flex;gap:36px;align-items:flex-start">
+
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8F939E">Claro</div>
+      <div data-screen-label="Disciplina · claro" style="width:1400px;height:900px;display:flex;overflow:hidden;border-radius:8px;box-shadow:0 10px 30px rgba(20,22,28,0.16),0 0 0 1px rgba(20,22,28,0.06);background:var(--bg);color:var(--tx);font-size:13px;--bg:#F2F2F4;--panel:#FBFBFC;--inset:#ECECEF;--card:#FFFFFF;--line:#DDDEE3;--lineS:#B4B8C2;--tx:#1B1D23;--tx2:#565B66;--tx3:#8F939E;--acc:#3D5AB9;--onAcc:#FFFFFF;--accBg:#EAEEF9;--accLine:#93A5DC;--neg:#A63D33;--off:#EDEBE3;--warnDot:#C29224;--hover:rgba(27,29,35,0.05);--stripe:rgba(27,29,35,0.07);--shadow:rgba(20,22,28,0.08)">
+        <div style="width:216px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:12px 10px;gap:2px">
+          <div style="font-size:10.5px;letter-spacing:0.08em;text-transform:uppercase;color:var(--tx3);padding:2px 10px 10px">Distribuição de Aulas</div>
+          <div style="margin:0 2px 10px;padding:8px 10px;border-radius:5px;background:var(--inset);box-shadow:inset 0 0 0 1px var(--line)">
+            <div style="font-size:10px;color:var(--tx3);margin-bottom:1px">Curso · 2026/2</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+              <div style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Engenharia de Computação</div>
+              <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 4l3 3 3-3" stroke="var(--tx3)" fill="none" stroke-width="1.5"></path></svg>
+            </div>
+          </div>
+          <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--tx3);padding:6px 10px 4px">Curso</div>
+          <sc-for list="{{navDisc.curso}}" as="it" hint-placeholder-count="3"><div style="{{it.style}}">{{it.label}}</div></sc-for>
+          <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--tx3);padding:16px 10px 4px">Instituição</div>
+          <sc-for list="{{navDisc.inst}}" as="it" hint-placeholder-count="4"><div style="{{it.style}}">{{it.label}}</div></sc-for>
+        </div>
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden">
+          <div style="padding:14px 28px 0">
+            <div style="font-size:11px;color:var(--tx3)">Disciplinas · 3º período</div>
+            <div style="font-size:17px;font-weight:700;margin-top:2px">Editar disciplina</div>
+          </div>
+          <div style="padding:14px 28px 20px;display:flex;flex-direction:column;gap:12px">
+            <div style="width:660px;background:var(--panel);border-radius:6px;box-shadow:inset 0 0 0 1px var(--line);padding:20px;display:flex;flex-direction:column;gap:16px">
+              <div style="display:flex;flex-direction:column;gap:5px">
+                <div style="font-size:12.5px;font-weight:600">Nome</div>
+                <div style="padding:7px 10px;border-radius:4px;font-size:13px;background:var(--card);box-shadow:inset 0 0 0 1px var(--acc),0 0 0 2px var(--accBg)">Projeto e Desenvolvimento de Sistemas Web</div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  <div style="font-size:12.5px;font-weight:600">Abreviação</div>
+                  <div style="padding:7px 10px;border-radius:4px;font-size:13px;background:var(--card);box-shadow:inset 0 0 0 1px var(--lineS)">PDSW</div>
+                  <div style="font-size:11px;line-height:1.5;color:var(--tx3)">Substitui o nome nas células estreitas da grade e nos relatórios.</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  <div style="font-size:12.5px;font-weight:600">Período</div>
+                  <div style="padding:7px 10px;border-radius:4px;font-size:13px;background:var(--card);box-shadow:inset 0 0 0 1px var(--lineS);display:flex;justify-content:space-between;align-items:center">3º período <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 4l3 3 3-3" stroke="var(--tx3)" fill="none" stroke-width="1.5"></path></svg></div>
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  <div style="font-size:12.5px;font-weight:600">Aulas por semana</div>
+                  <div style="width:80px;padding:7px 10px;border-radius:4px;font-size:13px;font-family:Consolas,monospace;background:var(--card);box-shadow:inset 0 0 0 1px var(--lineS)">4</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  <div style="font-size:12.5px;font-weight:600">Aulas geminadas</div>
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <div style="width:15px;height:15px;border-radius:3px;background:var(--acc);display:flex;align-items:center;justify-content:center"><svg width="9" height="8" viewBox="0 0 9 8"><path d="M1 4l2.5 2.5L8 1" stroke="var(--onAcc)" fill="none" stroke-width="1.6"></path></svg></div>
+                    <span style="font-size:13px">Alocar em pares</span>
+                  </div>
+                  <div style="font-size:11px;line-height:1.5;color:var(--tx3)">A alocação manual e o gerador tratam as aulas em pares de horários consecutivos.</div>
+                </div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:5px">
+                <div style="font-size:12.5px;font-weight:600">Dias permitidos</div>
+                <div style="display:flex;gap:6px">
+                  <div style="padding:4px 12px;border-radius:4px;font-size:12px;font-weight:600;background:var(--accBg);color:var(--acc);box-shadow:inset 0 0 0 1px var(--accLine)">Seg</div>
+                  <div style="padding:4px 12px;border-radius:4px;font-size:12px;font-weight:600;background:var(--accBg);color:var(--acc);box-shadow:inset 0 0 0 1px var(--accLine)">Ter</div>
+                  <div style="padding:4px 12px;border-radius:4px;font-size:12px;font-weight:600;background:var(--accBg);color:var(--acc);box-shadow:inset 0 0 0 1px var(--accLine)">Qua</div>
+                  <div style="padding:4px 12px;border-radius:4px;font-size:12px;font-weight:600;background:var(--accBg);color:var(--acc);box-shadow:inset 0 0 0 1px var(--accLine)">Qui</div>
+                  <div style="padding:4px 12px;border-radius:4px;font-size:12px;font-weight:600;background:var(--accBg);color:var(--acc);box-shadow:inset 0 0 0 1px var(--accLine)">Sex</div>
+                  <div style="padding:4px 12px;border-radius:4px;font-size:12px;color:var(--tx2);box-shadow:inset 0 0 0 1px var(--lineS)">Sáb</div>
+                </div>
+                <div style="font-size:11px;line-height:1.5;color:var(--tx3)">Dias desmarcados aparecem como impedidos na grade, com este motivo.</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px">
+                <div style="font-size:12.5px;font-weight:600">Professores e divisão da carga</div>
+                <div style="border-radius:5px;background:var(--inset);box-shadow:inset 0 0 0 1px var(--line);padding:8px;display:flex;flex-direction:column;gap:6px">
+                  <div style="display:grid;grid-template-columns:1fr 90px 26px;gap:8px;align-items:center">
+                    <div style="padding:6px 10px;border-radius:4px;font-size:13px;background:var(--card);box-shadow:inset 0 0 0 1px var(--lineS);display:flex;justify-content:space-between;align-items:center">Prof. Élcio Ramos <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 4l3 3 3-3" stroke="var(--tx3)" fill="none" stroke-width="1.5"></path></svg></div>
+                    <div style="padding:6px 10px;border-radius:4px;font-size:13px;font-family:Consolas,monospace;text-align:right;background:var(--card);box-shadow:inset 0 0 0 1px var(--lineS)">3</div>
+                    <div style="font-size:14px;color:var(--tx3);text-align:center">×</div>
+                  </div>
+                  <div style="display:grid;grid-template-columns:1fr 90px 26px;gap:8px;align-items:center">
+                    <div style="padding:6px 10px;border-radius:4px;font-size:13px;background:var(--card);box-shadow:inset 0 0 0 1px var(--lineS);display:flex;justify-content:space-between;align-items:center">Prof.ª Marina Sousa <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 4l3 3 3-3" stroke="var(--tx3)" fill="none" stroke-width="1.5"></path></svg></div>
+                    <div style="padding:6px 10px;border-radius:4px;font-size:13px;font-family:Consolas,monospace;text-align:right;background:var(--card);box-shadow:inset 0 0 0 1px var(--lineS)">1</div>
+                    <div style="font-size:14px;color:var(--tx3);text-align:center">×</div>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;align-items:center;padding:2px 2px 0">
+                    <div style="font-size:12.5px;color:var(--acc);font-weight:600">+ Adicionar professor</div>
+                    <div style="font-size:12px;color:var(--acc);font-weight:600">4 de 4 aulas distribuídas</div>
+                  </div>
+                </div>
+                <div style="font-size:11px;line-height:1.5;color:var(--tx3)">A soma precisa fechar com Aulas por semana; enquanto não fecha, o total fica em vermelho e Salvar desabilita.</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <div style="font-size:12.5px;font-weight:600">Requisito de sala</div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <div style="width:15px;height:15px;border-radius:8px;background:var(--card);box-shadow:inset 0 0 0 1px var(--lineS)"></div>
+                  <span style="font-size:13px">Qualquer sala disponível</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <div style="width:15px;height:15px;border-radius:8px;background:var(--card);box-shadow:inset 0 0 0 1px var(--lineS)"></div>
+                  <span style="font-size:13px">Sempre a mesma sala:</span>
+                  <div style="width:130px;padding:5px 10px;border-radius:4px;font-size:12.5px;color:var(--tx3);background:var(--inset);box-shadow:inset 0 0 0 1px var(--line);display:flex;justify-content:space-between;align-items:center">B-204 <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 4l3 3 3-3" stroke="var(--tx3)" fill="none" stroke-width="1.5"></path></svg></div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <div style="width:15px;height:15px;border-radius:8px;background:var(--card);box-shadow:inset 0 0 0 1.5px var(--acc);display:flex;align-items:center;justify-content:center"><div style="width:7px;height:7px;border-radius:4px;background:var(--acc)"></div></div>
+                  <span style="font-size:13px">Qualquer sala do tipo:</span>
+                  <div style="width:200px;padding:5px 10px;border-radius:4px;font-size:12.5px;background:var(--card);box-shadow:inset 0 0 0 1px var(--lineS);display:flex;justify-content:space-between;align-items:center">Laboratório de informática <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 4l3 3 3-3" stroke="var(--tx3)" fill="none" stroke-width="1.5"></path></svg></div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <div style="width:15px;height:15px;border-radius:8px;background:var(--card);box-shadow:inset 0 0 0 1px var(--lineS)"></div>
+                  <span style="font-size:13px">Não ocupa sala</span>
+                </div>
+                <div style="font-size:11px;line-height:1.5;color:var(--tx3);padding-left:25px">Para aulas remotas ou de campo: o horário conta na grade, a sala não.</div>
+              </div>
+            </div>
+            <div style="width:660px;display:flex;justify-content:flex-end;gap:10px">
+              <div style="padding:7px 14px;font-size:12.5px;color:var(--tx2)">Cancelar</div>
+              <div style="padding:7px 16px;border-radius:4px;background:var(--acc);color:var(--onAcc);font-weight:600;font-size:12.5px">Salvar disciplina</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8F939E">Escuro</div>
+      <div data-screen-label="Disciplina · escuro" style="width:1400px;height:900px;display:flex;overflow:hidden;border-radius:8px;box-shadow:0 10px 30px rgba(20,22,28,0.28),0 0 0 1px rgba(20,22,28,0.2);background:var(--bg);color:var(--tx);font-size:13px;--bg:#121316;--panel:#1A1C20;--inset:#141519;--card:#25282F;--line:#2C2F36;--lineS:#4A4E59;--tx:#E8EAEF;--tx2:#A6ABB5;--tx3:#6E737D;--acc:#93A9F0;--onAcc:#101523;--accBg:#20283F;--accLine:#4C5FA6;--neg:#E29188;--off:#191813;--warnDot:#D8B04C;--hover:rgba(232,234,239,0.06);--stripe:rgba(232,234,239,0.08);--shadow:rgba(0,0,0,0.35)">
+        <div style="width:216px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:12px 10px;gap:2px">
+          <div style="font-size:10.5px;letter-spacing:0.08em;text-transform:uppercase;color:var(--tx3);padding:2px 10px 10px">Distribuição de Aulas</div>
+          <div style="margin:0 2px 10px;padding:8px 10px;border-radius:5px;background:var(--inset);box-shadow:inset 0 0 0 1px var(--line)">
+            <div style="font-size:10px;color:var(--tx3);margin-bottom:1px">Curso · 2026/2</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+              <div style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Engenharia de Computação</div>
+              <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 4l3 3 3-3" stroke="var(--tx3)" fill="none" stroke-width="1.5"></path></svg>
+            </div>
+          </div>
+          <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--tx3);padding:6px 10px 4px">Curso</div>
+          <sc-for list="{{navDisc.curso}}" as="it" hint-placeholder-count="3"><div style="{{it.style}}">{{it.label}}</div></sc-for>
+          <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--tx3);padding:16px 10px 4px">Instituição</div>
+          <sc-for list="{{navDisc.inst}}" as="it" hint-placeholder-count="4"><div style="{{it.style}}">{{it.label}}</div></sc-for>
+        </div>
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden">
+          <div style="padding:14px 28px 0">
+            <div style="font-size:11px;color:var(--tx3)">Disciplinas · 3º período</div>
+            <div style="font-size:17px;font-weight:700;margin-top:2px">Editar disciplina</div>
+          </div>
+          <div style="padding:14px 28px 20px;display:flex;flex-direction:column;gap:12px">
+            <div style="width:660px;background:var(--panel);border-radius:6px;box-shadow:inset 0 0 0 1px var(--line);padding:20px;display:flex;flex-direction:column;gap:16px">
+              <div style="display:flex;flex-direction:column;gap:5px">
+                <div style="font-size:12.5px;font-weight:600">Nome</div>
+                <div style="padding:7px 10px;border-radius:4px;font-size:13px;background:var(--card);box-shadow:inset 0 0 0 1px var(--acc),0 0 0 2px var(--accBg)">Projeto e Desenvolvimento de Sistemas Web</div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  <div style="font-size:12.5px;font-weight:600">Abreviação</div>
+                  <div style="padding:7px 10px;border-radius:4px;font-size:13px;background:var(--card);box-shadow:inset 0 0 0 1px var(--lineS)">PDSW</div>
+                  <div style="font-size:11px;line-height:1.5;color:var(--tx3)">Substitui o nome nas células estreitas da grade e nos relatórios.</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  <div style="font-size:12.5px;font-weight:600">Período</div>
+                  <div style="padding:7px 10px;border-radius:4px;font-size:13px;background:var(--card);box-shadow:inset 0 0 0 1px var(--lineS);display:flex;justify-content:space-between;align-items:center">3º período <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 4l3 3 3-3" stroke="var(--tx3)" fill="none" stroke-width="1.5"></path></svg></div>
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  <div style="font-size:12.5px;font-weight:600">Aulas por semana</div>
+                  <div style="width:80px;padding:7px 10px;border-radius:4px;font-size:13px;font-family:Consolas,monospace;background:var(--card);box-shadow:inset 0 0 0 1px var(--lineS)">4</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  <div style="font-size:12.5px;font-weight:600">Aulas geminadas</div>
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <div style="width:15px;height:15px;border-radius:3px;background:var(--acc);display:flex;align-items:center;justify-content:center"><svg width="9" height="8" viewBox="0 0 9 8"><path d="M1 4l2.5 2.5L8 1" stroke="var(--onAcc)" fill="none" stroke-width="1.6"></path></svg></div>
+                    <span style="font-size:13px">Alocar em pares</span>
+                  </div>
+                  <div style="font-size:11px;line-height:1.5;color:var(--tx3)">A alocação manual e o gerador tratam as aulas em pares de horários consecutivos.</div>
+                </div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:5px">
+                <div style="font-size:12.5px;font-weight:600">Dias permitidos</div>
+                <div style="display:flex;gap:6px">
+                  <div style="padding:4px 12px;border-radius:4px;font-size:12px;font-weight:600;background:var(--accBg);color:var(--acc);box-shadow:inset 0 0 0 1px var(--accLine)">Seg</div>
+                  <div style="padding:4px 12px;border-radius:4px;font-size:12px;font-weight:600;background:var(--accBg);color:var(--acc);box-shadow:inset 0 0 0 1px var(--accLine)">Ter</div>
+                  <div style="padding:4px 12px;border-radius:4px;font-size:12px;font-weight:600;background:var(--accBg);color:var(--acc);box-shadow:inset 0 0 0 1px var(--accLine)">Qua</div>
+                  <div style="padding:4px 12px;border-radius:4px;font-size:12px;font-weight:600;background:var(--accBg);color:var(--acc);box-shadow:inset 0 0 0 1px var(--accLine)">Qui</div>
+                  <div style="padding:4px 12px;border-radius:4px;font-size:12px;font-weight:600;background:var(--accBg);color:var(--acc);box-shadow:inset 0 0 0 1px var(--accLine)">Sex</div>
+                  <div style="padding:4px 12px;border-radius:4px;font-size:12px;color:var(--tx2);box-shadow:inset 0 0 0 1px var(--lineS)">Sáb</div>
+                </div>
+                <div style="font-size:11px;line-height:1.5;color:var(--tx3)">Dias desmarcados aparecem como impedidos na grade, com este motivo.</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px">
+                <div style="font-size:12.5px;font-weight:600">Professores e divisão da carga</div>
+                <div style="border-radius:5px;background:var(--inset);box-shadow:inset 0 0 0 1px var(--line);padding:8px;display:flex;flex-direction:column;gap:6px">
+                  <div style="display:grid;grid-template-columns:1fr 90px 26px;gap:8px;align-items:center">
+                    <div style="padding:6px 10px;border-radius:4px;font-size:13px;background:var(--card);box-shadow:inset 0 0 0 1px var(--lineS);display:flex;justify-content:space-between;align-items:center">Prof. Élcio Ramos <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 4l3 3 3-3" stroke="var(--tx3)" fill="none" stroke-width="1.5"></path></svg></div>
+                    <div style="padding:6px 10px;border-radius:4px;font-size:13px;font-family:Consolas,monospace;text-align:right;background:var(--card);box-shadow:inset 0 0 0 1px var(--lineS)">3</div>
+                    <div style="font-size:14px;color:var(--tx3);text-align:center">×</div>
+                  </div>
+                  <div style="display:grid;grid-template-columns:1fr 90px 26px;gap:8px;align-items:center">
+                    <div style="padding:6px 10px;border-radius:4px;font-size:13px;background:var(--card);box-shadow:inset 0 0 0 1px var(--lineS);display:flex;justify-content:space-between;align-items:center">Prof.ª Marina Sousa <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 4l3 3 3-3" stroke="var(--tx3)" fill="none" stroke-width="1.5"></path></svg></div>
+                    <div style="padding:6px 10px;border-radius:4px;font-size:13px;font-family:Consolas,monospace;text-align:right;background:var(--card);box-shadow:inset 0 0 0 1px var(--lineS)">1</div>
+                    <div style="font-size:14px;color:var(--tx3);text-align:center">×</div>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;align-items:center;padding:2px 2px 0">
+                    <div style="font-size:12.5px;color:var(--acc);font-weight:600">+ Adicionar professor</div>
+                    <div style="font-size:12px;color:var(--acc);font-weight:600">4 de 4 aulas distribuídas</div>
+                  </div>
+                </div>
+                <div style="font-size:11px;line-height:1.5;color:var(--tx3)">A soma precisa fechar com Aulas por semana; enquanto não fecha, o total fica em vermelho e Salvar desabilita.</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <div style="font-size:12.5px;font-weight:600">Requisito de sala</div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <div style="width:15px;height:15px;border-radius:8px;background:var(--card);box-shadow:inset 0 0 0 1px var(--lineS)"></div>
+                  <span style="font-size:13px">Qualquer sala disponível</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <div style="width:15px;height:15px;border-radius:8px;background:var(--card);box-shadow:inset 0 0 0 1px var(--lineS)"></div>
+                  <span style="font-size:13px">Sempre a mesma sala:</span>
+                  <div style="width:130px;padding:5px 10px;border-radius:4px;font-size:12.5px;color:var(--tx3);background:var(--inset);box-shadow:inset 0 0 0 1px var(--line);display:flex;justify-content:space-between;align-items:center">B-204 <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 4l3 3 3-3" stroke="var(--tx3)" fill="none" stroke-width="1.5"></path></svg></div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <div style="width:15px;height:15px;border-radius:8px;background:var(--card);box-shadow:inset 0 0 0 1.5px var(--acc);display:flex;align-items:center;justify-content:center"><div style="width:7px;height:7px;border-radius:4px;background:var(--acc)"></div></div>
+                  <span style="font-size:13px">Qualquer sala do tipo:</span>
+                  <div style="width:200px;padding:5px 10px;border-radius:4px;font-size:12.5px;background:var(--card);box-shadow:inset 0 0 0 1px var(--lineS);display:flex;justify-content:space-between;align-items:center">Laboratório de informática <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 4l3 3 3-3" stroke="var(--tx3)" fill="none" stroke-width="1.5"></path></svg></div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <div style="width:15px;height:15px;border-radius:8px;background:var(--card);box-shadow:inset 0 0 0 1px var(--lineS)"></div>
+                  <span style="font-size:13px">Não ocupa sala</span>
+                </div>
+                <div style="font-size:11px;line-height:1.5;color:var(--tx3);padding-left:25px">Para aulas remotas ou de campo: o horário conta na grade, a sala não.</div>
+              </div>
+            </div>
+            <div style="width:660px;display:flex;justify-content:flex-end;gap:10px">
+              <div style="padding:7px 14px;font-size:12.5px;color:var(--tx2)">Cancelar</div>
+              <div style="padding:7px 16px;border-radius:4px;background:var(--acc);color:var(--onAcc);font-weight:600;font-size:12.5px">Salvar disciplina</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+<div style="display:flex;flex-direction:column;gap:18px">
+  <div style="display:flex;flex-direction:column;gap:6px;max-width:980px">
+    <div style="font-size:17px;font-weight:700">5 · Sistema visual</div>
+    <div style="font-size:12.5px;line-height:1.6;color:#565B66;text-wrap:pretty">Tokens, não dois temas desenhados: claro e escuro remapeiam os mesmos papéis, com a mesma geometria. Fontes do sistema — Segoe UI para tudo, Consolas onde números precisam alinhar (horários, contadores, salas).</div>
+  </div>
+  <div style="display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap;max-width:2100px">
+
+    <div style="background:#FBFBFC;border-radius:8px;box-shadow:0 0 0 1px #DDDEE3;padding:20px;width:660px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:12px">Paleta — o papel de cada cor</div>
+      <div style="display:grid;grid-template-columns:150px 128px 128px 1fr;padding:0 0 6px">
+        <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:#8F939E">Papel</div>
+        <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:#8F939E">Claro</div>
+        <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:#8F939E">Escuro</div>
+        <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:#8F939E">Uso</div>
+      </div>
+      <sc-for list="{{pal}}" as="t" hint-placeholder-count="8">
+        <div style="display:grid;grid-template-columns:150px 128px 128px 1fr;align-items:center;padding:6px 0;border-top:1px solid #ECECEF">
+          <div style="font-size:12px;font-weight:600;color:#1B1D23">{{t.role}}</div>
+          <div style="display:flex;align-items:center;gap:7px"><div style="{{t.swL}}"></div><span style="font-family:Consolas,monospace;font-size:10px;color:#8F939E">{{t.l}}</span></div>
+          <div style="display:flex;align-items:center;gap:7px"><div style="{{t.swD}}"></div><span style="font-family:Consolas,monospace;font-size:10px;color:#8F939E">{{t.d}}</span></div>
+          <div style="font-size:11px;color:#565B66">{{t.uso}}</div>
+        </div>
+      </sc-for>
+      <div style="font-size:11px;line-height:1.55;color:#8F939E;margin-top:12px;text-wrap:pretty">Três cores com significado, e só: azul (apto/seleção/ação), vermelho (impedimento), âmbar (tolerado, como marcador pontual). Nenhuma cor identifica disciplina, professor ou sala — é o que mantém 20+ valores distintos legíveis nos dois temas.</div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:28px">
+      <div style="background:#FBFBFC;border-radius:8px;box-shadow:0 0 0 1px #DDDEE3;padding:20px;width:560px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:12px">Escala tipográfica — Segoe UI + Consolas</div>
+        <sc-for list="{{typeRows}}" as="tr" hint-placeholder-count="6">
+          <div style="display:grid;grid-template-columns:110px 1fr 190px;align-items:baseline;gap:12px;padding:7px 0;border-top:1px solid #ECECEF">
+            <div style="font-family:Consolas,monospace;font-size:10px;color:#8F939E">{{tr.label}}</div>
+            <div style="{{tr.style}}">Grade horária</div>
+            <div style="font-size:11px;color:#565B66">{{tr.uso}}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="background:#FBFBFC;border-radius:8px;box-shadow:0 0 0 1px #DDDEE3;padding:20px;width:560px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:12px">Espaçamento e raios</div>
+        <div style="display:flex;align-items:flex-end;gap:14px">
+          <sc-for list="{{space}}" as="s" hint-placeholder-count="6">
+            <div style="display:flex;flex-direction:column;gap:5px;align-items:center">
+              <div style="{{s.bar}}"></div>
+              <div style="font-family:Consolas,monospace;font-size:10px;color:#8F939E">{{s.label}}</div>
+            </div>
+          </sc-for>
+          <div style="font-size:11px;color:#565B66;padding-left:10px;line-height:1.5">4 dentro de controles · 8 entre controles · 12 padding de painel · 16 entre campos · 20 margens de tela · 24 entre blocos</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;margin-top:16px;padding-top:14px;border-top:1px solid #ECECEF">
+          <div style="width:30px;height:30px;border-radius:4px;background:#EAEEF9;box-shadow:inset 0 0 0 1px #93A5DC"></div>
+          <div style="font-size:11px;color:#565B66">4 px — controles, chips, células</div>
+          <div style="width:30px;height:30px;border-radius:6px;background:#EAEEF9;box-shadow:inset 0 0 0 1px #93A5DC"></div>
+          <div style="font-size:11px;color:#565B66">6 px — painéis</div>
+          <div style="width:30px;height:30px;border-radius:0;background:#EAEEF9;box-shadow:inset 0 0 0 1px #93A5DC"></div>
+          <div style="font-size:11px;color:#565B66">0 — dentro da malha da grade</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div style="background:#FBFBFC;border-radius:8px;box-shadow:0 0 0 1px #DDDEE3;padding:20px;width:760px;display:flex;flex-direction:column;gap:14px">
+        <div style="font-size:13px;font-weight:700">Estados interativos — botão, seleção e campo</div>
+        <div style="display:flex;gap:14px;align-items:flex-start;padding:16px;border-radius:6px;background:var(--bg);color:var(--tx);--bg:#F2F2F4;--panel:#FBFBFC;--inset:#ECECEF;--card:#FFFFFF;--line:#DDDEE3;--lineS:#B4B8C2;--tx:#1B1D23;--tx2:#565B66;--tx3:#8F939E;--acc:#3D5AB9;--onAcc:#FFFFFF;--accBg:#EAEEF9;--accLine:#93A5DC">
+          <div style="display:flex;flex-direction:column;gap:6px;align-items:center"><div style="padding:6px 14px;border-radius:4px;font-size:12.5px;color:var(--tx);background:var(--panel);box-shadow:inset 0 0 0 1px var(--lineS)">Editar</div><div style="font-size:10px;color:var(--tx3)">Repouso</div></div>
+          <div style="display:flex;flex-direction:column;gap:6px;align-items:center"><div style="padding:6px 14px;border-radius:4px;font-size:12.5px;color:var(--tx);background:var(--inset);box-shadow:inset 0 0 0 1px var(--lineS)">Editar</div><div style="font-size:10px;color:var(--tx3)">Mouse sobre</div></div>
+          <div style="display:flex;flex-direction:column;gap:6px;align-items:center"><div style="padding:6px 14px;border-radius:4px;font-size:12.5px;font-weight:600;color:var(--acc);background:var(--accBg);box-shadow:inset 0 0 0 1px var(--accLine)">Editar</div><div style="font-size:10px;color:var(--tx3)">Selecionado</div></div>
+          <div style="display:flex;flex-direction:column;gap:6px;align-items:center"><div style="padding:6px 14px;border-radius:4px;font-size:12.5px;color:var(--tx3);background:var(--panel);box-shadow:inset 0 0 0 1px var(--line)">Editar</div><div style="font-size:10px;color:var(--tx3)">Desabilitado</div></div>
+          <div style="display:flex;flex-direction:column;gap:6px;align-items:center"><div style="padding:6px 14px;border-radius:4px;font-size:12.5px;color:var(--tx);background:var(--panel);box-shadow:inset 0 0 0 1px var(--lineS),0 0 0 2px var(--bg),0 0 0 3.5px var(--acc)">Editar</div><div style="font-size:10px;color:var(--tx3)">Foco de teclado</div></div>
+          <div style="display:flex;flex-direction:column;gap:6px;align-items:center"><div style="padding:6px 14px;border-radius:4px;font-size:12.5px;font-weight:600;color:var(--onAcc);background:var(--acc)">Salvar</div><div style="font-size:10px;color:var(--tx3)">Ação primária</div></div>
+          <div style="display:flex;flex-direction:column;gap:6px;align-items:center"><div style="width:130px;padding:6px 10px;border-radius:4px;font-size:12.5px;background:var(--card);box-shadow:inset 0 0 0 1px var(--acc),0 0 0 2px var(--accBg)">Cálculo III</div><div style="font-size:10px;color:var(--tx3)">Campo em foco</div></div>
+        </div>
+        <div style="display:flex;gap:14px;align-items:flex-start;padding:16px;border-radius:6px;background:var(--bg);color:var(--tx);--bg:#121316;--panel:#1A1C20;--inset:#141519;--card:#25282F;--line:#2C2F36;--lineS:#4A4E59;--tx:#E8EAEF;--tx2:#A6ABB5;--tx3:#6E737D;--acc:#93A9F0;--onAcc:#101523;--accBg:#20283F;--accLine:#4C5FA6">
+          <div style="display:flex;flex-direction:column;gap:6px;align-items:center"><div style="padding:6px 14px;border-radius:4px;font-size:12.5px;color:var(--tx);background:var(--panel);box-shadow:inset 0 0 0 1px var(--lineS)">Editar</div><div style="font-size:10px;color:var(--tx3)">Repouso</div></div>
+          <div style="display:flex;flex-direction:column;gap:6px;align-items:center"><div style="padding:6px 14px;border-radius:4px;font-size:12.5px;color:var(--tx);background:var(--card);box-shadow:inset 0 0 0 1px var(--lineS)">Editar</div><div style="font-size:10px;color:var(--tx3)">Mouse sobre</div></div>
+          <div style="display:flex;flex-direction:column;gap:6px;align-items:center"><div style="padding:6px 14px;border-radius:4px;font-size:12.5px;font-weight:600;color:var(--acc);background:var(--accBg);box-shadow:inset 0 0 0 1px var(--accLine)">Editar</div><div style="font-size:10px;color:var(--tx3)">Selecionado</div></div>
+          <div style="display:flex;flex-direction:column;gap:6px;align-items:center"><div style="padding:6px 14px;border-radius:4px;font-size:12.5px;color:var(--tx3);background:var(--panel);box-shadow:inset 0 0 0 1px var(--line)">Editar</div><div style="font-size:10px;color:var(--tx3)">Desabilitado</div></div>
+          <div style="display:flex;flex-direction:column;gap:6px;align-items:center"><div style="padding:6px 14px;border-radius:4px;font-size:12.5px;color:var(--tx);background:var(--panel);box-shadow:inset 0 0 0 1px var(--lineS),0 0 0 2px var(--bg),0 0 0 3.5px var(--acc)">Editar</div><div style="font-size:10px;color:var(--tx3)">Foco de teclado</div></div>
+          <div style="display:flex;flex-direction:column;gap:6px;align-items:center"><div style="padding:6px 14px;border-radius:4px;font-size:12.5px;font-weight:600;color:var(--onAcc);background:var(--acc)">Salvar</div><div style="font-size:10px;color:var(--tx3)">Ação primária</div></div>
+          <div style="display:flex;flex-direction:column;gap:6px;align-items:center"><div style="width:130px;padding:6px 10px;border-radius:4px;font-size:12.5px;background:var(--card);box-shadow:inset 0 0 0 1px var(--acc),0 0 0 2px var(--accBg)">Cálculo III</div><div style="font-size:10px;color:var(--tx3)">Campo em foco</div></div>
+        </div>
+        <div style="font-size:11px;line-height:1.55;color:#8F939E;text-wrap:pretty">Hover escurece o fundo sem mudar a borda; selecionado usa o par acento + fundo do acento; desabilitado rebaixa texto e borda (nunca opacity no bloco todo); o foco de teclado é um anel próprio de 2 px afastado da borda — nunca o mesmo desenho do hover.</div>
+      </div>
+
+      <div style="background:#FBFBFC;border-radius:8px;box-shadow:0 0 0 1px #DDDEE3;padding:20px;width:760px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:12px">Decisões — a intenção, para quem implementa</div>
+        <div style="display:flex;flex-direction:column;gap:9px">
+          <sc-for list="{{decisions}}" as="dc" hint-placeholder-count="10">
+            <div style="display:flex;gap:12px;align-items:baseline">
+              <div style="font-family:Consolas,monospace;font-size:10.5px;color:#3D5AB9;flex-shrink:0">{{dc.n}}</div>
+              <div style="font-size:12px;line-height:1.55;color:#565B66;text-wrap:pretty">{{dc.t}}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const days=['Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+    const times=['07:00','07:50','09:00','09:50','13:00','13:50','15:00','15:50','18:50','19:40','20:50','21:40'];
+    const base='position:relative;min-height:44px;padding:5px 7px;overflow:hidden;display:flex;flex-direction:column;gap:2px;';
+    const st={
+      neu:base+'background:var(--inset);',
+      out:base+'background:var(--off);',
+      apt:base+'background:var(--accBg);outline:1px dashed var(--accLine);outline-offset:-3px;align-items:center;justify-content:center;',
+      blk:base+'background-color:var(--inset);background-image:repeating-linear-gradient(135deg,transparent 0 6px,var(--stripe) 6px 7px);justify-content:flex-end;',
+      occ:base+'background:var(--card);box-shadow:inset 0 0 0 1px var(--line),0 1px 2px var(--shadow);',
+      lock:base+'background:var(--card);box-shadow:inset 0 0 0 1px var(--lineS),0 1px 2px var(--shadow);',
+      sel:base+'background:var(--card);box-shadow:inset 0 0 0 1.5px var(--accLine),0 1px 2px var(--shadow);'
+    };
+    const occ={
+      '0-0':['Estruturas de Dados','M. Sousa','B-204'],
+      '0-1':['Estruturas de Dados','M. Sousa','B-204'],
+      '1-0':['Laboratório de Programação','C. Duarte','Lab-2','L'],
+      '1-1':['Laboratório de Programação','C. Duarte','Lab-2','L'],
+      '3-0':['Laboratório de Programação','C. Duarte','Lab-2'],
+      '3-1':['Laboratório de Programação','C. Duarte','Lab-2'],
+      '2-0':['Projeto e Desenvolvimento de Sistemas Web','É. Ramos','Lab-3'],
+      '2-1':['Projeto e Desenvolvimento de Sistemas Web','É. Ramos','Lab-3'],
+      '4-0':['Projeto e Desenvolvimento de Sistemas Web','É. Ramos','Lab-3'],
+      '5-0':['Inglês Instrumental','H. Cruz','B-105'],
+      '5-1':['Inglês Instrumental','H. Cruz','B-105'],
+      '0-2':['Física II','O. Nunes','B-101'],
+      '2-2':['Física II','O. Nunes','B-101'],
+      '4-2':['Física II','O. Nunes','B-101'],
+      '4-3':['Física II','O. Nunes','B-101'],
+      '1-2':['Cálculo III','A. Beltrão','B-101','S'],
+      '3-2':['Cálculo III','A. Beltrão','B-101','S'],
+      '2-4':['Libras (optativa)','H. Cruz','B-105','O']
+    };
+    const blk={'4-1':'Prof.ª Ana indisponível','1-3':'Sala B-101 ocupada (5º per.)','5-2':'Sábado desmarcado no cadastro','5-3':'Sábado desmarcado no cadastro'};
+    const apt={'0-3':1,'2-3':1,'3-3':1};
+    const divs={0:['Manhã','turno do 3º período'],4:['Tarde','fora do turno · tolerado'],8:['Noite','fora do turno · tolerado']};
+    const gridRows=[];
+    for(let s=0;s<12;s++){
+      if(divs[s])gridRows.push({divider:true,slot:false,label:divs[s][0],note:divs[s][1]});
+      const cells=[];
+      for(let d=0;d<6;d++){
+        const k=d+'-'+s,o=occ[k];
+        if(o)cells.push({style:o[3]==='L'?st.lock:o[3]==='S'?st.sel:st.occ,occ:true,name:o[0],meta:o[1]+' · '+o[2],lock:o[3]==='L',dot:o[3]==='O'});
+        else if(blk[k])cells.push({style:st.blk,reason:blk[k]});
+        else if(apt[k])cells.push({style:st.apt,apt:true});
+        else cells.push({style:s<4?st.neu:st.out});
+      }
+      gridRows.push({slot:true,divider:false,time:times[s],cells});
+    }
+    const pnBase='min-width:0;flex:1;font-size:12px;font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:';
+    const piBase='padding:8px 10px;border-radius:5px;display:flex;flex-direction:column;gap:2px;';
+    const mkP=(name,prof,got,tot,mode)=>({name,prof,prog:got+' de '+tot,
+      style:mode==='sel'?piBase+'background:var(--accBg);box-shadow:inset 0 0 0 1px var(--accLine);':piBase,
+      nameStyle:pnBase+(mode==='done'?'var(--tx3)':'var(--tx)')+';',
+      bar:'height:100%;width:'+(got/tot*100)+'%;background:'+(mode==='done'?'var(--tx3)':'var(--acc)')+';'});
+    const pend=[
+      mkP('Cálculo III','Prof.ª Ana Beltrão',2,4,'sel'),
+      mkP('Arquitetura e Organização de Computadores','Prof. Caio Duarte',0,4),
+      mkP('Estruturas de Dados','Prof.ª Marina Sousa',2,4),
+      mkP('Probabilidade e Estatística','Prof.ª Lígia Teles',0,2),
+      mkP('Projeto e Desenvolvimento de Sistemas Web','Prof. Élcio Ramos',3,4),
+      mkP('Física II','Prof. Otávio Nunes',4,4,'done'),
+      mkP('Inglês Instrumental','Prof.ª Helena Cruz',2,2,'done'),
+      mkP('Laboratório de Programação','Prof. Caio Duarte',4,4,'done'),
+      mkP('Libras (optativa)','Prof.ª Helena Cruz',1,1,'done')
+    ];
+    const tabBase='padding:4px 11px;border-radius:4px;font-size:12px;cursor:default;';
+    const periodTabs=['1º','2º','3º','4º','5º','6º','7º','8º'].map((label,i)=>({label,style:i===2?tabBase+'background:var(--accBg);color:var(--acc);font-weight:600;box-shadow:inset 0 0 0 1px var(--accLine);':tabBase+'color:var(--tx2);'}));
+    const niBase='padding:6px 10px;border-radius:5px;font-size:12.5px;cursor:default;';
+    const mkNav=act=>{
+      const it=(label,key)=>({label,style:key===act?niBase+'background:var(--accBg);color:var(--acc);font-weight:600;':niBase+'color:var(--tx2);'});
+      return{curso:[it('Grade horária','g'),it('Disciplinas','d'),it('Períodos','p')],
+        inst:[it('Professores','pr'),it('Salas','s'),it('Horários do dia','h'),it('Regras','r')]};
+    };
+    const lsw='width:11px;height:11px;border-radius:2px;';
+    const legendItems=[
+      {sw:lsw+'background:var(--accBg);outline:1px dashed var(--accLine);outline-offset:-1px;',label:'Apta à seleção'},
+      {sw:lsw+'background-color:var(--inset);background-image:repeating-linear-gradient(135deg,transparent 0 3px,var(--stripe) 3px 4px);box-shadow:inset 0 0 0 1px var(--line);',label:'Impedida — motivo na célula'},
+      {sw:lsw+'background:var(--card);box-shadow:inset 0 0 0 1px var(--lineS);',label:'Travada — o gerador não move'},
+      {sw:lsw+'background:var(--off);box-shadow:inset 0 0 0 1px var(--line);',label:'Fora do turno do período'}
+    ];
+    const P=[['Ana Beltrão',2,8,'Manhã',6],['Bruno Cavalcanti',1,4,'—',0],['Caio Duarte',3,12,'Manhã',4],['Cláudia Ferreira',2,6,'Tarde',2],['Daniel Moreira',1,2,'Noite',9],['Élcio Ramos',2,8,'—',1],['Fabiana Lopes',4,14,'Manhã',3],['Gustavo Henrique',1,4,'Tarde',0],['Helena Cruz',3,6,'—',2],['Ígor Assis',2,8,'Noite',12],['Joana Prado',1,4,'Manhã',0],['Lígia Teles',2,6,'Tarde',5],['Marcos Vinícius',1,2,'—',0],['Marina Sousa',3,10,'Manhã',7],['Otávio Nunes',2,8,'Tarde',1],['Patrícia Melo',2,6,'—',3]];
+    const rowBase='display:grid;grid-template-columns:minmax(0,1fr) 104px 84px 120px 104px 84px;align-items:center;border-top:1px solid var(--line);min-height:38px;padding:0 4px;';
+    const profRows=P.map((p,i)=>({name:p[0],d:p[1],a:p[2],pref:p[3],r:p[4],
+      style:i===3?rowBase+'background:var(--hover);':rowBase,
+      act:'display:flex;gap:4px;justify-content:flex-end;padding-right:8px;opacity:'+(i===3?'1':'0')+';'}));
+    const dstyle=s=>s.replace('min-height:44px','min-height:78px');
+    const demoCells=[
+      {cap:'1 · Vazia e apta',just:'Tinta e tracejado do acento: visível de relance, sem competir com as aulas já postas.',c:{style:dstyle(st.apt),apt:true}},
+      {cap:'2 · Vazia e impedida',just:'Listras discretas e o motivo escrito na célula — ninguém caça tooltip entre 72 posições.',c:{style:dstyle(st.blk),reason:'Prof.ª Ana indisponível'}},
+      {cap:'3 · Vazia e neutra',just:'Rebaixada em relação ao painel, para as aulas lerem como cartões sobre um fundo.',c:{style:dstyle(st.neu)}},
+      {cap:'4 · Ocupada',just:'Nome em até 2 linhas com corte; professor e sala numa linha; nunca cor por disciplina.',c:{style:dstyle(st.occ),occ:true,name:'Arquitetura e Organização de Computadores',meta:'C. Duarte · B-102'}},
+      {cap:'5 · Travada',just:'Cadeado e borda firme, sem cor nova: travar é estado, não alerta.',c:{style:dstyle(st.lock),occ:true,name:'Cálculo III',meta:'A. Beltrão · B-101',lock:true}},
+      {cap:'6 · Fora do turno, vazia',just:'Escurecida, não avermelhada: tolerado não é erro; some quando o turno é o normal.',c:{style:dstyle(st.out)}},
+      {cap:'6 + 4 · Fora do turno, ocupada',just:'Cartão normal + ponto âmbar; o fundo escurecido da linha já avisa antes de ler.',c:{style:dstyle(st.occ),occ:true,name:'Libras (optativa)',meta:'H. Cruz · B-105',dot:true}}
+    ];
+    const pal=[
+      ['Fundo da janela','#F2F2F4','#121316','Área atrás dos painéis'],
+      ['Painel','#FBFBFC','#1A1C20','Barras, painéis, cabeçalhos'],
+      ['Rebaixo','#ECECEF','#141519','Células vazias, campos, poços'],
+      ['Cartão de aula','#FFFFFF','#25282F','Aulas na grade'],
+      ['Divisor','#DDDEE3','#2C2F36','Hairlines, malha, trilhas'],
+      ['Borda de controle','#B4B8C2','#4A4E59','Botões, campos, aula travada'],
+      ['Texto','#1B1D23','#E8EAEF','Conteúdo principal'],
+      ['Texto secundário','#565B66','#A6ABB5','Metadados, rótulos'],
+      ['Texto terciário','#8F939E','#6E737D','Dicas, horários, desabilitado'],
+      ['Acento','#3D5AB9','#93A9F0','Seleção, apto, ação primária, foco'],
+      ['Fundo do acento','#EAEEF9','#20283F','Célula apta, item selecionado'],
+      ['Impedimento','#A63D33','#E29188','Motivo de bloqueio, remoção, soma errada'],
+      ['Fora do turno','#EDEBE3','#191813','Faixas de turno indesejado'],
+      ['Marcador tolerado','#C29224','#D8B04C','Ponto em aula fora do turno']
+    ].map(p=>({role:p[0],l:p[1],d:p[2],uso:p[3],
+      swL:'width:22px;height:22px;border-radius:4px;flex-shrink:0;background:'+p[1]+';box-shadow:inset 0 0 0 1px rgba(0,0,0,0.12);',
+      swD:'width:22px;height:22px;border-radius:4px;flex-shrink:0;background:'+p[2]+';box-shadow:inset 0 0 0 1px rgba(0,0,0,0.35);'}));
+    const typeRows=[
+      ['17 / 700','Título de tela','font-size:17px;font-weight:700;'],
+      ['13 / 400–600','Base: controles, formulários, tabelas','font-size:13px;'],
+      ['12 / 400–600','Navegação, pendências, chips','font-size:12px;'],
+      ['11,5 / 600','Nome da disciplina na célula','font-size:11.5px;font-weight:600;'],
+      ['11 / 400','Metadados, legendas, ajuda','font-size:11px;'],
+      ['10 / 400 · mono','Horários, contadores, códigos de sala','font-family:Consolas,monospace;font-size:10px;']
+    ].map(t=>({label:t[0],uso:t[1],style:t[2]+'color:#1B1D23;line-height:1.3;'}));
+    const space=[4,8,12,16,20,24].map(n=>({label:n,bar:'height:16px;width:'+n+'px;background:#93A9F0;border-radius:2px;'}));
+    const decisions=[
+      'Identidade nunca é cor: com 55 disciplinas e 22 professores, matiz vira ruído. Disciplina, professor e sala são sempre texto; a cor fica com três significados fixos — apto (azul), impedido (vermelho), fora do turno (faixa escurecida + ponto âmbar). É assim que a paleta aguenta 20+ valores distintos nos dois temas.',
+      'Base tipográfica de 13 px e linhas de 38 px: ferramenta de sessão longa pede densidade; 44 px é regra de toque, não de mouse.',
+      'Pendências coladas à grade porque o gesto central é selecionar → posicionar: origem e destino a um olhar de distância.',
+      'Fronteira de turno é estrutura, não cor: uma faixa rotulada interrompe a malha, porque aula nunca atravessa turnos.',
+      'Nomes longos: até 2 linhas na célula + campo Abreviação no cadastro — o corte é decisão de quem cadastra, não do CSS.',
+      'CURSO e INSTITUIÇÃO são grupos distintos na navegação, com o seletor de curso acima do grupo do curso: o escopo do que se edita fica visível o tempo todo.',
+      'Claro e escuro trocam apenas tokens: mesma geometria, mesma hierarquia; nada é redesenhado, só remapeado.',
+      'Foco de teclado tem anel próprio (2 px do acento, afastado da borda), nunca reaproveitado do hover.',
+      'Ações de linha aparecem no pouso do mouse; a coluna reserva o espaço para nada saltar quando aparecem.',
+      'Raios de 4/6 px, sombras quase nulas e nenhuma cor decorativa: o contraste vem de rebaixos e hairlines.'
+    ].map((t,i)=>({n:(i+1<10?'0':'')+(i+1),t}));
+    return {days,gridRows,pend,periodTabs,navGrade:mkNav('g'),navProf:mkNav('pr'),navDisc:mkNav('d'),legendItems,profRows,demoCells,pal,typeRows,space,decisions};
+  }
+}
+</script>
+</body>
+</html>

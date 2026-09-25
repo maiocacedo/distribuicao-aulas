@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Prévia do visual</title>
+<!--
+  Página estática que usa o MESMO `src/App.css` do aplicativo, com marcação
+  equivalente à das telas reais. Serve para conferir o visual sem precisar
+  abrir o app e sem banco — inclusive por quem não tem como tirar print da
+  janela do Tauri.
+
+  Não faz parte do aplicativo. Abra em http://localhost:1420/docs/design/previa.html
+  com o `npm run tauri dev` (ou `npm run dev`) rodando.
+-->
+<link rel="stylesheet" href="/src/App.css">
+</head>
+<body>
+<div class="janela">
+  <nav>
+    <div class="marca"><strong>Distribuição de Aulas</strong></div>
+    <div class="caixa-curso">
+      <span class="rotulo">Curso</span>
+      <select class="seletor-curso"><option>Engenharia de Computação</option></select>
+    </div>
+    <button class="gerenciar-cursos">Gerenciar cursos</button>
+    <div>
+      <div class="separador">curso</div>
+      <button>Períodos</button>
+      <button>Disciplinas</button>
+    </div>
+    <div>
+      <div class="separador">instituição</div>
+      <button>Professores</button>
+      <button>Salas</button>
+    </div>
+    <div>
+      <div class="separador">horários</div>
+      <button>Indisponibilidades</button>
+      <button>Tipos de disciplina</button>
+      <button>Regras</button>
+    </div>
+    <div>
+      <div class="separador">grade de horários</div>
+      <button class="ativo">Manual</button>
+      <button>Automática</button>
+    </div>
+  </nav>
+
+  <main>
+    <header class="cabecalho-pagina">
+      <div>
+        <h1>Grade horária</h1>
+        <p class="sub">6 aula(s) deste período ainda por alocar.</p>
+      </div>
+      <div class="acoes-cabecalho">
+        <button class="perigo">Limpar período</button>
+      </div>
+    </header>
+
+    <div class="abas-periodo">
+      <button>1º</button><button>2º</button><button class="ativo">3º</button>
+      <button>4º</button><button>5º</button><button>6º</button>
+      <button>7º</button><button>8º</button>
+      <span class="ocupacao">18 de 72 posições ocupadas</span>
+    </div>
+
+    <div class="painel-duplo largo">
+      <div class="pendencias">
+        <div class="titulo-painel"><strong>Pendências</strong><span>2 de 5 fechadas</span></div>
+        <ul>
+          <li><button class="fatia ativo">
+            <span class="linha1"><span class="nome">Cálculo III</span><span class="prog">2/4</span></span>
+            <span class="prof">Ana Beltrão</span>
+            <span class="trilha"><span class="barra" style="width:50%"></span></span>
+          </button></li>
+          <li><button class="fatia">
+            <span class="linha1"><span class="nome">Arquitetura e Organização</span><span class="prog">0/4</span></span>
+            <span class="prof">Caio Duarte</span>
+            <span class="trilha"><span class="barra" style="width:0%"></span></span>
+          </button></li>
+          <li><button class="fatia completa">
+            <span class="linha1"><span class="nome">Física II</span><span class="prog">4/4</span></span>
+            <span class="prof">Otávio Nunes</span>
+            <span class="trilha"><span class="barra" style="width:100%"></span></span>
+          </button></li>
+          <li><button class="fatia"><span class="linha1"><span class="nome">Probabilidade e Estatística</span><span class="prog">0/2</span></span><span class="prof">Lígia Teles</span><span class="trilha"><span class="barra" style="width:0%"></span></span></button></li>
+          <li><button class="fatia"><span class="linha1"><span class="nome">Projeto e Desenvolvimento de Si…</span><span class="prog">3/4</span></span><span class="prof">Élcio Ramos</span><span class="trilha"><span class="barra" style="width:75%"></span></span></button></li>
+          <li><button class="fatia completa"><span class="linha1"><span class="nome">Inglês Instrumental</span><span class="prog">2/2</span></span><span class="prof">Helena Cruz</span><span class="trilha"><span class="barra" style="width:100%"></span></span></button></li>
+        </ul>
+        <p class="nota-painel rodape">Clique num horário apto para alocar Cálculo III. Esc cancela a seleção.</p>
+      </div>
+
+      <section class="painel-grade">
+        <div class="malha" style="grid-template-columns:56px repeat(6,minmax(0,1fr))">
+          <div class="canto"></div>
+          <div class="dia">Segunda</div><div class="dia">Terça</div><div class="dia">Quarta</div>
+          <div class="dia">Quinta</div><div class="dia">Sexta</div><div class="dia">Sábado</div>
+
+          <div class="faixa-turno"><span>manha</span><em>turno do 3º período</em></div>
+
+          <div class="hora"><strong>M1</strong><em>7:30</em></div>
+          <div class="celula ocupada"><span class="nome">Estruturas de Dados</span><span class="meta">M. Sousa · B-204</span></div>
+          <div class="celula ocupada travada"><span class="nome">Laboratório de Programação</span><span class="meta">C. Duarte · Lab-2</span>
+            <svg class="cadeado" width="9" height="11" viewBox="0 0 9 11"><rect x="0.5" y="4.5" width="8" height="6" rx="1" fill="none" stroke="currentColor"/><path d="M2.5 4.5V3a2 2 0 0 1 4 0v1.5" fill="none" stroke="currentColor"/></svg>
+          </div>
+          <div class="celula apta"><span class="alocar">Alocar</span></div>
+          <div class="celula impedida"><span class="motivo">A. Beltrão indisponível</span></div>
+          <div class="celula apta"><span class="alocar">Alocar</span></div>
+          <div class="celula impedida"><span class="motivo">Sábado desmarcado no cadastro</span></div>
+
+          <div class="hora"><strong>M2</strong><em>8:20</em></div>
+          <div class="celula ocupada"><span class="nome">Projeto e Desenvolvimento de Sistemas Web</span><span class="meta">É. Ramos · Lab-3</span></div>
+          <div class="celula neutra"></div>
+          <div class="celula impedida"><span class="motivo">Sala L8 ocupada (5º per.)</span></div>
+          <div class="celula neutra"></div>
+          <div class="celula apta"><span class="alocar">Alocar</span></div>
+          <div class="celula impedida"><span class="motivo">Sábado desmarcado no cadastro</span></div>
+
+
+          <div class="hora"><strong>M3</strong><em>9:10</em></div>
+          <div class="celula neutra"></div>
+          <div class="celula ocupada"><span class="nome">Física II</span><span class="meta">O. Nunes · B-101</span></div>
+          <div class="celula neutra"></div>
+          <div class="celula ocupada"><span class="nome">Cálculo III</span><span class="meta">A. Beltrão · B-101</span></div>
+          <div class="celula neutra"></div>
+          <div class="celula impedida"><span class="motivo">Sábado desmarcado no cadastro</span></div>
+
+          <div class="hora"><strong>M4</strong><em>10:20</em></div>
+          <div class="celula neutra"></div>
+          <div class="celula ocupada"><span class="nome">Física II</span><span class="meta">O. Nunes · B-101</span></div>
+          <div class="celula neutra"></div>
+          <div class="celula ocupada"><span class="nome">Cálculo III</span><span class="meta">A. Beltrão · B-101</span></div>
+          <div class="celula neutra"></div>
+          <div class="celula impedida"><span class="motivo">Sábado desmarcado no cadastro</span></div>
+
+          <div class="hora"><strong>M5</strong><em>11:10</em></div>
+          <div class="celula neutra"></div>
+          <div class="celula ocupada"><span class="nome">Física II</span><span class="meta">O. Nunes · B-101</span></div>
+          <div class="celula neutra"></div>
+          <div class="celula ocupada"><span class="nome">Cálculo III</span><span class="meta">A. Beltrão · B-101</span></div>
+          <div class="celula neutra"></div>
+          <div class="celula impedida"><span class="motivo">Sábado desmarcado no cadastro</span></div>
+
+          <div class="hora"><strong>M6</strong><em>12:00</em></div>
+          <div class="celula neutra"></div>
+          <div class="celula ocupada"><span class="nome">Física II</span><span class="meta">O. Nunes · B-101</span></div>
+          <div class="celula neutra"></div>
+          <div class="celula ocupada"><span class="nome">Cálculo III</span><span class="meta">A. Beltrão · B-101</span></div>
+          <div class="celula neutra"></div>
+          <div class="celula impedida"><span class="motivo">Sábado desmarcado no cadastro</span></div>
+          <div class="faixa-turno"><span>tarde</span><em>fora do turno · tolerado</em></div>
+
+          <div class="hora"><strong>T1</strong><em>13:00</em></div>
+          <div class="celula fora contraturno"></div>
+          <div class="celula fora contraturno"></div>
+          <div class="celula ocupada contraturno"><span class="nome">Libras (optativa)</span><span class="meta">H. Cruz · B-105</span><span class="ponto"></span></div>
+          <div class="celula fora contraturno"></div>
+          <div class="celula fora contraturno"></div>
+          <div class="celula fora contraturno"></div>
+
+          <div class="hora"><strong>T2</strong><em>13:50</em></div>
+          <div class="celula fora contraturno"></div><div class="celula fora contraturno"></div>
+          <div class="celula fora contraturno"></div><div class="celula fora contraturno"></div>
+          <div class="celula fora contraturno"></div><div class="celula fora contraturno"></div>
+
+          <div class="hora"><strong>T3</strong><em>14:40</em></div>
+          <div class="celula fora contraturno"></div><div class="celula fora contraturno"></div>
+          <div class="celula fora contraturno"></div><div class="celula fora contraturno"></div>
+          <div class="celula fora contraturno"></div><div class="celula fora contraturno"></div>
+
+          <div class="hora"><strong>T4</strong><em>15:50</em></div>
+          <div class="celula fora contraturno"></div><div class="celula fora contraturno"></div>
+          <div class="celula fora contraturno"></div><div class="celula fora contraturno"></div>
+          <div class="celula fora contraturno"></div><div class="celula fora contraturno"></div>
+
+          <div class="hora"><strong>T5</strong><em>16:40</em></div>
+          <div class="celula fora contraturno"></div><div class="celula fora contraturno"></div>
+          <div class="celula fora contraturno"></div><div class="celula fora contraturno"></div>
+          <div class="celula fora contraturno"></div><div class="celula fora contraturno"></div>
+
+          <div class="hora"><strong>T6</strong><em>17:30</em></div>
+          <div class="celula fora contraturno"></div><div class="celula fora contraturno"></div>
+          <div class="celula fora contraturno"></div><div class="celula fora contraturno"></div>
+          <div class="celula fora contraturno"></div><div class="celula fora contraturno"></div>
+        </div>
+
+        <div class="legenda">
+          <span><i class="sw apta"></i> Apta à seleção</span>
+          <span><i class="sw impedida"></i> Impedida — motivo na célula</span>
+          <span><i class="sw travada"></i> Travada — o gerador não move</span>
+          <span><i class="sw fora"></i> Fora do turno do período</span>
+        </div>
+      </section>
+    </div>
+
+    <header class="cabecalho-lista" style="margin-top:24px">
+      <h1>Professores</h1>
+      <span class="escopo">Instituição · comuns a todos os cursos</span>
+      <span class="espaco"></span>
+      <input class="filtro" placeholder="Filtrar por nome…">
+      <span class="contagem">18 de 22</span>
+      <button class="primario">Novo professor</button>
+    </header>
+
+    <table class="lista">
+      <thead>
+        <tr>
+          <th><button class="ordenavel ativo">Nome <em>▴</em></button></th>
+          <th class="num"><button class="ordenavel">Disciplinas <em></em></button></th>
+          <th class="num"><button class="ordenavel">Aulas <em></em></button></th>
+          <th>Preferência de dias</th>
+          <th class="num"><button class="ordenavel">Indisponível <em></em></button></th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="forte">Ana Beltrão</td>
+          <td class="num">2</td><td class="num">8</td>
+          <td>Dias seguidos<span class="peso">2</span></td>
+          <td class="num">6</td>
+          <td class="acoes">
+            <button class="icone" title="Editar"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"><path d="M9.5 2.5l2 2L5 11l-2.5.5L3 9l6.5-6.5z" stroke-width="1.2"/></svg></button>
+            <button class="icone perigo" title="Remover"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"><path d="M2.5 3.5h9M5.5 3.5V2h3v1.5M4 3.5l.5 8h5l.5-8" stroke-width="1.2"/></svg></button>
+          </td>
+        </tr>
+        <tr>
+          <td class="forte">Caio Duarte</td>
+          <td class="num">3</td><td class="num">12</td>
+          <td><span class="fraco">indiferente</span></td>
+          <td class="num">4</td>
+          <td class="acoes">
+            <button class="icone" title="Editar"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"><path d="M9.5 2.5l2 2L5 11l-2.5.5L3 9l6.5-6.5z" stroke-width="1.2"/></svg></button>
+            <button class="icone perigo" title="Remover"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"><path d="M2.5 3.5h9M5.5 3.5V2h3v1.5M4 3.5l.5 8h5l.5-8" stroke-width="1.2"/></svg></button>
+          </td>
+        </tr>
+        <tr>
+          <td class="forte">Marina Sousa</td>
+          <td class="num">3</td><td class="num">10</td>
+          <td>Dias alternados<span class="peso">3</span></td>
+          <td class="num">7</td>
+          <td class="acoes">
+            <button class="icone" title="Editar"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"><path d="M9.5 2.5l2 2L5 11l-2.5.5L3 9l6.5-6.5z" stroke-width="1.2"/></svg></button>
+            <button class="icone perigo" title="Remover"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"><path d="M2.5 3.5h9M5.5 3.5V2h3v1.5M4 3.5l.5 8h5l.5-8" stroke-width="1.2"/></svg></button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+    <section class="amostra-centro" style="margin-top:24px">
+      <h2>Cabeçalho centralizado × valores</h2>
+      <table class="lista compacta">
+        <thead><tr>
+          <th>Disciplina</th>
+          <th class="num centro"><button class="ordenavel ativo">Período <em>&#9652;</em></button></th>
+          <th class="num centro"><button class="ordenavel">Aulas <em></em></button></th>
+          <th>Professores</th>
+        </tr></thead>
+        <tbody>
+          <tr><td class="forte">Fundamentos de Matemática</td><td class="num centro fraco">1º</td><td class="num centro">4</td><td>João (4)</td></tr>
+          <tr><td class="forte">Álgebra Linear</td><td class="num centro fraco">3º</td><td class="num centro">3</td><td>Evandro (3)</td></tr>
+        </tbody>
+      </table>
+    </section>
+    <section class="amostra-periodos" style="margin-top:24px">
+      <h2>Períodos (colunas iguais, conteúdo centralizado)</h2>
+      <table class="lista compacta uniforme">
+        <thead><tr>
+          <th class="num">Período</th><th>Turno</th>
+          <th class="num">Máx. no contraturno</th>
+          <th class="num">Disciplinas</th><th class="num">Aulas na grade</th>
+        </tr></thead>
+        <tbody>
+          <tr><td class="num forte">1º</td>
+            <td><select class="embutido"><option>Tarde</option></select></td>
+            <td class="num"><input class="embutido curto" type="number" value="1"></td>
+            <td class="num">2</td><td class="num">8</td></tr>
+          <tr><td class="num forte">2º</td>
+            <td><select class="embutido"><option>Tarde</option></select></td>
+            <td class="num"><input class="embutido curto" type="number" value="3"></td>
+            <td class="num">2</td><td class="num">—</td></tr>
+          <tr><td class="num forte">3º</td>
+            <td><select class="embutido"><option>Manhã</option></select></td>
+            <td class="num"><input class="embutido curto" type="number" value="1"></td>
+            <td class="num">1</td><td class="num">3</td></tr>
+        </tbody>
+      </table>
+      <dl class="legenda-colunas">
+        <dt>Turno</dt><dd>Onde o período acontece por padrão.</dd>
+        <dt>Máx. no contraturno</dt><dd>Quantas disciplinas podem escapar do turno do período — normalmente optativas.</dd>
+        <dt>Disciplinas</dt><dd>Quantas disciplinas estão cadastradas neste período.</dd>
+        <dt>Aulas na grade</dt><dd>Quantas aulas do período já foram alocadas na grade horária.</dd>
+      </dl>
+      <div class="acoes-secao">
+        <button>Acrescentar 4º período</button>
+        <button class="perigo">Remover o último</button>
+      </div>
+    </section>
+    <section class="amostra-embutidos" style="margin-top:24px">
+      <h2>Campos embutidos em tabela (os que sumiam)</h2>
+      <table class="lista compacta">
+        <thead><tr><th>Código</th><th>Início</th><th class="num">Duração</th><th>Turno</th><th class="num">Em uso</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><input class="embutido forte codigo" value="M1"></td>
+            <td><input class="embutido" value="7:30"></td>
+            <td class="num"><input class="embutido curto" type="number" value="50"></td>
+            <td><select class="embutido"><option>Manhã</option></select></td>
+            <td class="num">12</td>
+          </tr>
+          <tr>
+            <td><input class="embutido forte codigo" value="M2"></td>
+            <td><input class="embutido" value="8:20"></td>
+            <td class="num"><input class="embutido curto" type="number" value="50"></td>
+            <td><select class="embutido"><option>Manhã</option></select></td>
+            <td class="num">9</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+    <section style="margin-top:24px">
+      <h2>Controles sobre painel</h2>
+      <div class="amostra-controles" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select style="width:180px"><option>Qualquer sala do tipo</option></select>
+        <select style="width:130px"><option>3º período (tarde)</option></select>
+        <input style="width:150px" value="Cálculo III">
+        <input class="curto" type="number" value="4">
+        <button>Botão</button>
+        <button class="primario">Ação primária</button>
+      </div>
+    </section>
+
+    <div class="amostra-controles" style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap">
+      <span class="fraco" style="font-size:11px">os mesmos, direto sobre o fundo da janela:</span>
+      <select style="width:180px"><option>Qualquer sala do tipo</option></select>
+      <input style="width:150px" value="Cálculo III">
+      <button>Botão</button>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:24px">
+      <button>Repouso</button>
+      <button class="selecionado">Selecionado</button>
+      <button disabled>Desabilitado</button>
+      <button class="primario">Ação primária</button>
+      <button class="perigo">Perigo</button>
+      <input style="width:160px" value="Campo">
+    </div>
+  </main>
+</div>
+</body>
+</html>

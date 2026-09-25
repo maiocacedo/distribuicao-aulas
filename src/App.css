@@ -1,0 +1,1804 @@
+/*
+ * Sistema visual — Distribuição de Aulas
+ *
+ * Os valores vêm do design em `docs/design/`. Três regras dele que não devem
+ * ser desfeitas sem pensar:
+ *
+ * 1. Identidade nunca é cor. Com 55 disciplinas e 22 professores, matiz vira
+ *    ruído: disciplina, professor e sala são sempre texto. A cor carrega três
+ *    significados fixos — acento (apto/seleção/ação), negativo (impedimento) e
+ *    âmbar (tolerado). Não acrescente uma quarta sem um significado novo.
+ * 2. Nenhum estado depende só de cor. Tracejado, listras, cadeado e rebaixo
+ *    carregam o significado junto.
+ * 3. Desabilitado rebaixa texto e borda; nunca `opacity` no bloco inteiro —
+ *    isso embaça também o texto que explica por que está desabilitado.
+ *
+ * Claro e escuro remapeiam os mesmos papéis. A geometria não muda.
+ */
+
+:root {
+  --bg: #f2f2f4; /* fundo da janela, atrás dos painéis */
+  --panel: #fbfbfc; /* barras, painéis, cabeçalhos */
+  --inset: #ececef; /* células vazias, campos, poços */
+  --card: #ffffff; /* aulas na grade */
+  --line: #dddee3; /* hairlines, malha, trilhas */
+  --lineS: #b4b8c2; /* aula travada, separações mais firmes */
+  /* Contorno de controle — desvio deliberado do design.
+     O `--lineS` dele dá 1,99:1 contra o campo e o dropdown não se lê como
+     clicável. Subi até cruzar os 3:1 da norma (#8F939E) e ficou pesado demais
+     na prática; recuei um passo, para 2,59:1. Fica acima do design e abaixo da
+     norma — escolha consciente, guiada por quem usa a ferramenta. */
+  --lineC: #9ca1ae;
+  --tx: #1b1d23; /* conteúdo principal */
+  --tx2: #565b66; /* metadados, rótulos */
+  --tx3: #8f939e; /* dicas, horários, desabilitado */
+  --acc: #3d5ab9; /* seleção, apto, ação primária, foco */
+  --onAcc: #ffffff;
+  --accBg: #eaeef9; /* célula apta, item selecionado */
+  --accLine: #93a5dc;
+  --neg: #a63d33; /* impedimento, remoção, soma errada */
+  --off: #edebe3; /* fora do turno do período */
+  --warnDot: #c29224; /* marcador de aula tolerada fora do turno */
+  --hover: rgba(27, 29, 35, 0.05);
+  --stripe: rgba(27, 29, 35, 0.07);
+  --shadow: rgba(20, 22, 28, 0.08);
+
+  --r: 4px; /* raio de controles */
+  --rp: 6px; /* raio de painéis */
+
+  font-family: "Segoe UI", system-ui, sans-serif;
+  font-size: 13px;
+  color: var(--tx);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121316;
+    --panel: #1a1c20;
+    --inset: #141519;
+    --card: #25282f;
+    --line: #2c2f36;
+    --lineS: #4a4e59;
+    --lineC: #626775; /* 2,61:1 contra o campo escuro — mesmo passo do claro */
+    --tx: #e8eaef;
+    --tx2: #a6abb5;
+    --tx3: #6e737d;
+    --acc: #93a9f0;
+    --onAcc: #101523;
+    --accBg: #20283f;
+    --accLine: #4c5fa6;
+    --neg: #e29188;
+    --off: #191813;
+    --warnDot: #d8b04c;
+    --hover: rgba(232, 234, 239, 0.06);
+    --stripe: rgba(232, 234, 239, 0.08);
+    --shadow: rgba(0, 0, 0, 0.35);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--tx);
+}
+
+/* Anel de foco próprio, afastado da borda — nunca o mesmo desenho do hover,
+   senão o teclado e o mouse ficam indistinguíveis. */
+:focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 2px;
+  border-radius: var(--r);
+}
+
+/* ------------------------------------------------------------- estrutura */
+
+.janela {
+  display: grid;
+  grid-template-columns: 216px 1fr;
+  min-height: 100vh;
+}
+
+nav {
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.marca {
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--tx3);
+  padding: 2px 10px 10px;
+}
+
+.marca strong {
+  font-weight: 600;
+}
+
+/* O seletor de curso fica acima do grupo do curso: o escopo do que se edita
+   precisa estar visível o tempo todo. */
+/* O seletor vive numa caixa rebaixada com o rótulo do escopo em cima: o que
+   se está editando fica visível o tempo todo, sem depender de lembrar em que
+   grupo do menu a tela estava. */
+.caixa-curso {
+  position: relative;
+  margin: 0 2px 10px;
+  padding: 6px 9px 7px;
+  background: var(--inset);
+  box-shadow: inset 0 0 0 1px var(--lineC);
+  border-radius: 5px;
+}
+
+.caixa-curso .rotulo {
+  display: block;
+  font-size: 10px;
+  color: var(--tx3);
+  margin-bottom: 1px;
+}
+
+/* `appearance: none` para o texto começar na borda do campo: o <select>
+   nativo aplica um recuo interno próprio, e por causa dele o nome do curso
+   não alinhava com o rótulo "Curso" logo acima. */
+.seletor-curso {
+  appearance: none;
+  padding: 0 16px 0 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  background: none;
+  border: none;
+  box-shadow: none;
+  width: 100%;
+  color: var(--tx);
+}
+
+/* Seta desenhada em CSS: a nativa fica colada na borda e acompanha o tema
+   só por acidente. */
+.caixa-curso::after {
+  content: "";
+  position: absolute;
+  right: 10px;
+  bottom: 13px;
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid var(--tx3);
+  border-bottom: 1.5px solid var(--tx3);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+
+.seletor-curso:hover {
+  box-shadow: none;
+}
+
+.seletor-curso:focus,
+.seletor-curso:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+/* Cada grupo é um <div>, então os botões deixam de ser filhos diretos do nav:
+   sem isto voltam a fluir em linha, porque <button> é inline. */
+nav > div {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+nav button {
+  text-align: left;
+  background: none;
+  border: none;
+  /* Zerar a sombra da regra base de `button`: item de menu não tem borda de
+     controle. */
+  box-shadow: none;
+  border-radius: var(--r);
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--tx2);
+  cursor: pointer;
+  width: 100%;
+}
+
+nav button:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--tx);
+}
+
+nav button.ativo {
+  background: var(--accBg);
+  color: var(--acc);
+  font-weight: 600;
+}
+
+nav button:disabled {
+  color: var(--tx3);
+  cursor: default;
+}
+
+nav button.gerenciar-cursos {
+  font-size: 11px;
+  color: var(--tx3);
+  padding: 4px 10px 8px;
+  margin: 0 2px;
+}
+
+nav button.gerenciar-cursos.ativo {
+  color: var(--acc);
+  background: none;
+}
+
+.separador {
+  margin: 16px 0 4px;
+  padding: 0 10px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--tx3);
+}
+
+nav > div:first-of-type .separador {
+  margin-top: 10px;
+}
+
+main {
+  padding: 20px 20px 40px;
+  min-width: 0;
+}
+
+.falha {
+  padding: 40px;
+}
+
+/* ------------------------------------------------------------- cabeçalho */
+
+.cabecalho-pagina {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+h1 {
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.sub {
+  color: var(--tx3);
+  font-size: 11px;
+  margin: 3px 0 0;
+}
+
+h2 {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--tx3);
+  margin: 0 0 8px;
+}
+
+section {
+  background: var(--panel);
+  box-shadow: inset 0 0 0 1px var(--line);
+  border-radius: var(--rp);
+  padding: 12px 16px 16px;
+  margin-bottom: 12px;
+}
+
+.explica {
+  color: var(--tx2);
+  font-size: 11px;
+  line-height: 1.5;
+  margin: 0 0 12px;
+  max-width: 68ch;
+}
+
+.salvo {
+  color: var(--acc);
+  font-size: 11px;
+}
+
+/* ------------------------------------------------------------- listas */
+
+table.lista {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--panel);
+  box-shadow: inset 0 0 0 1px var(--line);
+  border-radius: var(--rp);
+  overflow: hidden;
+}
+
+section table.lista {
+  box-shadow: none;
+  border-radius: 0;
+}
+
+table.lista th {
+  text-align: left;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--tx3);
+  font-weight: 600;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+table.lista th.num,
+th.num {
+  text-align: right;
+}
+
+/* Colunas numéricas ocupam só o que precisam; a primeira absorve a sobra,
+   senão os números ficam soltos no meio da largura da janela. */
+table.lista th.num,
+table.lista td.num {
+  width: 1%;
+  white-space: nowrap;
+  padding-left: 20px;
+}
+
+table.lista td {
+  height: 38px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+table.lista.compacta td {
+  height: 32px;
+}
+
+table.lista tbody tr:hover td {
+  background: var(--hover);
+}
+
+table.lista tbody tr {
+  transition: background 90ms;
+}
+
+table.lista tr:last-child td {
+  border-bottom: none;
+}
+
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: 12px;
+}
+
+.forte {
+  font-weight: 600;
+}
+
+.fraco {
+  color: var(--tx3);
+}
+
+.peso {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 3px;
+  background: var(--inset);
+  font-size: 10px;
+  color: var(--tx2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Ações aparecem no pouso do mouse; a coluna reserva o espaço para nada
+   saltar quando aparecem. */
+.acoes {
+  text-align: right;
+  white-space: nowrap;
+  width: 1%;
+}
+
+/* Opacity, não `visibility`: some sem sumir do fluxo, e volta junto com o
+   realce da linha inteira — é o realce que torna a ação descobrível. */
+.acoes button {
+  margin-left: 4px;
+  opacity: 0;
+  transition: opacity 90ms;
+}
+
+tr:hover .acoes button,
+.acoes button:focus-visible {
+  opacity: 1;
+}
+
+.vazio {
+  color: var(--tx3);
+  background: var(--panel);
+  box-shadow: inset 0 0 0 1px var(--line);
+  border-radius: var(--rp);
+  padding: 32px;
+  text-align: center;
+  margin: 0;
+  font-size: 12px;
+}
+
+/* ------------------------------------------------------------- controles */
+
+button {
+  font: inherit;
+  font-size: 12.5px;
+  padding: 6px 12px;
+  border-radius: var(--r);
+  border: none;
+  box-shadow: inset 0 0 0 1px var(--lineC);
+  background: var(--panel);
+  color: var(--tx);
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+button:disabled {
+  color: var(--tx3);
+  box-shadow: inset 0 0 0 1px var(--line);
+  cursor: default;
+}
+
+button.primario {
+  background: var(--acc);
+  box-shadow: none;
+  color: var(--onAcc);
+  font-weight: 600;
+}
+
+button.primario:hover:not(:disabled) {
+  background: var(--acc);
+  filter: brightness(1.08);
+}
+
+button.primario:disabled {
+  background: var(--inset);
+  color: var(--tx3);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+button.perigo {
+  color: var(--neg);
+}
+
+.acoes-secao {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  align-items: center;
+}
+
+.acoes-cabecalho {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.acoes-cabecalho select {
+  width: auto;
+}
+
+/* `--lineS` é a borda de CONTROLE; `--line` é hairline de tabela. Com a
+   segunda, campo e dropdown somem no fundo e nada indica que são clicáveis. */
+input,
+select,
+textarea {
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--tx);
+  background: var(--inset);
+  border: none;
+  box-shadow: inset 0 0 0 1px var(--lineC);
+  border-radius: var(--r);
+  padding: 6px 8px;
+  width: 100%;
+}
+
+input:hover,
+select:hover,
+textarea:hover {
+  box-shadow: inset 0 0 0 1px var(--tx2);
+}
+
+/* Embutidos são menores e mais discretos que um campo de formulário, mas
+   continuam sendo campos: sem fundo e sem contorno viravam texto comum, e não
+   havia como saber que se pode clicar neles. */
+input.embutido,
+select.embutido {
+  background: var(--inset);
+  box-shadow: inset 0 0 0 1px var(--lineC);
+  padding: 3px 5px;
+  /* Sem teto, o campo estica pela coluna inteira e fica desproporcional ao
+     lado dos vizinhos estreitos. */
+  max-width: 150px;
+}
+
+input.embutido:hover,
+select.embutido:hover {
+  box-shadow: inset 0 0 0 1px var(--tx2);
+}
+
+input.curto {
+  width: 64px;
+  text-align: right;
+}
+
+.curto-medio {
+  width: 128px;
+}
+
+input[type="range"] {
+  padding: 0;
+  background: none;
+  box-shadow: none;
+}
+
+input[type="checkbox"] {
+  width: auto;
+  box-shadow: none;
+  accent-color: var(--acc);
+}
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.campo .rotulo {
+  font-size: 11px;
+  color: var(--tx2);
+  font-weight: 600;
+}
+
+.campo .dica {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--tx3);
+}
+
+.linha-campos {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.linha-campos .campo {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.campo.estreito {
+  flex: 0 0 190px;
+}
+
+.linha-inline {
+  display: flex;
+  gap: 8px;
+}
+
+.linha-inline input {
+  flex: 1;
+}
+
+.linha-inline button {
+  white-space: nowrap;
+}
+
+fieldset {
+  border: none;
+  box-shadow: inset 0 0 0 1px var(--line);
+  border-radius: var(--rp);
+  padding: 12px 14px 14px;
+  margin: 0 0 16px;
+}
+
+legend {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--tx2);
+  padding: 0 6px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.contador {
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  padding: 0 5px;
+  border-radius: 3px;
+  background: var(--inset);
+  color: var(--tx2);
+}
+
+.contador.ok {
+  color: var(--acc);
+}
+
+.contador.falta {
+  color: var(--neg);
+}
+
+.linha-fatia {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.linha-fatia select {
+  flex: 1;
+}
+
+.linha-fatia .curto {
+  width: 58px;
+}
+
+.marcadores,
+.grade-salas {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.grade-salas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin-bottom: 0;
+}
+
+.marcadores label,
+.grade-salas label {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  cursor: pointer;
+}
+
+.marcadores input,
+.grade-salas input {
+  margin-top: 2px;
+}
+
+.marcadores span,
+.grade-salas span {
+  display: flex;
+  flex-direction: column;
+}
+
+.marcadores em,
+.grade-salas em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--tx3);
+}
+
+.marca-prop {
+  display: inline-block;
+  margin-right: 4px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--inset);
+  font-size: 10.5px;
+  color: var(--tx2);
+  white-space: nowrap;
+}
+
+button.ligacao {
+  border: none;
+  box-shadow: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--acc);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+button.ordenavel {
+  border: none;
+  box-shadow: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+button.ordenavel:hover,
+button.ordenavel.ativo {
+  background: none;
+  color: var(--tx);
+}
+
+button.ordenavel em {
+  font-style: normal;
+  font-size: 9px;
+  width: 8px;
+}
+
+th.num button.ordenavel {
+  flex-direction: row-reverse;
+}
+
+/* ------------------------------------------------------------- modal */
+
+.fundo-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 22, 28, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+}
+
+.modal {
+  background: var(--panel);
+  box-shadow:
+    0 10px 30px var(--shadow),
+    inset 0 0 0 1px var(--line);
+  border-radius: 8px;
+  padding: 16px 20px 20px;
+  width: 100%;
+  max-width: 540px;
+  max-height: 85vh;
+  overflow: auto;
+}
+
+.modal h3 {
+  margin: 0 0 16px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.rodape-modal {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+/* ------------------------------------------------------------- alertas */
+
+.alerta {
+  background: var(--inset);
+  box-shadow: inset 0 0 0 1px var(--line);
+  border-left: 3px solid var(--neg);
+  border-radius: var(--r);
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--tx);
+}
+
+.alerta pre {
+  white-space: pre-wrap;
+  margin: 6px 0 0;
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  color: var(--tx2);
+}
+
+.aviso {
+  background: var(--inset);
+  border-left: 3px solid var(--warnDot);
+  border-radius: var(--r);
+  padding: 9px 12px;
+  margin: 0 0 12px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--tx2);
+}
+
+.aviso.sucesso {
+  border-left-color: var(--acc);
+}
+
+.aviso-inline {
+  color: var(--neg);
+  font-weight: 700;
+  margin-left: 4px;
+}
+
+.melhor {
+  color: var(--acc);
+  font-weight: 600;
+}
+
+.pior {
+  color: var(--neg);
+  font-weight: 600;
+}
+
+table.comparacao td:first-child {
+  width: 60%;
+}
+
+/* ------------------------------------------------------- painel duplo */
+
+.painel-duplo {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 14px;
+  align-items: start;
+}
+
+/* Na grade os dois painéis se alinham pela mesma altura: a nota do rodapé
+   das pendências fica ancorada embaixo, e não flutuando no meio da tela. */
+.painel-duplo.largo {
+  align-items: stretch;
+}
+
+.painel-duplo.largo {
+  grid-template-columns: 264px 1fr;
+}
+
+.lista-lateral {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  background: var(--panel);
+  box-shadow: inset 0 0 0 1px var(--line);
+  border-radius: var(--rp);
+}
+
+.lista-lateral button {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  box-shadow: none;
+  background: none;
+  text-align: left;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--tx);
+}
+
+.lista-lateral button:hover {
+  background: var(--hover);
+}
+
+.lista-lateral button.ativo {
+  background: var(--accBg);
+  color: var(--acc);
+  font-weight: 600;
+}
+
+.lista-lateral em {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--tx3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------- grade de indisponibilidade */
+
+table.grade-horarios {
+  /* Bordas separadas de propósito: com `collapse` as células vizinhas
+     compartilham a borda e, no empate, quem vence é a de cima — a margem
+     superior de uma célula marcada ficaria cinza. */
+  border-collapse: separate;
+  border-spacing: 3px;
+  table-layout: fixed;
+  user-select: none;
+  width: 100%;
+}
+
+table.grade-horarios th:first-child,
+table.grade-horarios td:first-child {
+  width: 62px;
+}
+
+table.grade-horarios th {
+  font-weight: 500;
+  color: var(--tx2);
+  font-size: 11.5px;
+  padding: 0;
+}
+
+table.grade-horarios tbody th {
+  text-align: right;
+  padding-right: 6px;
+}
+
+.cabecalho-clicavel {
+  border: none;
+  box-shadow: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 11.5px;
+  padding: 3px 5px;
+  width: 100%;
+  border-radius: var(--r);
+}
+
+.cabecalho-clicavel:hover {
+  background: var(--hover);
+  color: var(--tx);
+}
+
+.cabecalho-clicavel.horario {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
+.cabecalho-clicavel.horario strong {
+  font-weight: 600;
+  color: var(--tx);
+  font-family: Consolas, monospace;
+  font-size: 11px;
+}
+
+.cabecalho-clicavel.horario em {
+  font-style: normal;
+  font-family: Consolas, monospace;
+  font-size: 10px;
+  color: var(--tx3);
+}
+
+table.grade-horarios td {
+  height: 26px;
+  background: var(--inset);
+  box-shadow: inset 0 0 0 1px var(--line);
+  border-radius: var(--r);
+  cursor: pointer;
+  text-align: center;
+  color: var(--tx3);
+}
+
+table.grade-horarios td.livre:hover {
+  background: var(--hover);
+}
+
+table.grade-horarios td.indisponivel {
+  color: var(--neg);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: inset 0 0 0 1px var(--neg);
+}
+
+table.grade-horarios td.ocupada {
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--lineS);
+  cursor: not-allowed;
+}
+
+table.grade-horarios tr.espacador td {
+  height: 8px;
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+table.lista tr.troca-turno td,
+table.lista tr.troca-turno th {
+  border-top: 2px solid var(--bg);
+}
+
+/* ------------------------------------------------------------- padrões */
+
+.padroes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.padroes .grupo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.padroes .ch {
+  min-width: 62px;
+  color: var(--tx3);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+button.padrao {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 2px 7px;
+  font-family: Consolas, monospace;
+  font-size: 11.5px;
+}
+
+button.padrao em {
+  font-style: normal;
+  font-size: 9.5px;
+  color: var(--tx3);
+}
+
+button.padrao.ideal {
+  box-shadow: inset 0 0 0 1px var(--accLine);
+  color: var(--acc);
+}
+
+button.padrao.evitar {
+  box-shadow: inset 0 0 0 1px var(--neg);
+  color: var(--neg);
+}
+
+.previa {
+  align-self: center;
+  font-size: 11px;
+}
+
+input.embutido.codigo {
+  width: 56px;
+  font-weight: 600;
+  font-family: Consolas, monospace;
+}
+
+/* ------------------------------------------------------------- grade de aulas */
+
+.abas-periodo {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.abas-periodo button {
+  background: none;
+  box-shadow: none;
+  color: var(--tx2);
+  padding: 5px 11px;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.abas-periodo button:hover {
+  background: var(--hover);
+}
+
+.abas-periodo button.ativo {
+  background: var(--accBg);
+  color: var(--acc);
+  font-weight: 600;
+}
+
+.abas-periodo .ocupacao {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--tx3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- painel de pendências: origem do gesto selecionar → posicionar --- */
+
+.pendencias {
+  background: var(--panel);
+  box-shadow: inset 0 0 0 1px var(--line);
+  border-radius: var(--rp);
+  display: flex;
+  flex-direction: column;
+}
+
+.titulo-painel {
+  padding: 12px 14px 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.titulo-painel strong {
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.titulo-painel span {
+  font-size: 10.5px;
+  color: var(--tx3);
+}
+
+.pendencias ul {
+  list-style: none;
+  margin: 0;
+  padding: 0 6px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.pendencias button.fatia {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  background: none;
+  box-shadow: none;
+  padding: 7px 8px;
+  border-radius: var(--r);
+}
+
+.pendencias button.fatia:hover {
+  background: var(--hover);
+}
+
+.pendencias button.fatia.ativo {
+  background: var(--accBg);
+  box-shadow: inset 0 0 0 1px var(--accLine);
+}
+
+.pendencias .linha1 {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.pendencias .nome {
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pendencias .prog {
+  font-family: Consolas, monospace;
+  font-size: 10.5px;
+  color: var(--tx2);
+  white-space: nowrap;
+}
+
+.pendencias .prof {
+  font-size: 11px;
+  color: var(--tx2);
+}
+
+.pendencias .trilha {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.pendencias .barra {
+  display: block;
+  height: 100%;
+  background: var(--acc);
+  border-radius: 2px;
+}
+
+/* Fechada parece resolvida sem sumir: rebaixa, não esconde. */
+.pendencias button.fatia.completa .nome,
+.pendencias button.fatia.completa .prof {
+  color: var(--tx3);
+}
+
+.pendencias button.fatia.completa .prog {
+  color: var(--acc);
+}
+
+.nota-painel {
+  padding: 10px 14px;
+  margin: 0;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--tx3);
+}
+
+.nota-painel.rodape {
+  border-top: 1px solid var(--line);
+  margin-top: auto;
+}
+
+/* --- a malha --- */
+
+.painel-grade {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 0;
+}
+
+/* Hairlines pelo `gap` sobre o fundo: uma linha só entre células, sem
+   duplicar bordas nem depender de quem vence o empate. */
+.malha {
+  display: grid;
+  gap: 1px;
+  background: var(--line);
+  box-shadow: 0 0 0 1px var(--line);
+  border-radius: var(--r);
+  overflow: hidden;
+  user-select: none;
+}
+
+.malha .canto,
+.malha .dia,
+.malha .hora {
+  background: var(--panel);
+}
+
+.malha .dia {
+  padding: 6px 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--tx2);
+}
+
+.malha .hora {
+  padding: 6px 8px 0 0;
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-family: Consolas, monospace;
+}
+
+.malha .hora strong {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--tx2);
+}
+
+.malha .hora em {
+  font-style: normal;
+  font-size: 9.5px;
+  color: var(--tx3);
+}
+
+.faixa-turno {
+  grid-column: 1 / -1;
+  background: var(--panel);
+  padding: 5px 8px 3px 60px;
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.faixa-turno span {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--tx2);
+}
+
+.faixa-turno em {
+  font-style: normal;
+  font-size: 10.5px;
+  color: var(--tx3);
+  font-family: Consolas, monospace;
+}
+
+/* --- os seis estados da célula --- */
+
+.celula {
+  position: relative;
+  min-height: 44px;
+  padding: 5px 7px;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+/* 3 · vazia e neutra — rebaixada, para as aulas lerem como cartões */
+.celula.neutra {
+  background: var(--inset);
+}
+
+/* 6 · fora do turno — escurecida, não avermelhada: tolerado não é erro */
+.celula.fora,
+.celula.contraturno.neutra {
+  background: var(--off);
+}
+
+/* 1 · vazia e apta — tinta e tracejado do acento */
+.celula.apta {
+  background: var(--accBg);
+  outline: 1px dashed var(--accLine);
+  outline-offset: -3px;
+  align-items: center;
+  justify-content: center;
+}
+
+.celula.apta .alocar {
+  font-size: 12px;
+  color: var(--acc);
+  font-weight: 600;
+}
+
+/* 2 · vazia e impedida — listras e o motivo escrito, não em tooltip */
+.celula.impedida {
+  background-color: var(--inset);
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 6px,
+    var(--stripe) 6px 7px
+  );
+  justify-content: flex-end;
+  cursor: not-allowed;
+}
+
+.celula.impedida .motivo {
+  font-size: 9.5px;
+  line-height: 1.3;
+  color: var(--neg);
+}
+
+/* 4 · ocupada — cartão sobre o fundo */
+.celula.ocupada {
+  background: var(--card);
+  box-shadow:
+    inset 0 0 0 1px var(--line),
+    0 1px 2px var(--shadow);
+}
+
+/* 5 · travada — borda firme e cadeado, sem cor nova */
+.celula.ocupada.travada {
+  box-shadow:
+    inset 0 0 0 1px var(--lineS),
+    0 1px 2px var(--shadow);
+}
+
+.celula.ocupada:hover {
+  box-shadow:
+    inset 0 0 0 1.5px var(--accLine),
+    0 1px 2px var(--shadow);
+}
+
+.celula .nome {
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.28;
+  color: var(--tx);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.celula .meta {
+  margin-top: auto;
+  font-size: 10px;
+  color: var(--tx2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.celula .cadeado {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  color: var(--tx3);
+}
+
+.celula .ponto {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--warnDot);
+}
+
+.celula.travada .ponto {
+  right: 18px;
+}
+
+/* --- legenda --- */
+
+.legenda {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.legenda span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--tx2);
+}
+
+.legenda .sw {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  display: block;
+}
+
+.legenda .sw.apta {
+  background: var(--accBg);
+  outline: 1px dashed var(--accLine);
+  outline-offset: -1px;
+}
+
+.legenda .sw.impedida {
+  background-color: var(--inset);
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 3px,
+    var(--stripe) 3px 4px
+  );
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.legenda .sw.travada {
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--lineS);
+}
+
+.legenda .sw.fora {
+  background: var(--off);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+/* ------------------------------------------------------- cabeçalho de lista */
+
+.cabecalho-lista {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.cabecalho-lista .escopo {
+  font-size: 11px;
+  color: var(--tx3);
+}
+
+.cabecalho-lista .espaco {
+  flex: 1;
+}
+
+.cabecalho-lista .contagem {
+  font-size: 11px;
+  color: var(--tx3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+input.filtro {
+  width: 240px;
+  padding: 7px 10px;
+}
+
+/* Ações de linha como ícone: numa lista de 60 linhas, "Editar Remover"
+   repetido é mais tinta que conteúdo. */
+.acoes button.icone {
+  padding: 5px 6px;
+  line-height: 0;
+  color: var(--tx2);
+}
+
+.acoes button.icone.perigo {
+  color: var(--neg);
+}
+
+/* Estado "selecionado" dos controles: par acento + fundo do acento, com a
+   borda acompanhando — distinto do hover, que só escurece o fundo. */
+button.selecionado {
+  background: var(--accBg);
+  color: var(--acc);
+  box-shadow: inset 0 0 0 1px var(--accLine);
+}
+
+/* O anel só quando o foco veio do TECLADO. Em `:focus` ele permanecia depois
+   de escolher uma opção com o mouse — o campo ficava marcado sem que houvesse
+   nada a marcar. */
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+}
+
+input:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--acc);
+}
+
+/* Nenhum <select> muda de aparência depois de escolhido.
+ *
+ * O Chromium casa `:focus-visible` com <select> mesmo no clique do mouse — a
+ * heurística assume que o elemento é operável por teclado —, então o anel
+ * ficava marcado depois de cada escolha. E aqui ele não comunica nada: o valor
+ * escolhido já é o próprio texto do campo. */
+select:focus,
+select:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--lineC);
+}
+
+select.embutido:focus,
+select.embutido:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--lineC);
+}
+
+/* ------------------------------------------------- tabela de colunas iguais */
+
+/* `table-layout: fixed` com larguras iguais: sem isto uma coluna sem largura
+   declarada absorve toda a sobra e cresce sozinha quando a janela alarga,
+   enquanto as outras ficam paradas. Ou todas crescem juntas, ou nenhuma. */
+table.lista.uniforme {
+  table-layout: fixed;
+}
+
+table.lista.uniforme th,
+table.lista.uniforme td,
+table.lista.uniforme th.num,
+table.lista.uniforme td.num {
+  width: auto;
+  text-align: center;
+  padding-left: 10px;
+}
+
+table.lista.uniforme .embutido {
+  display: block;
+  margin: 0 auto;
+  text-align: center;
+}
+
+table.lista.uniforme input.embutido.curto {
+  text-align: center;
+}
+
+/* ------------------------------------------------- legenda de colunas */
+
+/* O que cada coluna significa, no rodapé da própria tabela: perto do que
+   explica, e sem parágrafo introdutório que ninguém lê duas vezes. */
+.legenda-colunas {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 12px;
+  margin: 14px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+}
+
+.legenda-colunas dt {
+  color: var(--tx2);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.legenda-colunas dd {
+  margin: 0;
+  color: var(--tx3);
+}
+
+/* Coluna numérica curta fica melhor centrada que encostada na borda: com
+   valores de um dígito, o alinhamento à direita afasta o número do rótulo. */
+table.lista th.centro,
+table.lista td.centro {
+  text-align: center;
+  /* O recuo extra existe para afastar colunas numéricas alinhadas à direita
+     da coluna anterior; numa coluna centrada ele só desloca o conteúdo. */
+  padding-left: 10px;
+}
+
+th.centro button.ordenavel {
+  justify-content: center;
+  width: 100%;
+}
+
+/* Contrapeso invisível da seta.
+   A seta ocupa 8px sempre (mesmo inativa, para o cabeçalho não pular ao
+   ordenar). Sem um vão igual do outro lado, o par texto+seta é centrado como
+   grupo e o TEXTO fica deslocado meia seta — nunca alinhando com os valores
+   da coluna, que estão centrados de verdade. */
+th.centro button.ordenavel::before {
+  content: "";
+  width: 8px;
+  flex: none;
+}
+
+/* Símbolo dentro da legenda: a mesma caixa da célula da grade, para o que se
+   explica ter exatamente a aparência do que está na tela acima. */
+.legenda-colunas .simbolo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 20px;
+  background: var(--inset);
+  box-shadow: inset 0 0 0 1px var(--line);
+  border-radius: var(--r);
+  line-height: 1;
+}
+
+.legenda-colunas .simbolo.indisponivel {
+  color: var(--neg);
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px var(--neg);
+}
+
+.legenda-colunas .simbolo.ocupada {
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--lineS);
+  color: var(--tx3);
+}
+
+/* ------------------------------------------------- horários institucionais */
+
+.horarios-fixos {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.horarios-fixos .grupo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.horarios-fixos .turno {
+  min-width: 54px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--tx3);
+}
+
+.horarios-fixos .horario {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 3px 7px;
+  border-radius: var(--r);
+  background: var(--inset);
+  font-family: Consolas, monospace;
+}
+
+.horarios-fixos .horario strong {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.horarios-fixos .horario em {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--tx3);
+}
+
+.horarios-fixos .duracao {
+  font-size: 10.5px;
+  color: var(--tx3);
+}
+
+.marcadores.em-linha {
+  flex-direction: row;
+  gap: 16px;
+}
+
+.marcadores.em-linha label {
+  align-items: center;
+}
+
+/* Páginas de conteúdo curto ficam numa coluna estreita: o painel esticado até
+   1180px com texto quebrando em 68ch cria um bloco vazio à direita, e o texto
+   parece flutuar dentro da caixa. */
+.coluna-estreita {
+  max-width: 780px;
+}
+
+/* O × só aparece no pouso do mouse, mas o espaço é reservado sempre para o
+   chip não mudar de largura — e o contorno vira negativo, dizendo o que o
+   clique vai fazer antes de ele acontecer. */
+button.padrao i {
+  font-style: normal;
+  font-size: 11px;
+  width: 7px;
+  opacity: 0;
+  color: var(--neg);
+}
+
+button.padrao:hover i {
+  opacity: 1;
+}
+
+button.padrao:hover,
+button.padrao.ideal:hover,
+button.padrao.evitar:hover {
+  color: var(--neg);
+  box-shadow: inset 0 0 0 1px var(--neg);
+}
+
+button.padrao:hover em {
+  color: var(--neg);
+}
+
+/* --------------------------------------------- chip de padrão de bloco */
+
+/* A divisão e a nota são dois dados diferentes e ganham campos separados por
+   um filete, em vez de dividirem o mesmo espaço apertado. */
+button.padrao {
+  gap: 0;
+  padding: 2px 4px 2px 7px;
+}
+
+button.padrao b {
+  font-weight: 600;
+}
+
+button.padrao em {
+  margin-left: 6px;
+  padding: 0 5px;
+  border-left: 1px solid var(--line);
+  color: var(--tx3);
+}
+
+/* A escala tem três faixas: 0 e 1 no acento, 2 a 4 neutros, 5 e 6 em
+   negativo. O que separa a nota da divisão é o filete, não a cor. */
+button.padrao.evitar {
+  color: var(--neg);
+  box-shadow: inset 0 0 0 1px var(--neg);
+}
+
+button.padrao.evitar em {
+  border-left-color: var(--neg);
+}
+
+button.padrao.ideal em {
+  border-left-color: var(--accLine);
+}
+
+button.padrao:hover em {
+  border-left-color: var(--neg);
+}
+
+.seletor-nota {
+  width: 190px;
+}
+
+/* Nesta página o texto vai até a borda do painel e é justificado. */
+.coluna-estreita .explica {
+  max-width: none;
+  text-align: justify;
+  text-wrap: pretty;
+}
