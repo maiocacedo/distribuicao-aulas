@@ -1,24 +1,27 @@
-import { config, consultar } from "../db";
+import { consultar } from "../db";
 import type { Alocacao, Fatia, PadraoDeBloco, Problema, Turno } from "./tipos";
 
-/**
- * Monta o problema a partir do banco. É o espelho de
- * `scripts/exportar_problema.py`, que faz o mesmo para rodar o solver fora do
- * aplicativo — as duas versões precisam produzir a mesma coisa, ou os testes
- * deixam de dizer algo sobre o que roda de verdade.
- */
-export async function carregarProblema(cursoId: number): Promise<Problema> {
-  const dias = Number((await config("dias_letivos")) ?? 6);
-  const turnosSabado = (((await config("turnos_sabado")) ?? "manha")
-    .split(",")
-    .filter(Boolean)) as Turno[];
+/** Como ler do banco. No app é a pool do plugin SQL; nos testes e no benchmark, `node:sqlite`. */
+export type Leitor = <T>(sql: string, params?: unknown[]) => Promise<T[]>;
 
-  const horarios = await consultar<{ indice: number; turno: Turno }>(
+/**
+ * Monta o problema a partir do banco. A leitura é injetável para que os testes
+ * e o benchmark (`scripts/bench_solver.ts`) montem o problema pelo MESMO SQL
+ * que o app usa — sem uma segunda implementação para manter em sincronia.
+ */
+export async function carregarProblema(cursoId: number, ler: Leitor = consultar): Promise<Problema> {
+  const config = async (chave: string) =>
+    (await ler<{ valor: string }>("SELECT valor FROM configuracao WHERE chave = ?", [chave]))[0]?.valor;
+
+  const dias = Number((await config("dias_letivos")) ?? 6);
+  const turnosSabado = ((await config("turnos_sabado")) ?? "manha").split(",").filter(Boolean) as Turno[];
+
+  const horarios = await ler<{ indice: number; turno: Turno }>(
     "SELECT indice, turno FROM horarios ORDER BY indice",
   );
 
   const periodos = (
-    await consultar<{ numero: number; turno: Turno; max_disciplinas_contraturno: number }>(
+    await ler<{ numero: number; turno: Turno; max_disciplinas_contraturno: number }>(
       "SELECT * FROM periodos WHERE curso_id = ? ORDER BY numero",
       [cursoId],
     )
@@ -29,19 +32,16 @@ export async function carregarProblema(cursoId: number): Promise<Problema> {
   }));
 
   const salasEspecificas = new Map<number, number[]>();
-  for (const r of await consultar<{ disciplina_id: number; sala_id: number }>(
+  for (const r of await ler<{ disciplina_id: number; sala_id: number }>(
     `SELECT ds.disciplina_id, ds.sala_id FROM disciplina_salas ds
        JOIN disciplinas d ON d.id = ds.disciplina_id WHERE d.curso_id = ?`,
     [cursoId],
   )) {
-    salasEspecificas.set(r.disciplina_id, [
-      ...(salasEspecificas.get(r.disciplina_id) ?? []),
-      r.sala_id,
-    ]);
+    salasEspecificas.set(r.disciplina_id, [...(salasEspecificas.get(r.disciplina_id) ?? []), r.sala_id]);
   }
 
   const fatias: Fatia[] = (
-    await consultar<{
+    await ler<{
       disciplina_id: number;
       professor_id: number;
       aulas: number;
@@ -80,39 +80,31 @@ export async function carregarProblema(cursoId: number): Promise<Problema> {
   }));
 
   const padroes: Record<number, PadraoDeBloco[]> = {};
-  for (const r of await consultar<{ aulas: number; padrao: string; custo: number }>(
+  for (const r of await ler<{ aulas: number; padrao: string; custo: number }>(
     "SELECT aulas, padrao, custo FROM padroes_blocos",
   )) {
-    (padroes[r.aulas] ??= []).push({
-      partes: r.padrao.split("+").map(Number),
-      custo: r.custo,
-    });
+    (padroes[r.aulas] ??= []).push({ partes: r.padrao.split("+").map(Number), custo: r.custo });
   }
 
-  const salas = await consultar<{ id: number; tipo: string }>("SELECT id, tipo FROM salas");
+  const salas = await ler<{ id: number; tipo: string }>("SELECT id, tipo FROM salas");
 
   const professores = (
-    await consultar<{
+    await ler<{
       id: number;
       pref_dias: "consecutivos" | "intercalados" | "indiferente";
       pref_dias_peso: number;
       max_dias_semana: number | null;
     }>("SELECT id, pref_dias, pref_dias_peso, max_dias_semana FROM professores")
-  ).map((p) => ({
-    id: p.id,
-    prefDias: p.pref_dias,
-    peso: p.pref_dias_peso,
-    maxDias: p.max_dias_semana,
-  }));
+  ).map((p) => ({ id: p.id, prefDias: p.pref_dias, peso: p.pref_dias_peso, maxDias: p.max_dias_semana }));
 
   const indisponiveis = (
-    await consultar<{ professor_id: number; dia: number; hora: number }>(
+    await ler<{ professor_id: number; dia: number; hora: number }>(
       "SELECT professor_id, dia, hora FROM indisponibilidades",
     )
   ).map((i) => `${i.professor_id}:${i.dia}:${i.hora}`);
 
   const fixadas: Alocacao[] = (
-    await consultar<{
+    await ler<{
       periodo: number;
       dia: number;
       hora: number;
@@ -129,16 +121,5 @@ export async function carregarProblema(cursoId: number): Promise<Problema> {
     salaId: a.sala_id,
   }));
 
-  return {
-    dias,
-    horarios,
-    periodos,
-    fatias,
-    padroes,
-    salas,
-    professores,
-    indisponiveis,
-    turnosSabado,
-    fixadas,
-  };
+  return { dias, horarios, periodos, fatias, padroes, salas, professores, indisponiveis, turnosSabado, fixadas };
 }

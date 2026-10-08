@@ -2,6 +2,9 @@ import { readFileSync, readdirSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { Leitor } from "../../src/solver/carregar";
+import type { Alocacao } from "../../src/solver/tipos";
+import { converter } from "./ponte";
 
 const RAIZ = fileURLToPath(new URL("../..", import.meta.url));
 const MIGRACOES = join(RAIZ, "scripts", "migracoes");
@@ -42,4 +45,32 @@ export function criarBanco({ massa = true }: { massa?: boolean } = {}): Database
   if (massa) aplicar(texto);
   for (const m of todas.filter((m) => m.versao > versaoMassa)) aplicar(m.sql);
   return db;
+}
+
+/** Leitor para `carregarProblema` sobre um banco de teste. */
+export function lerDe(db: DatabaseSync): Leitor {
+  return async <T,>(sql: string, params: unknown[] = []) =>
+    db.prepare(sql).all(...params.map(converter)).map((linha) => ({ ...(linha as object) })) as T[];
+}
+
+/** A grade gravada de um curso, no formato do solver. */
+export function lerAlocacoes(db: DatabaseSync, cursoId: number): Alocacao[] {
+  const linhas = db
+    .prepare("SELECT periodo, dia, hora, disciplina_id, professor_id, sala_id FROM alocacoes WHERE curso_id = ?")
+    .all(cursoId) as {
+    periodo: number;
+    dia: number;
+    hora: number;
+    disciplina_id: number;
+    professor_id: number;
+    sala_id: number | null;
+  }[];
+  return linhas.map((a) => ({
+    periodo: a.periodo,
+    dia: a.dia,
+    hora: a.hora,
+    disciplinaId: a.disciplina_id,
+    professorId: a.professor_id,
+    salaId: a.sala_id,
+  }));
 }
