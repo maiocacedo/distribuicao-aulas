@@ -1,7 +1,11 @@
 name: CI
 
+permissions:
+  contents: read
+
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -12,6 +16,7 @@ concurrency:
 jobs:
   verificacao:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -31,6 +36,7 @@ jobs:
 
   rust:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - run: |
@@ -52,6 +58,7 @@ jobs:
   smoke:
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.base_ref == 'main')
     runs-on: windows-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -64,7 +71,7 @@ jobs:
           workspaces: src-tauri
       - run: npm ci
       - run: cargo install tauri-driver --locked
-      - run: cargo install --git https://github.com/chippers/msedgedriver-tool
+      - run: cargo install --git https://github.com/chippers/msedgedriver-tool --rev 8c4b34f51b45f5cf08013366d703de464ab871d1
       - run: msedgedriver-tool
       - run: npm run tauri build -- --debug --no-bundle
       - run: npm run test:smoke
