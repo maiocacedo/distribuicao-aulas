@@ -14,7 +14,7 @@ React + TypeScript (Vite) numa janela Tauri v2, com SQLite local via
 
 ## Antes de começar
 
-Além do Node.js (18 ou mais novo), o lado Tauri compila Rust de verdade, então
+Além do Node.js (22.13 ou mais novo), o lado Tauri compila Rust de verdade, então
 a máquina precisa de:
 
 - **Rust**, via [rustup](https://rustup.rs);
@@ -47,7 +47,7 @@ número, acrescentado também à lista em `lib.rs`.
 
 ## Testes
 
-Três camadas, todas sobre a mesma massa anonimizada (`testes/massa/`):
+Três camadas de teste, mais o benchmark, todas sobre a mesma massa anonimizada (`testes/massa/`):
 
 ```bash
 npm run typecheck      # tipos do app e dos testes
