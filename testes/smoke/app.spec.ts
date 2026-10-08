@@ -1,4 +1,22 @@
-import { $, expect } from "@wdio/globals";
+import { $, browser, expect } from "@wdio/globals";
+
+// Isolamento: o app de debug só usa o banco temporário se o binário for recente.
+// Um binário velho apontaria para o banco real do usuário, então checamos antes.
+// O WebDriver aguarda a Promise devolvida por `browser.execute` neste ambiente
+// (Edge + tauri-driver), por isso não foi preciso `executeAsync`.
+before(async () => {
+  const url = await browser.execute(() =>
+    (window as unknown as { __TAURI_INTERNALS__: { invoke: (c: string) => Promise<string> } }).__TAURI_INTERNALS__.invoke("banco"),
+  );
+  if (typeof url !== "string" || !url.includes("distribuicao-smoke-")) {
+    throw new Error(
+      `O app não está usando o banco temporário do smoke (banco: ${String(url)}).
+` +
+        "Um binário de debug desatualizado pode estar apontando para o banco REAL. " +
+        "Recompile com: npm run tauri build -- --debug --no-bundle",
+    );
+  }
+});
 
 const ir = async (rotulo: string) => (await $("nav")).$(`button=${rotulo}`).click();
 

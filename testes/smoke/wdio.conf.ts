@@ -21,7 +21,8 @@ export const config: WebdriverIO.Config = {
   capabilities: [{ maxInstances: 1, "tauri:options": { application: APP } } as WebdriverIO.Capabilities],
   framework: "mocha",
   reporters: ["spec"],
-  mochaOpts: { ui: "bdd", timeout: 120_000 },
+  logLevel: "warn",
+  mochaOpts: { ui: "bdd", timeout: 120_000, bail: true },
 
   onPrepare() {
     if (!existsSync(APP)) throw new Error(`Binário não encontrado: ${APP}\nRode: npm run tauri build -- --debug --no-bundle`);
