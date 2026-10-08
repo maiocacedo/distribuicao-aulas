@@ -5,16 +5,18 @@ test.describe("B2", () => {
   test.use({ semente: "INSERT INTO cursos (id, nome) VALUES (2, 'Zeta');" });
 
   test("B2: excluir curso com disciplinas remove tudo junto", async ({ page, banco }) => {
-    test.fail(true, "B2 — falta ON DELETE CASCADE; corrigir no subprojeto 1");
     aceitarConfirmacoes(page);
     await irPara(page, "Gerenciar cursos");
-    await page.getByRole("row", { name: /Engenharia/ }).getByRole("button", { name: "Remover" }).click();
+    const linha = page.getByRole("row", { name: /Engenharia/ });
+    await expect(linha).toBeVisible();
+    expect(contar(banco, "SELECT COUNT(*) FROM disciplinas WHERE curso_id = 1")).toBeGreaterThan(0);
+    test.fail(true, "B2 — falta ON DELETE CASCADE; corrigir no subprojeto 1");
+    await linha.getByRole("button", { name: "Remover" }).click();
     await expect.poll(() => contar(banco, "SELECT COUNT(*) FROM disciplinas WHERE curso_id = 1"), { timeout: 3_000 }).toBe(0);
   });
 });
 
 test("B3: mudar o período da disciplina leva as aulas junto", async ({ page, banco }) => {
-  test.fail(true, "B3 — aulas ficam no período antigo; corrigir no subprojeto 1");
   const d = banco
     .prepare(
       `SELECT d.id, d.nome, d.periodo FROM disciplinas d
@@ -25,30 +27,42 @@ test("B3: mudar o período da disciplina leva as aulas junto", async ({ page, ba
         ORDER BY d.id LIMIT 1`,
     )
     .get() as { id: number; nome: string; periodo: number };
+  expect(d).toBeTruthy();
   const novo = d.periodo === 8 ? 7 : d.periodo + 1;
+  const antes = contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE disciplina_id = ?", d.id);
+  expect(antes).toBeGreaterThan(0);
 
   await irPara(page, "Disciplinas");
   await page
     .locator("tr", { has: page.getByText(d.nome, { exact: true }) })
     .getByRole("button", { name: "Editar" })
     .click();
-  await page.locator(".modal select").first().selectOption(String(novo));
+  const seletor = page.locator(".modal select").first();
+  await expect(seletor).toBeVisible();
+  await seletor.selectOption(String(novo));
+
+  test.fail(true, "B3 — aulas ficam no período antigo; corrigir no subprojeto 1");
   await page.getByRole("button", { name: "Salvar" }).click();
   await expect
     .poll(() => contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE disciplina_id = ? AND periodo = ?", d.id, d.periodo), {
       timeout: 3_000,
     })
     .toBe(0);
+  // As aulas têm de ir junto para o novo período, não ser apagadas.
+  expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE disciplina_id = ? AND periodo = ?", d.id, novo)).toBe(antes);
 });
 
 test("B8: limpar período preserva as aulas fixadas", async ({ page, banco }) => {
-  test.fail(true, "B8 — o DELETE ignora fixada; corrigir no subprojeto 1");
   banco.exec(`UPDATE alocacoes SET fixada = 1
                WHERE rowid = (SELECT rowid FROM alocacoes WHERE curso_id = 1 AND periodo = 1 LIMIT 1)`);
   await page.reload();
   aceitarConfirmacoes(page);
   await irPara(page, "Manual");
-  await page.getByRole("button", { name: "Limpar período" }).click();
+  expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE curso_id = 1 AND periodo = 1 AND fixada = 1")).toBe(1);
+  const limpar = page.getByRole("button", { name: "Limpar período" });
+  await expect(limpar).toBeVisible();
+  test.fail(true, "B8 — o DELETE ignora fixada; corrigir no subprojeto 1");
+  await limpar.click();
   await expect.poll(() => contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE curso_id = 1 AND periodo = 1"), { timeout: 3_000 }).toBe(1);
 });
 
@@ -56,8 +70,10 @@ test.describe("B5", () => {
   test.use({ opcoesPonte: { falharQuando: /^SELECT indice, turno FROM horarios/ } });
 
   test("B5: erro ao carregar a grade automática aparece na tela", async ({ page }) => {
+    const botao = page.getByRole("navigation").getByRole("button", { name: "Automática", exact: true });
+    await expect(botao).toBeVisible();
+    await botao.click();
     test.fail(true, "B5 — o return null vem antes do <Erro>; corrigir no subprojeto 1");
-    await irPara(page, "Automática");
     await expect(page.getByText(/falha simulada/)).toBeVisible({ timeout: 3_000 });
   });
 });
@@ -81,9 +97,11 @@ test.describe("I1 — sala", () => {
   });
 
   test("I1: sala usada por outro curso aparece como impedida", async ({ page }) => {
-    test.fail(true, "I1 — a grade manual só olha o próprio curso; corrigir no subprojeto 1");
     await irPara(page, "Manual");
-    await page.getByRole("button", { name: /Cálculo/ }).click();
+    const pendencia = page.getByRole("button", { name: /Cálculo/ });
+    await pendencia.click();
+    await expect(pendencia).toHaveClass(/ativo/);
+    test.fail(true, "I1 — a grade manual só olha o próprio curso; corrigir no subprojeto 1");
     await expect(celula(page, "Segunda", "M1")).toContainText(/A01|Beta|ocupad/i, { timeout: 3_000 });
   });
 });
@@ -101,9 +119,11 @@ test.describe("I1 — professor", () => {
   });
 
   test("I1: professor ocupado em outro curso aparece como impedido", async ({ page }) => {
-    test.fail(true, "I1 — a grade manual só olha o próprio curso; corrigir no subprojeto 1");
     await irPara(page, "Manual");
-    await page.getByRole("button", { name: /Cálculo/ }).click();
+    const pendencia = page.getByRole("button", { name: /Cálculo/ });
+    await pendencia.click();
+    await expect(pendencia).toHaveClass(/ativo/);
+    test.fail(true, "I1 — a grade manual só olha o próprio curso; corrigir no subprojeto 1");
     await expect(celula(page, "Segunda", "M1")).toContainText(/A\. Souza|Beta/, { timeout: 3_000 });
   });
 });
@@ -121,9 +141,11 @@ test.describe("B4 — grade manual", () => {
   });
 
   test("B4: segundo dia é barrado para professor com máximo de 1 dia", async ({ page }) => {
-    test.fail(true, "B4 — max_dias_semana não é checado; corrigir no subprojeto 1");
     await irPara(page, "Manual");
-    await page.getByRole("button", { name: /Cálculo/ }).click();
+    const pendencia = page.getByRole("button", { name: /Cálculo/ });
+    await pendencia.click();
+    await expect(pendencia).toHaveClass(/ativo/);
+    test.fail(true, "B4 — max_dias_semana não é checado; corrigir no subprojeto 1");
     await expect(celula(page, "Terça", "M1")).toContainText(/máx|dias/i, { timeout: 3_000 });
   });
 });
@@ -144,9 +166,11 @@ test.describe("I2", () => {
   // Ao corrigir, a mensagem deve conter "aula(s) no sábado"; se a solução for um
   // diálogo, troque a asserção pela captura do diálogo.
   test("I2: tirar o sábado com aula no sábado avisa", async ({ page }) => {
-    test.fail(true, "I2 — as aulas de sábado somem sem aviso; corrigir no subprojeto 1");
     await irPara(page, "Regras");
-    await page.getByLabel("Semana").selectOption("5");
+    const semana = page.getByLabel("Semana");
+    await expect(semana).toBeVisible();
+    test.fail(true, "I2 — as aulas de sábado somem sem aviso; corrigir no subprojeto 1");
+    await semana.selectOption("5");
     await expect(page.getByText(/aulas? no sábado/i)).toBeVisible({ timeout: 3_000 });
   });
 });

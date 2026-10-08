@@ -8,6 +8,7 @@ export default defineConfig({
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
   use: {
     baseURL: "http://localhost:1420",
+    actionTimeout: 10_000,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },

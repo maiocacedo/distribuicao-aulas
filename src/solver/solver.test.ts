@@ -1,10 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { criarBanco, lerDe } from "../../testes/suporte/banco";
 import { comSalas, indisponivelUmDia } from "../../testes/suporte/cenarios";
 import { aula, fatia, indisponivelExceto, problemaMinimo } from "../../testes/suporte/problema";
 import { carregarProblema } from "./carregar";
 import { conferir } from "./conferir";
 import { resolver } from "./solver";
+import type { Problema, Resultado } from "./tipos";
 
 const problemaDaMassa = () => carregarProblema(1, lerDe(criarBanco()));
 const total = (p: { fatias: { aulas: number }[] }) => p.fatias.reduce((s, f) => s + f.aulas, 0);
@@ -94,52 +95,96 @@ describe("solver atual — cenários mínimos", () => {
 });
 
 describe("bugs conhecidos (falha esperada até o subprojeto 1)", () => {
-  // B1 — o domínio inclui horários de turnos que o curso não ocupa.
-  it.fails("B1: não aloca fora dos turnos do curso", async () => {
-    const p = indisponivelUmDia(comSalas(await problemaDaMassa(), 3), 77);
-    const r = resolver(p, { rodadasDeMelhoria: 300 });
-    const turno = new Map(p.horarios.map((h) => [h.indice, h.turno]));
-    const turnosDoCurso = ["manha", "tarde"];
-    expect(r.alocacoes.filter((a) => !turnosDoCurso.includes(turno.get(a.hora)!))).toEqual([]);
+  // O preparo roda fora de `it.fails`: um erro aqui derruba a suíte em vez de
+  // passar como "falha esperada". Cada `it` normal prova que o cenário existe;
+  // só a asserção do bug fica dentro de `it.fails`.
+
+  describe("B1 — o domínio inclui horários de turnos que o curso não ocupa", () => {
+    let p: Problema;
+    let r: Resultado;
+    let turnosDoCurso: string[];
+    beforeAll(async () => {
+      const { turnos } = criarBanco().prepare("SELECT turnos FROM cursos WHERE id = 1").get() as { turnos: string };
+      turnosDoCurso = turnos.split(",");
+      p = indisponivelUmDia(comSalas(await problemaDaMassa(), 3), 77);
+      r = resolver(p, { rodadasDeMelhoria: 300 });
+    });
+
+    it("pré-condição: há aulas alocadas e o curso é de manhã e tarde", () => {
+      expect(r.alocacoes.length).toBeGreaterThan(0);
+      expect(turnosDoCurso).toEqual(["manha", "tarde"]);
+    });
+
+    it.fails("B1: não aloca fora dos turnos do curso", () => {
+      const turno = new Map(p.horarios.map((h) => [h.indice, h.turno]));
+      expect(r.alocacoes.filter((a) => !turnosDoCurso.includes(turno.get(a.hora)!))).toEqual([]);
+    });
   });
 
-  // B4 — max_dias_semana é só custo; decidido que é regra dura.
-  it.fails("B4: max_dias_semana limita os dias do professor", async () => {
-    const p = await problemaDaMassa();
-    p.professores.forEach((x) => (x.maxDias = 2));
-    const r = resolver(p, { rodadasDeMelhoria: 300 });
-    const dias = new Map<number, Set<number>>();
-    for (const a of r.alocacoes) dias.set(a.professorId, (dias.get(a.professorId) ?? new Set()).add(a.dia));
-    expect([...dias.entries()].filter(([, s]) => s.size > 2)).toEqual([]);
+  describe("B4 — max_dias_semana é só custo; decidido que é regra dura", () => {
+    let p: Problema;
+    let r: Resultado;
+    beforeAll(async () => {
+      p = await problemaDaMassa();
+      p.professores.forEach((x) => (x.maxDias = 2));
+      r = resolver(p, { rodadasDeMelhoria: 300 });
+    });
+
+    it("pré-condição: todo professor tem máximo de 2 dias e há aulas alocadas", () => {
+      expect(p.professores.length).toBeGreaterThan(0);
+      expect(p.professores.every((x) => x.maxDias === 2)).toBe(true);
+      expect(r.alocacoes.length).toBeGreaterThan(0);
+    });
+
+    it.fails("B4: max_dias_semana limita os dias do professor", () => {
+      const dias = new Map<number, Set<number>>();
+      for (const a of r.alocacoes) dias.set(a.professorId, (dias.get(a.professorId) ?? new Set()).add(a.dia));
+      expect([...dias.entries()].filter(([, s]) => s.size > 2)).toEqual([]);
+    });
   });
 
-  // I1 — o solver não enxerga as aulas dos outros cursos.
-  it.fails("I1: não usa professor nem sala ocupados por outro curso", async () => {
-    const db = criarBanco();
-    const [{ professor_id: P }] = db
-      .prepare(
-        `SELECT dp.professor_id FROM disciplina_professores dp
-           JOIN disciplinas d ON d.id = dp.disciplina_id
-          WHERE d.curso_id = 1 GROUP BY dp.professor_id ORDER BY SUM(dp.aulas) DESC LIMIT 1`,
-      )
-      .all() as { professor_id: number }[];
-    const [{ id: S }] = db.prepare("SELECT id FROM salas ORDER BY id LIMIT 1").all() as { id: number }[];
-    db.exec(`
-      INSERT INTO cursos (id, nome) VALUES (2, 'Outro curso');
-      INSERT INTO periodos (curso_id, numero, turno) VALUES (2, 1, 'manha');
-      INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais) VALUES (9001, 2, 'Ocupação', 1, 60);
-    `);
-    db.prepare("INSERT INTO disciplina_professores (disciplina_id, professor_id, aulas) VALUES (9001, ?, 60)").run(P);
-    const inserir = db.prepare(
-      "INSERT INTO alocacoes (curso_id, periodo, dia, hora, disciplina_id, professor_id, sala_id) VALUES (2, 1, ?, ?, 9001, ?, ?)",
-    );
-    for (let d = 0; d < 5; d++) for (let h = 0; h < 12; h++) inserir.run(d, h, P, S);
+  describe("I1 — o solver não enxerga as aulas dos outros cursos", () => {
+    let r: Resultado;
+    let P: number;
+    let S: number;
+    let ocupadas: number;
+    beforeAll(async () => {
+      const db = criarBanco();
+      P = (
+        db
+          .prepare(
+            `SELECT dp.professor_id AS id FROM disciplina_professores dp
+               JOIN disciplinas d ON d.id = dp.disciplina_id
+              WHERE d.curso_id = 1 GROUP BY dp.professor_id ORDER BY SUM(dp.aulas) DESC LIMIT 1`,
+          )
+          .get() as { id: number }
+      ).id;
+      S = (db.prepare("SELECT id FROM salas ORDER BY id LIMIT 1").get() as { id: number }).id;
+      db.exec(`
+        INSERT INTO cursos (id, nome) VALUES (2, 'Outro curso');
+        INSERT INTO periodos (curso_id, numero, turno) VALUES (2, 1, 'manha');
+        INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais) VALUES (9001, 2, 'Ocupação', 1, 60);
+      `);
+      db.prepare("INSERT INTO disciplina_professores (disciplina_id, professor_id, aulas) VALUES (9001, ?, 60)").run(P);
+      const inserir = db.prepare(
+        "INSERT INTO alocacoes (curso_id, periodo, dia, hora, disciplina_id, professor_id, sala_id) VALUES (2, 1, ?, ?, 9001, ?, ?)",
+      );
+      for (let d = 0; d < 5; d++) for (let h = 0; h < 12; h++) inserir.run(d, h, P, S);
+      ocupadas = Number(
+        (db.prepare("SELECT COUNT(*) AS n FROM alocacoes WHERE curso_id = 2").get() as { n: number }).n,
+      );
 
-    const p = await carregarProblema(1, lerDe(db));
-    const r = resolver(p, { rodadasDeMelhoria: 100 });
-    const conflitos = r.alocacoes.filter(
-      (a) => a.dia < 5 && a.hora < 12 && (a.professorId === P || a.salaId === S),
-    );
-    expect(conflitos).toEqual([]);
+      r = resolver(await carregarProblema(1, lerDe(db)), { rodadasDeMelhoria: 100 });
+    });
+
+    it("pré-condição: as 60 aulas do outro curso existem e há aulas alocadas", () => {
+      expect(ocupadas).toBe(60);
+      expect(r.alocacoes.length).toBeGreaterThan(0);
+    });
+
+    it.fails("I1: não usa professor nem sala ocupados por outro curso", () => {
+      const conflitos = r.alocacoes.filter((a) => a.dia < 5 && a.hora < 12 && (a.professorId === P || a.salaId === S));
+      expect(conflitos).toEqual([]);
+    });
   });
 });
