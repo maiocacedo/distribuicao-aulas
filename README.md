@@ -45,6 +45,41 @@ Um arquivo de migração já publicado nunca é editado — bancos existentes n�
 executariam de novo. Toda alteração de esquema é um arquivo novo com o próximo
 número, acrescentado também à lista em `lib.rs`.
 
+## Testes
+
+Três camadas, todas sobre a mesma massa anonimizada (`testes/massa/`):
+
+```bash
+npm run typecheck      # tipos do app e dos testes
+npm test               # Vitest: solver, auditor, ponte de IPC (segundos)
+npm run test:e2e       # Playwright: a interface no Chromium, sem compilar Rust
+npm run test:smoke     # binário real (Windows); exige build debug e drivers
+npm run bench:solver   # compara solvers em cenários × sementes
+```
+
+- **Massa.** `testes/massa/engenharia_v9.sql` vem do banco real, com nomes de
+  professores trocados por `Professor NN` e observações apagadas. Para
+  regenerar: `python scripts/anonimizar_massa.py distribuicao.db`. O script
+  recusa gravar se sobrar algum nome real.
+- **Banco de teste.** `testes/suporte/banco.ts` aplica as migrações até a
+  versão da massa, insere a massa e aplica as restantes — toda migração nova é
+  testada contra um banco populado.
+- **Interface sem Rust.** O Playwright abre o app no Chromium e redireciona o
+  IPC do Tauri para `testes/suporte/ponte.ts`, que opera um SQLite no Node com a
+  mesma semântica do comando `transacao`.
+- **Smoke.** Precisa, uma vez: `cargo install tauri-driver --locked`,
+  `cargo install --git https://github.com/chippers/msedgedriver-tool` e
+  `msedgedriver-tool` na raiz. Depois:
+  `npm run tauri build -- --debug --no-bundle && npm run test:smoke`. O banco
+  do smoke é temporário (`DISTRIBUICAO_BANCO`, só em debug); o seu não é tocado.
+- **Falha esperada.** Bugs conhecidos são testes marcados com `it.fails`
+  (Vitest) ou `test.fail(true, "<id> — …")` (Playwright). Eles passam enquanto
+  o bug existir. Quando o bug for corrigido, a ferramenta acusa "passou
+  inesperadamente": remova a marcação nesse momento.
+- **CI.** `.github/workflows/ci.yml` roda typecheck, Vitest, Playwright e
+  `cargo fmt`/`clippy` em todo push; o smoke roda em PR para `main` e pelo
+  botão "Run workflow".
+
 ## Estrutura
 
 | Caminho | O que é |
