@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "typecheck": "tsc --noEmit && tsc --noEmit -p testes",
-    "test": "vitest run"
+    "test": "vitest run",
+    "bench:solver": "vite-node scripts/bench_solver.ts --"
   },
   "engines": {
     "node": ">=22.13"
