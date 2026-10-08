@@ -29,3 +29,8 @@ src-tauri/gen/schemas
 
 # Banco gerado pela migração (massa de teste, reproduzível com scripts/migrar.py)
 *.db
+
+# Testes
+playwright-report/
+test-results/
+msedgedriver.exe
