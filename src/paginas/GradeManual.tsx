@@ -502,6 +502,7 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
                     return (
                       <div
                         key={d}
+                        aria-label={`${DIAS[d]}, ${l.h.codigo}`}
                         className={`celula ${classe} ${foraDoTurno ? "contraturno" : ""}`}
                         onClick={() =>
                           aula ? remover(d, l.h.indice) : alocar(d, l.h.indice)

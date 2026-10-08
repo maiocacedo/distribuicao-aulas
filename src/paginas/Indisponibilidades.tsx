@@ -235,6 +235,7 @@ export default function Indisponibilidades() {
                         return (
                           <td
                             key={d}
+                            aria-label={`${DIAS[d]}, ${h.codigo}`}
                             className={
                               aula ? "ocupada" : marcado ? "indisponivel" : "livre"
                             }
