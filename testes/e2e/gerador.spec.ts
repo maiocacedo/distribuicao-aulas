@@ -8,24 +8,33 @@ import { expect, test } from "./fixtures";
 import { aceitarConfirmacoes, celula, contar, irPara } from "./paginas";
 
 async function gerarEAplicar(page: Page) {
-  aceitarConfirmacoes(page);
   await irPara(page, "Automática");
   await page.getByRole("button", { name: "Gerar grade" }).click();
   await page.getByRole("button", { name: "Aplicar esta grade" }).click({ timeout: 30_000 });
   await expect(page.getByText("Grade aplicada.")).toBeVisible();
 }
 
-const umaLinha = <T,>(banco: DatabaseSync, sql: string, ...params: (number | string)[]) =>
-  ({ ...(banco.prepare(sql).get(...params) as object) }) as T;
+const umaLinha = <T,>(banco: DatabaseSync, sql: string, ...params: (number | string)[]) => {
+  const linha = banco.prepare(sql).get(...params);
+  if (!linha) throw new Error(`consulta sem resultado: ${sql}`);
+  return { ...(linha as object) } as T;
+};
 
 test("gera e aplica uma grade que o auditor aprova", async ({ page, banco }) => {
+  aceitarConfirmacoes(page);
   await gerarEAplicar(page);
-  expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE curso_id = 1")).toBe(223);
+  // A massa é totalmente resolúvel: a grade gerada deve colocar todas as aulas.
+  const total = contar(
+    banco,
+    "SELECT SUM(dp.aulas) FROM disciplina_professores dp JOIN disciplinas d ON d.id = dp.disciplina_id WHERE d.curso_id = 1",
+  );
+  expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE curso_id = 1")).toBe(total);
   const problema = await carregarProblema(1, lerDe(banco));
   expect(conferir(problema, lerAlocacoes(banco, 1))).toEqual([]);
 });
 
 test("aula fixada com o botão direito sobrevive à geração", async ({ page, banco }) => {
+  aceitarConfirmacoes(page);
   const alvo = umaLinha<{ dia: number; hora: number; codigo: string; disciplina_id: number }>(
     banco,
     `SELECT a.dia, a.hora, h.codigo, a.disciplina_id FROM alocacoes a
@@ -48,20 +57,30 @@ test("aula fixada com o botão direito sobrevive à geração", async ({ page, b
       alvo.disciplina_id,
     ),
   ).toBe(1);
+  expect(conferir(await carregarProblema(1, lerDe(banco)), lerAlocacoes(banco, 1))).toEqual([]);
 });
 
 test("indisponibilidade marcada por arrasto é respeitada pelo gerador", async ({ page, banco }) => {
-  const { id } = umaLinha<{ id: number }>(banco, "SELECT id FROM professores WHERE nome = 'Professor 01'");
-  const { dia } = umaLinha<{ dia: number }>(
-    banco,
-    `SELECT d.dia FROM (SELECT 0 AS dia UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4) d
-      WHERE NOT EXISTS (SELECT 1 FROM alocacoes a WHERE a.professor_id = ? AND a.dia = d.dia AND a.hora <= 2)
-      ORDER BY d.dia LIMIT 1`,
-    id,
-  );
+  aceitarConfirmacoes(page);
 
+  // Controle: gera uma grade sem restrições para achar um professor que usa o intervalo M1-M3.
+  banco.exec("DELETE FROM alocacoes WHERE curso_id = 1");
+  await page.reload();
+  await gerarEAplicar(page);
+  const { id, nome, dia } = umaLinha<{ id: number; nome: string; dia: number }>(
+    banco,
+    `SELECT a.professor_id AS id, p.nome, a.dia FROM alocacoes a JOIN professores p ON p.id = a.professor_id
+      WHERE a.curso_id = 1 AND a.dia < 5 AND a.hora <= 2 ORDER BY p.nome, a.dia LIMIT 1`,
+  );
+  expect(
+    contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE professor_id = ? AND dia = ? AND hora <= 2", id, dia),
+  ).toBeGreaterThanOrEqual(1);
+
+  // Libera a grade e marca a indisponibilidade exatamente nesse intervalo.
+  banco.exec("DELETE FROM alocacoes WHERE curso_id = 1");
+  await page.reload();
   await irPara(page, "Indisponibilidades");
-  await page.getByRole("button", { name: "Professor 01" }).click();
+  await page.getByRole("button", { name: nome }).click();
   await celula(page, DIAS[dia], "M1").hover();
   await page.mouse.down();
   await celula(page, DIAS[dia], "M2").hover();
@@ -70,5 +89,6 @@ test("indisponibilidade marcada por arrasto é respeitada pelo gerador", async (
   await expect.poll(() => contar(banco, "SELECT COUNT(*) FROM indisponibilidades WHERE professor_id = ?", id)).toBe(3);
 
   await gerarEAplicar(page);
+  expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE professor_id = ?", id)).toBeGreaterThan(0);
   expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE professor_id = ? AND dia = ? AND hora <= 2", id, dia)).toBe(0);
 });
