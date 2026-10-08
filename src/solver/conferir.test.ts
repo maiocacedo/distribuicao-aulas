@@ -94,4 +94,30 @@ describe("conferir", () => {
     const p = problemaMinimo({ fatias: [fatia()] });
     expect(tipos(conferir(p, [aula(0, 5), aula(0, 6)]))).toContain("bloco-turno");
   });
+
+  it("acusa aula que não pertence a fatia nenhuma", () => {
+    const p = problemaMinimo({ fatias: [fatia()] });
+    expect(tipos(conferir(p, [aula(0, 0), aula(0, 1), aula(1, 0, { disciplinaId: 9 })]))).toEqual(["contagem"]);
+  });
+
+  it("acusa aula gravada em outro período que não o da disciplina", () => {
+    const p = problemaMinimo({
+      periodos: [
+        { numero: 1, turno: "manha", maxContraturno: 0 },
+        { numero: 2, turno: "manha", maxContraturno: 0 },
+      ],
+      fatias: [fatia()],
+    });
+    expect(tipos(conferir(p, [aula(0, 0, { periodo: 2 }), aula(0, 1, { periodo: 2 })]))).toEqual(["periodo", "periodo"]);
+  });
+
+  it("aceita aulas fixadas pelo usuário no mesmo dia", () => {
+    const fixadas = [aula(0, 0), aula(0, 2)];
+    const p = problemaMinimo({ fatias: [fatia()], fixadas });
+    expect(conferir(p, fixadas)).toEqual([]);
+  });
+
+  it("não acusa fatia sem nenhuma aula (completude é do Resultado)", () => {
+    expect(conferir(problemaMinimo({ fatias: [fatia()] }), [])).toEqual([]);
+  });
 });

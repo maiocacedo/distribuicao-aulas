@@ -4,6 +4,9 @@ import type { Alocacao, Fatia, Problema, SalaDisponivel } from "./tipos";
  * Auditor das regras duras, independente do solver: recebe uma grade pronta e
  * reconta tudo a partir dela. É o juiz dos testes e do benchmark — um solver
  * não pode ser conferido pelo próprio código que decide onde pôr as aulas.
+ *
+ * Uma fatia sem nenhuma aula não é violação: completude se confere por
+ * `Resultado.completo`, não aqui.
  */
 
 export type TipoViolacao =
@@ -70,7 +73,12 @@ export function conferir(problema: Problema, alocacoes: Alocacao[]): Violacao[] 
     if (indisponiveis.has(`${a.professorId}:${a.dia}:${a.hora}`))
       add("indisponivel", `professor ${a.professorId} indisponível em ${a.dia}:${a.hora}`);
     const f = fatias.get(chaveFatia(a));
-    if (!f) continue;
+    if (!f) {
+      add("contagem", `aula sem fatia correspondente (${chaveFatia(a)})`);
+      continue;
+    }
+    if (a.periodo !== f.periodo)
+      add("periodo", `${f.nome}: aula no ${a.periodo}º período, mas a disciplina é do ${f.periodo}º`);
     if (a.dia === SABADO && !f.permiteSabado) add("sabado", `${f.nome} no sábado sem permissão`);
     const turno = turnoDaHora.get(a.hora);
     if (a.dia === SABADO && turno && !problema.turnosSabado.includes(turno))
@@ -101,7 +109,7 @@ export function conferir(problema: Problema, alocacoes: Alocacao[]): Violacao[] 
           tamanho = 1;
         }
       }
-      if (doDiaBlocos.length > 1) add("padrao", `${f.nome}: dois blocos no mesmo dia`);
+      if (doDiaBlocos.length > 1 && !comFixada.has(k)) add("padrao", `${f.nome}: dois blocos no mesmo dia`);
       blocos.push(...doDiaBlocos);
     }
     if (f.blocosLivres || comFixada.has(k)) continue;
