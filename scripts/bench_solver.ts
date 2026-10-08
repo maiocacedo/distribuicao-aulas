@@ -5,7 +5,9 @@
  *   npm run bench:solver                       massa anonimizada
  *   npm run bench:solver -- --banco meu.db     banco real, só leitura
  *   npm run bench:solver -- --salvar           grava testes/benchmark/linha-de-base.md
+ *                                              (só na massa anonimizada: recusa --banco e --curso)
  */
+import { execSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { carregarProblema } from "../src/solver/carregar";
@@ -40,6 +42,11 @@ function foraDoTurno(p: Problema, alocacoes: Alocacao[]): number {
 }
 
 const arquivo = argumento("--banco");
+if (process.argv.includes("--salvar") && (arquivo || argumento("--curso"))) {
+  throw new Error(
+    "--salvar não pode ser usado com --banco nem --curso: a linha de base só vale para a massa anonimizada do curso 1.",
+  );
+}
 const banco = arquivo ? new DatabaseSync(arquivo, { readOnly: true }) : criarBanco();
 const base = await carregarProblema(Number(argumento("--curso") ?? 1), lerDe(banco));
 
@@ -66,9 +73,16 @@ const tabela = linhas.join("\n");
 console.log(tabela);
 if (process.argv.includes("--salvar")) {
   const data = new Date().toISOString().slice(0, 10);
+  let commit = "desconhecido";
+  try {
+    commit = execSync("git rev-parse --short HEAD", { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  } catch {
+    // Fora de um repositório git: segue com "desconhecido".
+  }
   writeFileSync(
     "testes/benchmark/linha-de-base.md",
     `# Linha de base do solver\n\nGerada por \`npm run bench:solver -- --salvar\` em ${data}, ` +
-      `sobre a massa anonimizada. É a referência "antes" para comparar o solver v2.\n\n${tabela}\n`,
+      `sobre a massa anonimizada. É a referência "antes" para comparar o solver v2.\n\n` +
+      `- Commit: ${commit}\n- Node: ${process.version}\n- Sementes: ${SEMENTES.join(", ")}\n\n${tabela}\n`,
   );
 }
