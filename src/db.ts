@@ -1,22 +1,25 @@
 import Database from "@tauri-apps/plugin-sql";
 import { invoke } from "@tauri-apps/api/core";
 
-const BANCO = "sqlite:distribuicao.db";
-
 /**
  * Leituras vão pela pool do plugin; escritas vão pelo comando `transacao` do
- * lado Rust. A separação não é estética:
+ * lado Rust, que envolve tudo numa transação: salvar uma disciplina escreve em
+ * várias tabelas, e falhar no meio deixaria o banco num estado que nenhuma
+ * tela sabe representar.
  *
- * `PRAGMA foreign_keys` vale por conexão, e o plugin mantém uma pool de várias.
- * Ligá-lo daqui acertaria uma conexão e deixaria as outras sem verificação
- * nenhuma — a integridade referencial ficaria valendo ou não conforme a sorte
- * de qual conexão atendesse a chamada. No comando Rust a mesma conexão é
- * adquirida, configurada e usada, e ainda envolve tudo numa transação.
+ * O nome do banco vem do Rust (comando `banco`): em debug ele pode apontar
+ * para outro arquivo, e as migrações são registradas por esse mesmo nome.
  */
+let nome: Promise<string> | null = null;
 let conexao: Promise<Database> | null = null;
 
+function banco(): Promise<string> {
+  if (!nome) nome = invoke<string>("banco");
+  return nome;
+}
+
 function db(): Promise<Database> {
-  if (!conexao) conexao = Database.load(BANCO);
+  if (!conexao) conexao = banco().then((b) => Database.load(b));
   return conexao;
 }
 
@@ -36,8 +39,8 @@ export interface ResultadoEscrita {
 }
 
 /** Tudo ou nada: uma falha no meio desfaz as instruções anteriores. */
-export function transacao(instrucoes: Instrucao[]): Promise<ResultadoEscrita> {
-  return invoke<ResultadoEscrita>("transacao", { banco: BANCO, instrucoes });
+export async function transacao(instrucoes: Instrucao[]): Promise<ResultadoEscrita> {
+  return invoke<ResultadoEscrita>("transacao", { banco: await banco(), instrucoes });
 }
 
 export function executar(sql: string, params: unknown[] = []): Promise<ResultadoEscrita> {

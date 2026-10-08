@@ -143,7 +143,10 @@ async fn transacao(
         for p in &instrucao.params {
             consulta = amarrar(consulta, p);
         }
-        let r = consulta.execute(&mut *tx).await.map_err(|e| e.to_string())?;
+        let r = consulta
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| e.to_string())?;
         afetadas += r.rows_affected();
         ultimo = r.last_insert_rowid();
     }
@@ -156,16 +159,39 @@ async fn transacao(
     })
 }
 
+/// URL do banco. Em build de debug, `DISTRIBUICAO_BANCO` pode apontar para um
+/// arquivo absoluto — é o que isola o smoke test do banco de verdade do
+/// usuário. Em release a variável é ignorada.
+fn url_do_banco() -> String {
+    if cfg!(debug_assertions) {
+        if let Ok(caminho) = std::env::var("DISTRIBUICAO_BANCO") {
+            return format!("sqlite:{caminho}");
+        }
+    }
+    String::from("sqlite:distribuicao.db")
+}
+
+struct Banco(String);
+
+/// O front pergunta o nome do banco em vez de fixá-lo: as migrações são
+/// registradas por essa mesma URL, e as duas precisam casar.
+#[tauri::command]
+fn banco(estado: State<'_, Banco>) -> String {
+    estado.0.clone()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let url = url_do_banco();
     tauri::Builder::default()
+        .manage(Banco(url.clone()))
         .plugin(tauri_plugin_opener::init())
         .plugin(
             tauri_plugin_sql::Builder::default()
-                .add_migrations("sqlite:distribuicao.db", migracoes())
+                .add_migrations(&url, migracoes())
                 .build(),
         )
-        .invoke_handler(tauri::generate_handler![transacao])
+        .invoke_handler(tauri::generate_handler![transacao, banco])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
