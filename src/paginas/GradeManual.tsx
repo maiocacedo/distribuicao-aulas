@@ -252,21 +252,31 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
     }
   }
 
-  /** Salas que servem à aula e estão livres naquele horário (a dela inclusive). */
-  function salasParaTroca(a: Aula): { id: number; rotulo: string }[] {
+  /**
+   * Salas que servem à aula e estão livres naquele horário (a dela inclusive).
+   * A sala atual entra sempre: se o cadastro mudou e ela saiu do requisito, o
+   * seletor sem ela mostraria outra como se fosse a atual.
+   */
+  function salasParaTroca(a: Aula): { id: number | null; rotulo: string }[] {
     const f = fatiaDaAula(a);
     if (!f || !ctx) return [];
     const regras = regrasDe(f);
-    const comLista = regras.salas.length > 0;
-    return salasPossiveis(ctx, regras)
+    // Com tipo de sala, `salasPossiveis` ignora a lista específica.
+    const comLista = !regras.tipoSala && regras.salas.length > 0;
+    const possiveis = salasPossiveis(ctx, regras);
+    const opcoes: { id: number | null; rotulo: string }[] = possiveis
       .filter((s) => s.id === a.salaId || !oc.daSala(s.id, a.dia, a.hora))
       .map((s) => ({
         id: s.id,
         rotulo: nomes.sala(s.id) + (comLista ? (s.preferencia === 1 ? " (ideal)" : " (aceitável)") : ""),
       }));
+    if (a.salaId != null && !possiveis.some((s) => s.id === a.salaId))
+      opcoes.unshift({ id: a.salaId, rotulo: `${nomes.sala(a.salaId)} (atual, fora do requisito)` });
+    if (!regras.exigeSala) opcoes.push({ id: null, rotulo: "Sem sala" });
+    return opcoes;
   }
 
-  async function trocarSala(a: Aula, salaId: number) {
+  async function trocarSala(a: Aula, salaId: number | null) {
     setTrocando(null);
     if (salaId === a.salaId) return;
     setErro("");
@@ -280,6 +290,7 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
       await carregar();
     } catch (e) {
       setErro(mensagemErro(e, "A aula"));
+      await carregar();
     }
   }
 
@@ -333,9 +344,7 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
     if (
       !confirm(
         `Apagar as aulas do ${periodo}º período?` +
-          (fixadas ? `
-
-As ${fixadas} aula(s) fixadas ficam.` : ""),
+          (fixadas ? `\n\nAs ${fixadas} aula(s) fixadas ficam.` : ""),
       )
     )
       return;
@@ -571,11 +580,11 @@ As ${fixadas} aula(s) fixadas ficam.` : ""),
                                     autoFocus
                                     value={aula.salaId ?? ""}
                                     onClick={(ev) => ev.stopPropagation()}
-                                    onChange={(ev) => trocarSala(aula, Number(ev.target.value))}
+                                    onChange={(ev) => trocarSala(aula, ev.target.value === "" ? null : Number(ev.target.value))}
                                     onBlur={() => setTrocando(null)}
                                   >
                                     {salasParaTroca(aula).map((s) => (
-                                      <option key={s.id} value={s.id}>
+                                      <option key={s.id ?? "sem"} value={s.id ?? ""}>
                                         {s.rotulo}
                                       </option>
                                     ))}

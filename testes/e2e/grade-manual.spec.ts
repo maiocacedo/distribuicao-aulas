@@ -52,6 +52,26 @@ test.describe("sala", () => {
   });
 });
 
+test.describe("sala fora do requisito", () => {
+  test.use({
+    semMassa: true,
+    semente: `${BASE}
+      INSERT INTO salas (id, nome, tipo, capacidade) VALUES (1, 'A01', 'Sala de Aula', 40), (2, 'Lab 1', 'Laboratório', 30);
+      INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais, tipo_sala) VALUES (1, 1, 'Química', 1, 2, 'Laboratório');
+      INSERT INTO disciplina_professores (disciplina_id, professor_id, aulas) VALUES (1, 1, 2);
+      INSERT INTO alocacoes (curso_id, periodo, dia, hora, disciplina_id, professor_id, sala_id) VALUES (1, 1, 0, 0, 1, 1, 1);`,
+  });
+
+  test("a troca mostra a sala atual e a leva para o laboratório", async ({ page, banco }) => {
+    await irPara(page, "Manual");
+    await page.getByRole("button", { name: "Trocar sala de Química" }).click();
+    const sala = page.getByRole("combobox", { name: "Sala" });
+    await expect(sala.locator("option:checked")).toHaveText("A01 (atual, fora do requisito)");
+    await sala.selectOption({ label: "Lab 1" });
+    await expect.poll(() => contar(banco, "SELECT sala_id FROM alocacoes WHERE disciplina_id = 1")).toBe(2);
+  });
+});
+
 test.describe("diagnóstico", () => {
   test.use({
     semMassa: true,
