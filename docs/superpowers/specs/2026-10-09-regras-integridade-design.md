@@ -66,8 +66,9 @@ minhas:
    reposicionar por conta própria esconderia uma decisão do usuário.
 8. **Reduzir `max_dias_semana`** abaixo dos dias que o professor já usa é recusado com
    explicação, sem confirmar e apagar: não há como escolher sozinho qual dia sai.
-9. **Excluir um período** com disciplinas continua recusado, agora com mensagem clara.
-   A cascata vale só para o curso inteiro, que já pede confirmação com as contagens.
+9. **Excluir um período** com disciplinas continua recusado (o botão já fica
+   desabilitado com dica). A cascata vale só para o curso inteiro, que já pede
+   confirmação com as contagens.
 10. **B6 fica para o subprojeto 3.** Corrigir isolado piorou o custo médio (619 → 838)
     porque a nota local está desalinhada do objetivo. O v2 reescreve a busca. O código
     ganha um comentário apontando o problema.
@@ -261,10 +262,10 @@ Tipos novos de `TipoViolacao`: `turno-curso`, `turno-forcado`, `max-dias`, `faix
 | Página | Mudança |
 |---|---|
 | Cursos | Remover: o confirm já promete cascata, e o gatilho a cumpre (B2). Turnos: sem "noite". Desmarcar um turno: recusa se algum período ou disciplina usa o turno; senão, se há aulas nele, confirma e apaga |
-| Períodos | Sem `permite_contraturno`. Rótulo "Máx. de **obrigatórias** no contraturno", com dica explicando que optativas não contam. Remover com disciplinas: mensagem clara |
+| Períodos | Sem `permite_contraturno`. Rótulo "Máx. de **obrigatórias** no contraturno", com dica explicando que optativas não contam. Remover o último período com disciplinas já é impedido (botão desabilitado com dica) |
 | Disciplinas | Checkbox **Ofertada** e marca "não ofertada" na lista. Preferência por sala na lista específica (ideal/aceitável). Mudar o período leva as aulas (B3, decisão 7). Salvar revalida as aulas da disciplina com `violacoesDaAula` (sábado, turno forçado, sala, oferta) e confirma e apaga as inválidas. B9: o aviso de padrão olha cada fatia. Turno forçado: só os turnos do curso |
-| Regras (`Instituicao.tsx`) | Dias letivos 6→5 com aula no sábado: confirma "N aula(s) no sábado serão apagadas" (I2); cancelar volta o seletor. Mesmo tratamento ao tirar um turno de `turnos_sabado` |
-| Indisponibilidades | Marcar sobre aula existente: confirma e apaga as aulas atingidas, de qualquer curso. B10: `persistir` sai do updater |
+| Regras (`Instituicao.tsx`) | Dias letivos 6→5 com aula no sábado: confirma "N aulas no sábado serão apagadas" (I2); cancelar volta o seletor. (`turnos_sabado` não é editável na interface; nada a fazer) |
+| Indisponibilidades | B10: `persistir` sai do updater (o arrasto grava uma vez só). Marcar sobre aula já é impedido hoje (a célula com aula não pinta), então nada muda aí |
 | Professores | Reduzir `max_dias_semana` abaixo dos dias em uso: recusa com explicação (decisão 8) |
 | Grade Automática | B5: o `<Erro>` aparece mesmo sem problema carregado. Resumo mostra "N aulas de outros cursos respeitadas" |
 | Tipos | Optativa: dica atualizada ("o gerador põe no contraturno quando convém") |
