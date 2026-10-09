@@ -60,7 +60,6 @@ test("B8: limpar período preserva as aulas fixadas", async ({ page, banco }) =>
   expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE curso_id = 1 AND periodo = 1 AND fixada = 1")).toBe(1);
   const limpar = page.getByRole("button", { name: "Limpar período" });
   await expect(limpar).toBeVisible();
-  test.fail(true, "B8 — o DELETE ignora fixada; corrigir no subprojeto 1");
   await limpar.click();
   await expect.poll(() => contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE curso_id = 1 AND periodo = 1"), { timeout: 3_000 }).toBe(1);
 });
@@ -100,7 +99,6 @@ test.describe("I1 — sala", () => {
     const pendencia = page.getByRole("button", { name: /Cálculo/ });
     await pendencia.click();
     await expect(pendencia).toHaveClass(/ativo/);
-    test.fail(true, "I1 — a grade manual só olha o próprio curso; corrigir no subprojeto 1");
     await expect(celula(page, "Segunda", "M1")).toContainText(/A01|Beta|ocupad/i, { timeout: 3_000 });
   });
 });
@@ -122,7 +120,6 @@ test.describe("I1 — professor", () => {
     const pendencia = page.getByRole("button", { name: /Cálculo/ });
     await pendencia.click();
     await expect(pendencia).toHaveClass(/ativo/);
-    test.fail(true, "I1 — a grade manual só olha o próprio curso; corrigir no subprojeto 1");
     await expect(celula(page, "Segunda", "M1")).toContainText(/A\. Souza|Beta/, { timeout: 3_000 });
   });
 });
@@ -144,7 +141,6 @@ test.describe("B4 — grade manual", () => {
     const pendencia = page.getByRole("button", { name: /Cálculo/ });
     await pendencia.click();
     await expect(pendencia).toHaveClass(/ativo/);
-    test.fail(true, "B4 — max_dias_semana não é checado; corrigir no subprojeto 1");
     await expect(celula(page, "Terça", "M1")).toContainText(/máx|dias/i, { timeout: 3_000 });
   });
 });

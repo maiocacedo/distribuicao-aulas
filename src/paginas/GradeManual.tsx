@@ -1,14 +1,13 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { config, consultar, transacao, type Instrucao } from "../db";
-import { DIAS, type Horario, type Periodo, type Sala } from "../tipos";
+import { consultar, transacao, type Instrucao } from "../db";
+import { DIAS, type Horario, type Periodo } from "../tipos";
 import { Erro, Vazio, mensagemErro } from "../componentes/ui";
-
-/** "Marina Sousa" → "M. Sousa": a célula é estreita e o sobrenome basta. */
-function curto(nome: string): string {
-  const partes = nome.trim().split(/\s+/);
-  if (partes.length < 2) return nome;
-  return `${partes[0][0]}. ${partes[partes.length - 1]}`;
-}
+import { avisosDaFatia } from "../regras/avisos";
+import { carregarContexto } from "../regras/carregar";
+import { curto, descrever, type Nomes } from "../regras/descrever";
+import { escolherSala, impedimento, salasPossiveis, violacoesDaAula } from "../regras/impedimentos";
+import { Ocupacao } from "../regras/ocupacao";
+import type { AulaOcupada, Contexto, FatiaRegras, SalaAceita, Turno } from "../regras/tipos";
 
 const chave = (dia: number, hora: number) => `${dia}-${hora}`;
 
@@ -24,59 +23,46 @@ interface Fatia {
   permite_sabado: number;
   exige_sala: number;
   tipo_sala: string | null;
-  turno: string | null;
+  turno: Turno | null;
+  ofertada: number;
+  blocos_livres: number;
 }
 
-interface Aula {
-  periodo: number;
-  dia: number;
-  hora: number;
-  disciplina_id: number;
-  professor_id: number;
-  sala_id: number | null;
+/** Aula de qualquer curso, com os nomes que a tela mostra. */
+interface Aula extends AulaOcupada {
+  fixada: number;
   disciplina: string;
   professor: string;
   sala: string | null;
-  fixada: number;
+  curso: string;
 }
 
 export default function GradeManual({ cursoId }: { cursoId: number }) {
   const [periodos, setPeriodos] = useState<Periodo[]>([]);
   const [periodo, setPeriodo] = useState<number | null>(null);
   const [horarios, setHorarios] = useState<Horario[]>([]);
-  const [dias, setDias] = useState(6);
+  const [horariosTodos, setHorariosTodos] = useState<Horario[]>([]);
   const [fatias, setFatias] = useState<Fatia[]>([]);
   const [aulas, setAulas] = useState<Aula[]>([]);
-  const [salas, setSalas] = useState<Sala[]>([]);
-  const [salasPorDisciplina, setSalasPorDisciplina] = useState<Map<number, number[]>>(
-    new Map(),
-  );
-  const [indisponiveis, setIndisponiveis] = useState<Set<string>>(new Set());
-  const [turnosSabado, setTurnosSabado] = useState<string[]>(["manha"]);
+  const [ctx, setCtx] = useState<Contexto | null>(null);
+  const [salasPorDisciplina, setSalasPorDisciplina] = useState<Map<number, SalaAceita[]>>(new Map());
+  const [nomesSala, setNomesSala] = useState<Map<number, string>>(new Map());
+  const [nomesProfessor, setNomesProfessor] = useState<Map<number, string>>(new Map());
+  const [nomesCurso, setNomesCurso] = useState<Map<number, string>>(new Map());
+  const [padroes, setPadroes] = useState<Map<number, string[]>>(new Map());
+  const [trocando, setTrocando] = useState<string | null>(null);
   const [escolhida, setEscolhida] = useState<string | null>(null);
   const [erro, setErro] = useState("");
 
-  const idFatia = (f: { disciplina_id: number; professor_id: number }) =>
-    `${f.disciplina_id}:${f.professor_id}`;
-
   const carregar = useCallback(async () => {
-    // A grade mostra só os turnos que o curso ocupa: um curso diurno não
-    // precisa das cinco linhas da noite vazias na tela.
-    const [curso] = await consultar<{ turnos: string }>(
-      "SELECT turnos FROM cursos WHERE id = ?",
-      [cursoId],
-    );
-    const turnos = (curso?.turnos ?? "manha,tarde").split(",").filter(Boolean);
+    const contexto = await carregarContexto(cursoId, consultar);
+    setCtx(contexto);
+    // A grade mostra só os turnos que o curso ocupa (D13).
     const todos = await consultar<Horario>("SELECT * FROM horarios ORDER BY indice");
-    setHorarios(todos.filter((h) => turnos.includes(h.turno)));
-    setDias(Number((await config("dias_letivos")) ?? 6));
-    setTurnosSabado(((await config("turnos_sabado")) ?? "manha").split(",").filter(Boolean));
-    setSalas(await consultar<Sala>("SELECT * FROM salas ORDER BY nome COLLATE NOCASE"));
+    setHorariosTodos(todos);
+    setHorarios(todos.filter((h) => contexto.turnosDoCurso.includes(h.turno)));
 
-    const ps = await consultar<Periodo>(
-      "SELECT * FROM periodos WHERE curso_id = ? ORDER BY numero",
-      [cursoId],
-    );
+    const ps = await consultar<Periodo>("SELECT * FROM periodos WHERE curso_id = ? ORDER BY numero", [cursoId]);
     setPeriodos(ps);
     setPeriodo((p) => (p != null && ps.some((x) => x.numero === p) ? p : (ps[0]?.numero ?? null)));
 
@@ -85,7 +71,7 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
         `SELECT dp.disciplina_id, dp.professor_id, d.nome AS disciplina,
                 COALESCE(NULLIF(d.abreviacao, ''), d.nome) AS disciplina_curta,
                 p.nome AS professor, dp.aulas, d.periodo, d.permite_sabado,
-                d.exige_sala, d.tipo_sala, d.turno
+                d.exige_sala, d.tipo_sala, d.turno, d.ofertada, d.blocos_livres
            FROM disciplina_professores dp
            JOIN disciplinas d ON d.id = dp.disciplina_id
            JOIN professores p ON p.id = dp.professor_id
@@ -95,37 +81,72 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
       ),
     );
 
-    // A grade inteira do curso: um professor não pode estar em dois períodos
-    // do mesmo curso no mesmo horário, então o outro período importa.
+    // A grade de TODOS os cursos: professor e sala são da instituição, e um
+    // choque com outro curso é tão proibido quanto dentro deste (D2, D3).
+    const linhas = await consultar<{
+      curso_id: number;
+      periodo: number;
+      dia: number;
+      hora: number;
+      disciplina_id: number;
+      professor_id: number;
+      sala_id: number | null;
+      fixada: number;
+      disciplina: string;
+      professor: string;
+      sala: string | null;
+      curso: string;
+    }>(
+      `SELECT a.curso_id, a.periodo, a.dia, a.hora, a.disciplina_id, a.professor_id, a.sala_id,
+              a.fixada, COALESCE(NULLIF(d.abreviacao, ''), d.nome) AS disciplina,
+              p.nome AS professor, s.nome AS sala, c.nome AS curso
+         FROM alocacoes a
+         JOIN disciplinas d ON d.id = a.disciplina_id
+         JOIN professores p ON p.id = a.professor_id
+         JOIN cursos c ON c.id = a.curso_id
+         LEFT JOIN salas s ON s.id = a.sala_id`,
+    );
     setAulas(
-      await consultar<Aula>(
-        `SELECT a.periodo, a.dia, a.hora, a.disciplina_id, a.professor_id, a.sala_id,
-                a.fixada, COALESCE(NULLIF(d.abreviacao, ''), d.nome) AS disciplina,
-                p.nome AS professor, s.nome AS sala
-           FROM alocacoes a
-           JOIN disciplinas d ON d.id = a.disciplina_id
-           JOIN professores p ON p.id = a.professor_id
-           LEFT JOIN salas s ON s.id = a.sala_id
-          WHERE a.curso_id = ?`,
-        [cursoId],
-      ),
+      linhas.map((a) => ({
+        cursoId: a.curso_id,
+        periodo: a.periodo,
+        dia: a.dia,
+        hora: a.hora,
+        disciplinaId: a.disciplina_id,
+        professorId: a.professor_id,
+        salaId: a.sala_id,
+        fixada: a.fixada,
+        disciplina: a.disciplina,
+        professor: a.professor,
+        sala: a.sala,
+        curso: a.curso,
+      })),
     );
 
-    const ds = await consultar<{ disciplina_id: number; sala_id: number }>(
-      `SELECT ds.disciplina_id, ds.sala_id FROM disciplina_salas ds
+    const ds = await consultar<{ disciplina_id: number; sala_id: number; preferencia: number }>(
+      `SELECT ds.disciplina_id, ds.sala_id, ds.preferencia FROM disciplina_salas ds
          JOIN disciplinas d ON d.id = ds.disciplina_id WHERE d.curso_id = ?`,
       [cursoId],
     );
-    const mapa = new Map<number, number[]>();
+    const mapa = new Map<number, SalaAceita[]>();
     ds.forEach((r) =>
-      mapa.set(r.disciplina_id, [...(mapa.get(r.disciplina_id) ?? []), r.sala_id]),
+      mapa.set(r.disciplina_id, [
+        ...(mapa.get(r.disciplina_id) ?? []),
+        { id: r.sala_id, preferencia: r.preferencia === 2 ? 2 : 1 },
+      ]),
     );
     setSalasPorDisciplina(mapa);
 
-    const ind = await consultar<{ professor_id: number; dia: number; hora: number }>(
-      "SELECT professor_id, dia, hora FROM indisponibilidades",
-    );
-    setIndisponiveis(new Set(ind.map((i) => `${i.professor_id}:${chave(i.dia, i.hora)}`)));
+    const nomes = async (sql: string) =>
+      new Map((await consultar<{ id: number; nome: string }>(sql)).map((r) => [r.id, r.nome]));
+    setNomesSala(await nomes("SELECT id, nome FROM salas"));
+    setNomesProfessor(await nomes("SELECT id, nome FROM professores"));
+    setNomesCurso(await nomes("SELECT id, nome FROM cursos"));
+
+    const pads = new Map<number, string[]>();
+    for (const r of await consultar<{ aulas: number; padrao: string }>("SELECT aulas, padrao FROM padroes_blocos"))
+      pads.set(r.aulas, [...(pads.get(r.aulas) ?? []), r.padrao]);
+    setPadroes(pads);
   }, [cursoId]);
 
   useEffect(() => {
@@ -139,109 +160,126 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
     return () => window.removeEventListener("keydown", esc);
   }, []);
 
+  const idFatia = (f: { disciplina_id: number; professor_id: number }) => `${f.disciplina_id}:${f.professor_id}`;
+  const idAula = (a: Aula) => `${a.disciplinaId}:${a.professorId}`;
+  const doCurso = useMemo(() => aulas.filter((a) => a.cursoId === cursoId), [aulas, cursoId]);
+  const oc = useMemo(() => new Ocupacao(cursoId, aulas), [aulas, cursoId]);
+
   const alocadas = useMemo(() => {
     const m = new Map<string, number>();
-    aulas.forEach((a) => {
-      const k = idFatia(a);
-      m.set(k, (m.get(k) ?? 0) + 1);
-    });
+    doCurso.forEach((a) => m.set(idAula(a), (m.get(idAula(a)) ?? 0) + 1));
     return m;
-  }, [aulas]);
+  }, [doCurso]);
 
   const daGrade = useMemo(() => {
     const m = new Map<string, Aula>();
-    aulas.filter((a) => a.periodo === periodo).forEach((a) => m.set(chave(a.dia, a.hora), a));
+    doCurso.filter((a) => a.periodo === periodo).forEach((a) => m.set(chave(a.dia, a.hora), a));
     return m;
-  }, [aulas, periodo]);
+  }, [doCurso, periodo]);
 
-  const fatiasDoPeriodo = fatias.filter((f) => f.periodo === periodo);
+  const regrasDe = useCallback(
+    (f: Fatia): FatiaRegras => ({
+      disciplinaId: f.disciplina_id,
+      professorId: f.professor_id,
+      periodo: f.periodo,
+      permiteSabado: !!f.permite_sabado,
+      turno: f.turno,
+      exigeSala: !!f.exige_sala,
+      tipoSala: f.tipo_sala,
+      salas: salasPorDisciplina.get(f.disciplina_id) ?? [],
+      ofertada: !!f.ofertada,
+    }),
+    [salasPorDisciplina],
+  );
+
+  const nomes: Nomes = {
+    cursoAtual: cursoId,
+    professor: (id) => nomesProfessor.get(id) ?? `#${id}`,
+    curso: (id) => nomesCurso.get(id) ?? `#${id}`,
+    sala: (id) => nomesSala.get(id) ?? `#${id}`,
+  };
+
+  const fatiaDaAula = (a: Aula) =>
+    fatias.find((f) => f.disciplina_id === a.disciplinaId && f.professor_id === a.professorId);
+  const fatiasDoPeriodo = fatias.filter((f) => f.periodo === periodo && f.ofertada);
   const fatiaEscolhida = fatias.find((f) => idFatia(f) === escolhida) ?? null;
 
-  /**
-   * Por que esta célula não aceita a fatia escolhida. `null` = aceita.
-   * As checagens são as restrições duras; turno é preferência e não bloqueia.
-   */
-  function impedimento(f: Fatia, dia: number, hora: number): string | null {
-    if (daGrade.has(chave(dia, hora))) return "Já há aula neste horário";
-    if ((alocadas.get(idFatia(f)) ?? 0) >= f.aulas)
-      return `${f.aulas} de ${f.aulas} aulas já alocadas`;
-    if (dia === 5 && !f.permite_sabado) return "Sábado desmarcado no cadastro";
-    if (dia === 5 && !turnosSabado.includes(horarios.find((h) => h.indice === hora)!.turno))
-      return "Sábado só tem aula de manhã";
-    if (indisponiveis.has(`${f.professor_id}:${chave(dia, hora)}`))
-      return `${curto(f.professor)} indisponível`;
+  /** Aulas deste curso que já violam regra dura — dado antigo ou cadastro que mudou. */
+  const violacoes = useMemo(() => {
+    if (!ctx) return [];
+    return doCurso.flatMap((a) => {
+      const f = fatiaDaAula(a);
+      if (!f) return [];
+      const motivos = violacoesDaAula(ctx, oc, regrasDe(f), a);
+      return motivos.length ? [{ aula: a, motivos }] : [];
+    });
+    // fatiaDaAula depende de `fatias`
+  }, [ctx, doCurso, oc, regrasDe, fatias]);
 
-    const ocupado = aulas.find(
-      (a) => a.professor_id === f.professor_id && a.dia === dia && a.hora === hora,
-    );
-    if (ocupado) return `${curto(f.professor)} no ${ocupado.periodo}º período`;
+  const dias = ctx?.dias ?? 6;
+  const codigoDe = (indice: number) => horariosTodos.find((h) => h.indice === indice)?.codigo ?? String(indice);
 
-    if (f.exige_sala && salaLivre(f, dia, hora) === undefined) {
-      // Dizer QUAL sala e por quem está tomada: "nenhuma sala livre" não
-      // sugere o que fazer a seguir.
-      const candidata = salasCandidatas(f)[0];
-      const tomada = aulas.find(
-        (a) => a.sala_id === candidata && a.dia === dia && a.hora === hora,
-      );
-      const nome = salas.find((s) => s.id === candidata)?.nome;
-      return tomada && nome
-        ? `Sala ${nome} ocupada (${tomada.periodo}º per.)`
-        : "Nenhuma sala aceitável livre";
-    }
-
-    return null;
-  }
-
-  /** As salas que atendem o requisito da disciplina, na ordem de tentativa. */
-  function salasCandidatas(f: Fatia): number[] {
-    const especificas = salasPorDisciplina.get(f.disciplina_id);
-    const lista = f.tipo_sala
-      ? salas.filter((s) => s.tipo === f.tipo_sala)
-      : especificas && especificas.length > 0
-        ? salas.filter((s) => especificas.includes(s.id))
-        : salas;
-    return lista.map((s) => s.id);
-  }
-
-  /** Primeira sala que atende o requisito e está livre. `null` = não usa sala. */
-  function salaLivre(f: Fatia, dia: number, hora: number): number | null | undefined {
-    if (!f.exige_sala) return null;
-    const candidatas = salasCandidatas(f).map(
-      (id) => salas.find((s) => s.id === id)!,
-    );
-    const ocupadas = new Set(
-      aulas.filter((a) => a.dia === dia && a.hora === hora).map((a) => a.sala_id),
-    );
-    return candidatas.find((s) => !ocupadas.has(s.id))?.id;
+  /** Por que esta célula não aceita a fatia escolhida. `null` = aceita. */
+  function motivoDe(f: Fatia, dia: number, hora: number): string | null {
+    if ((alocadas.get(idFatia(f)) ?? 0) >= f.aulas) return `${f.aulas} de ${f.aulas} aulas já alocadas`;
+    if (!ctx) return null;
+    const m = impedimento(ctx, oc, regrasDe(f), dia, hora);
+    return m ? descrever(m, nomes) : null;
   }
 
   async function alocar(dia: number, hora: number) {
-    if (!fatiaEscolhida || periodo == null) return;
-    const motivo = impedimento(fatiaEscolhida, dia, hora);
+    if (!fatiaEscolhida || periodo == null || !ctx) return;
+    const motivo = motivoDe(fatiaEscolhida, dia, hora);
     if (motivo) return setErro(motivo);
     setErro("");
-    const sala = salaLivre(fatiaEscolhida, dia, hora) ?? null;
+    // A sala da aula vizinha da mesma fatia, para o bloco não trocar de sala.
+    const vizinha = [hora - 1, hora + 1]
+      .map((h) => daGrade.get(chave(dia, h)))
+      .find((a) => a && idAula(a) === idFatia(fatiaEscolhida));
+    const sala = escolherSala(ctx, oc, regrasDe(fatiaEscolhida), dia, hora, vizinha?.salaId ?? null) ?? null;
     try {
       await transacao([
         {
-          sql: `INSERT INTO alocacoes (curso_id, periodo, dia, hora, disciplina_id,
-                                       professor_id, sala_id)
+          sql: `INSERT INTO alocacoes (curso_id, periodo, dia, hora, disciplina_id, professor_id, sala_id)
                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          params: [
-            cursoId,
-            periodo,
-            dia,
-            hora,
-            fatiaEscolhida.disciplina_id,
-            fatiaEscolhida.professor_id,
-            sala,
-          ],
+          params: [cursoId, periodo, dia, hora, fatiaEscolhida.disciplina_id, fatiaEscolhida.professor_id, sala],
         },
       ]);
       await carregar();
     } catch (e) {
       setErro(mensagemErro(e, "A aula"));
       await carregar();
+    }
+  }
+
+  /** Salas que servem à aula e estão livres naquele horário (a dela inclusive). */
+  function salasParaTroca(a: Aula): { id: number; rotulo: string }[] {
+    const f = fatiaDaAula(a);
+    if (!f || !ctx) return [];
+    const regras = regrasDe(f);
+    const comLista = regras.salas.length > 0;
+    return salasPossiveis(ctx, regras)
+      .filter((s) => s.id === a.salaId || !oc.daSala(s.id, a.dia, a.hora))
+      .map((s) => ({
+        id: s.id,
+        rotulo: nomes.sala(s.id) + (comLista ? (s.preferencia === 1 ? " (ideal)" : " (aceitável)") : ""),
+      }));
+  }
+
+  async function trocarSala(a: Aula, salaId: number) {
+    setTrocando(null);
+    if (salaId === a.salaId) return;
+    setErro("");
+    try {
+      await transacao([
+        {
+          sql: "UPDATE alocacoes SET sala_id = ? WHERE curso_id = ? AND periodo = ? AND dia = ? AND hora = ?",
+          params: [salaId, cursoId, a.periodo, a.dia, a.hora],
+        },
+      ]);
+      await carregar();
+    } catch (e) {
+      setErro(mensagemErro(e, "A aula"));
     }
   }
 
@@ -290,12 +328,19 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
 
   async function limparPeriodo() {
     if (periodo == null) return;
-    if (!confirm(`Apagar todas as aulas do ${periodo}º período?`)) return;
+    const fixadas = [...daGrade.values()].filter((a) => a.fixada).length;
+    // Fixar protege a aula do gerador; limpar à mão também não a leva (B8).
+    if (
+      !confirm(
+        `Apagar as aulas do ${periodo}º período?` +
+          (fixadas ? `
+
+As ${fixadas} aula(s) fixadas ficam.` : ""),
+      )
+    )
+      return;
     const instrucoes: Instrucao[] = [
-      {
-        sql: "DELETE FROM alocacoes WHERE curso_id = ? AND periodo = ?",
-        params: [cursoId, periodo],
-      },
+      { sql: "DELETE FROM alocacoes WHERE curso_id = ? AND periodo = ? AND fixada = 0", params: [cursoId, periodo] },
     ];
     try {
       await transacao(instrucoes);
@@ -317,15 +362,6 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
   }
 
   const turnoDoPeriodo = periodos.find((p) => p.numero === periodo)?.turno;
-  // Um período cujo turno não tem horário nenhum cadastrado não tem onde
-  // acontecer: a grade inteira vira contraturno, o que parece defeito da tela
-  // mas é lacuna do cadastro.
-  const semHorariosNoTurno =
-    turnoDoPeriodo != null && !horarios.some((h) => h.turno === turnoDoPeriodo);
-  const turnosExistentes = [...new Set(horarios.map((h) => h.turno))]
-    .map((t) => `${t} (${horarios.filter((h) => h.turno === t).length})`)
-    .join(", ");
-
   const faltando = fatiasDoPeriodo.reduce(
     (s, f) => s + Math.max(0, f.aulas - (alocadas.get(idFatia(f)) ?? 0)),
     0,
@@ -348,10 +384,7 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
       linhas.push({
         tipo: "faixa",
         turno: h.turno,
-        nota:
-          h.turno === turnoDoPeriodo
-            ? `turno do ${periodo}º período`
-            : "fora do turno · tolerado",
+        nota: h.turno === turnoDoPeriodo ? `turno do ${periodo}º período` : "contraturno",
       });
     }
     linhas.push({ tipo: "horario", h });
@@ -371,7 +404,7 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
           </p>
         </div>
         <div className="acoes-cabecalho">
-          <button className="perigo" onClick={limparPeriodo} disabled={daGrade.size === 0}>
+          <button className="perigo" onClick={limparPeriodo} disabled={[...daGrade.values()].every((a) => a.fixada)}>
             Limpar período
           </button>
         </div>
@@ -379,17 +412,18 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
 
       <Erro>{erro}</Erro>
 
-      {semHorariosNoTurno && (
-        <p className="aviso">
-          O {periodo}º período é de <strong>{turnoDoPeriodo}</strong>, mas não há
-          nenhum horário desse turno cadastrado — por isso a grade toda aparece
-          escurecida como contraturno.
-          <br />
-          Os horários que existem são: <strong>{turnosExistentes || "nenhum"}</strong>.
-          Repare que o código de um horário (M1, T2…) é só um rótulo: quem manda
-          é o turno gravado nele. Ajuste em <strong>Horários › Regras</strong>, ou
-          mude o turno do período.
-        </p>
+      {violacoes.length > 0 && (
+        <details className="aviso diagnostico">
+          <summary>{violacoes.length} aula(s) deste curso violam regra dura</summary>
+          <ul>
+            {violacoes.map(({ aula, motivos }) => (
+              <li key={`${aula.periodo}:${aula.dia}:${aula.hora}`}>
+                {aula.periodo}º · {DIAS[aula.dia]} {codigoDe(aula.hora)} · <strong>{aula.disciplina}</strong>:{" "}
+                {motivos.map((m) => descrever(m, nomes)).join("; ")}
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
 
       <div className="abas-periodo">
@@ -442,6 +476,18 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
                         </span>
                       </span>
                       <span className="prof">{f.professor}</span>
+                      {ctx &&
+                        avisosDaFatia(
+                          [...daGrade.values()].filter((a) => idAula(a) === idFatia(f)),
+                          f.aulas,
+                          !!f.blocos_livres,
+                          padroes.get(f.aulas),
+                          ctx.turnoDaHora,
+                        ).map((aviso) => (
+                          <span key={aviso} className="aviso-fatia">
+                            {aviso}
+                          </span>
+                        ))}
                       <span className="trilha">
                         <span
                           className="barra"
@@ -485,7 +531,7 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
                   {Array.from({ length: dias }, (_, d) => {
                     const aula = daGrade.get(chave(d, l.h.indice));
                     const motivo = fatiaEscolhida
-                      ? impedimento(fatiaEscolhida, d, l.h.indice)
+                      ? motivoDe(fatiaEscolhida, d, l.h.indice)
                       : null;
                     const foraDoTurno = l.h.turno !== turnoDoPeriodo;
                     const classe = aula
@@ -517,7 +563,37 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
                             <span className="nome">{aula.disciplina}</span>
                             <span className="meta">
                               {curto(aula.professor)}
-                              {aula.sala ? ` · ${aula.sala}` : ""}
+                              {aula.sala ? " · " : ""}
+                              {aula.sala &&
+                                (trocando === chave(d, l.h.indice) ? (
+                                  <select
+                                    aria-label="Sala"
+                                    autoFocus
+                                    value={aula.salaId ?? ""}
+                                    onClick={(ev) => ev.stopPropagation()}
+                                    onChange={(ev) => trocarSala(aula, Number(ev.target.value))}
+                                    onBlur={() => setTrocando(null)}
+                                  >
+                                    {salasParaTroca(aula).map((s) => (
+                                      <option key={s.id} value={s.id}>
+                                        {s.rotulo}
+                                      </option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className="trocar-sala"
+                                    aria-label={`Trocar sala de ${aula.disciplina}`}
+                                    title="Trocar a sala"
+                                    onClick={(ev) => {
+                                      ev.stopPropagation();
+                                      setTrocando(chave(d, l.h.indice));
+                                    }}
+                                  >
+                                    {aula.sala}
+                                  </button>
+                                ))}
                             </span>
                             {aula.fixada ? <Cadeado /> : null}
                             {foraDoTurno ? <span className="ponto" /> : null}
