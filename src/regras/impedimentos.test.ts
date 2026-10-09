@@ -144,4 +144,58 @@ describe("violacoesDaAula", () => {
     violacoesDaAula(contextoMinimo(), oc, fatiaRegras(), propria);
     expect(oc.noPeriodo(1, 0, 0)).toEqual(propria);
   });
+
+  it("não insere na ocupação uma aula que não estava nela", () => {
+    const oc = vazia();
+    violacoesDaAula(contextoMinimo(), oc, fatiaRegras(), propria);
+    expect(oc.doProfessor(1, 0, 0)).toBeUndefined();
+    expect(oc.noPeriodo(1, 0, 0)).toBeUndefined();
+    expect(oc.diasDoProfessor(1).size).toBe(0);
+  });
+
+  it("com duas aulas no mesmo lugar, a ordem não muda", () => {
+    const outra = aulaOcupada({ cursoId: 2, disciplinaId: 8, professorId: 1 });
+    const oc = new Ocupacao(1, [propria, outra]);
+    violacoesDaAula(contextoMinimo(), oc, fatiaRegras(), propria);
+    expect(oc.doProfessor(1, 0, 0)).toBe(propria);
+    violacoesDaAula(contextoMinimo(), oc, fatiaRegras(), outra);
+    expect(oc.doProfessor(1, 0, 0)).toBe(propria);
+  });
+
+  it("acusa o professor que passou do máximo de dias, na aula do dia excedente", () => {
+    const ctx = contextoMinimo({ maxDias: new Map([[1, 1]]) });
+    const noDia0 = { ...propria, dia: 0 };
+    const noDia1 = { ...propria, dia: 1 };
+    const oc = new Ocupacao(1, [noDia0, noDia1]);
+    // Cada aula é julgada sem ela mesma: a do dia 1 vê só o dia 0 e já está no limite.
+    expect(violacoesDaAula(ctx, oc, fatiaRegras(), noDia1)).toEqual([{ regra: "D15", professorId: 1, limite: 1 }]);
+    expect(violacoesDaAula(ctx, oc, fatiaRegras(), noDia0)).toEqual([{ regra: "D15", professorId: 1, limite: 1 }]);
+  });
+
+  it("D15 não acusa quando todas as aulas cabem no limite", () => {
+    const ctx = contextoMinimo({ maxDias: new Map([[1, 2]]) });
+    const noDia0 = { ...propria, dia: 0 };
+    const noDia1 = { ...propria, dia: 1 };
+    const oc = new Ocupacao(1, [noDia0, noDia1]);
+    expect(violacoesDaAula(ctx, oc, fatiaRegras(), noDia1)).toEqual([]);
+  });
+
+  it("fora da grade para na faixa, sem acusar o resto", () => {
+    const fora = { ...propria, dia: 5, hora: 12 };
+    const oc = new Ocupacao(1, [fora]);
+    // Sábado sem permissão também valeria, mas depois de "faixa" nada mais é dito.
+    expect(violacoesDaAula(contextoMinimo({ dias: 5 }), oc, fatiaRegras(), fora)).toEqual([{ regra: "faixa" }]);
+  });
+
+  it("sala-invalida: aula sem sala quando a fatia exige, e sala quando não exige", () => {
+    const ctx = contextoMinimo({ salas: SALAS });
+    const semSala = { ...propria, salaId: null };
+    const comSala = { ...propria, salaId: 1 };
+    expect(violacoesDaAula(ctx, new Ocupacao(1, [semSala]), fatiaRegras({ exigeSala: true }), semSala)).toEqual([
+      { regra: "sala-invalida", salaId: null },
+    ]);
+    expect(violacoesDaAula(ctx, new Ocupacao(1, [comSala]), fatiaRegras(), comSala)).toEqual([
+      { regra: "sala-invalida", salaId: 1 },
+    ]);
+  });
 });

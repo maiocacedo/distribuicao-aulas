@@ -104,8 +104,7 @@ function salaServe(ctx: Contexto, f: FatiaRegras, salaId: number | null): boolea
  * Serve ao diagnóstico da grade manual e à revalidação ao editar o cadastro.
  */
 export function violacoesDaAula(ctx: Contexto, oc: Ocupacao, f: FatiaRegras, aula: AulaOcupada): Motivo[] {
-  oc.retirar(aula);
-  try {
+  return oc.sem(aula, () => {
     const saida: Motivo[] = [];
     for (const checar of CHECAGENS) {
       const m = checar(ctx, oc, f, aula.dia, aula.hora);
@@ -120,7 +119,5 @@ export function violacoesDaAula(ctx: Contexto, oc: Ocupacao, f: FatiaRegras, aul
       if (tomada) saida.push({ regra: "D3", aula: tomada });
     }
     return saida;
-  } finally {
-    oc.colocar(aula);
-  }
+  });
 }

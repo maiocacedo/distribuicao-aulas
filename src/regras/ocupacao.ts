@@ -6,6 +6,11 @@ const chave = (quem: number, dia: number, hora: number) => `${quem}:${dia}:${hor
 const mesma = (x: AulaOcupada, a: AulaOcupada) =>
   x.cursoId === a.cursoId && x.periodo === a.periodo && x.dia === a.dia && x.hora === a.hora;
 
+interface Posicao {
+  i: number;
+  aula: AulaOcupada;
+}
+
 const NENHUM_DIA: ReadonlyMap<number, number> = new Map();
 
 /**
@@ -39,14 +44,48 @@ export class Ocupacao {
     this.dias.set(a.professorId, dias);
   }
 
-  retirar(a: AulaOcupada): void {
-    if (!desempilhar(this.professores, chave(a.professorId, a.dia, a.hora), a)) return;
+  /** `true` se a aula estava na ocupação e saiu. */
+  retirar(a: AulaOcupada): boolean {
+    if (!desempilhar(this.professores, chave(a.professorId, a.dia, a.hora), a)) return false;
     if (a.cursoId === this.cursoId) desempilhar(this.periodos, chave(a.periodo, a.dia, a.hora), a);
     if (a.salaId != null) desempilhar(this.salas, chave(a.salaId, a.dia, a.hora), a);
     const dias = this.dias.get(a.professorId)!;
     const n = (dias.get(a.dia) ?? 0) - 1;
     if (n > 0) dias.set(a.dia, n);
     else dias.delete(a.dia);
+    return true;
+  }
+
+  /**
+   * Roda `fazer` com a aula fora da ocupação e a devolve EXATAMENTE onde
+   * estava. Recolocar com `colocar` não serve: se houver duas aulas no mesmo
+   * lugar, a retirada e a volta trocariam a ordem e `doProfessor` passaria a
+   * devolver a outra; e uma aula que nunca esteve aqui seria inserida. Se ela
+   * não está na ocupação, não há nada a tirar nem a repor.
+   */
+  sem<T>(a: AulaOcupada, fazer: () => T): T {
+    const kProf = chave(a.professorId, a.dia, a.hora);
+    const doProf = tirar(this.professores, kProf, a);
+    if (!doProf) return fazer();
+    const kPer = chave(a.periodo, a.dia, a.hora);
+    const doPer = a.cursoId === this.cursoId ? tirar(this.periodos, kPer, a) : null;
+    const kSala = a.salaId != null ? chave(a.salaId, a.dia, a.hora) : null;
+    const daSala = kSala != null ? tirar(this.salas, kSala, a) : null;
+    // A ordem dos dias também faz parte do estado: guardá-la inteira é mais
+    // simples e mais fiel do que desfazer a contagem.
+    const diasAntes = new Map(this.dias.get(a.professorId));
+    const dias = this.dias.get(a.professorId)!;
+    const n = (dias.get(a.dia) ?? 0) - 1;
+    if (n > 0) dias.set(a.dia, n);
+    else dias.delete(a.dia);
+    try {
+      return fazer();
+    } finally {
+      reinserir(this.professores, kProf, doProf);
+      if (doPer) reinserir(this.periodos, kPer, doPer);
+      if (daSala) reinserir(this.salas, kSala!, daSala);
+      this.dias.set(a.professorId, diasAntes);
+    }
   }
 
   noPeriodo(periodo: number, dia: number, hora: number): AulaOcupada | undefined {
@@ -73,11 +112,22 @@ function empilhar(m: Map<string, AulaOcupada[]>, k: string, a: AulaOcupada) {
   else m.set(k, [a]);
 }
 
-function desempilhar(m: Map<string, AulaOcupada[]>, k: string, a: AulaOcupada): boolean {
+/** Tira a primeira aula igual a `a` da lista e diz de onde e qual era. */
+function tirar(m: Map<string, AulaOcupada[]>, k: string, a: AulaOcupada): Posicao | null {
   const lista = m.get(k);
   const i = lista ? lista.findIndex((x) => mesma(x, a)) : -1;
-  if (i < 0) return false;
-  lista!.splice(i, 1);
+  if (i < 0) return null;
+  const [aula] = lista!.splice(i, 1);
   if (lista!.length === 0) m.delete(k);
-  return true;
+  return { i, aula };
+}
+
+function reinserir(m: Map<string, AulaOcupada[]>, k: string, p: Posicao): void {
+  const lista = m.get(k);
+  if (lista) lista.splice(p.i, 0, p.aula);
+  else m.set(k, [p.aula]);
+}
+
+function desempilhar(m: Map<string, AulaOcupada[]>, k: string, a: AulaOcupada): boolean {
+  return tirar(m, k, a) !== null;
 }

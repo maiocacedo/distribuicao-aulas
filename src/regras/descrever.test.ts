@@ -33,4 +33,14 @@ describe("descrever", () => {
     expect(descrever({ regra: "D4", professorId: 1 }, nomes)).toBe("A. Souza indisponível");
     expect(descrever({ regra: "D5" }, nomes)).toBe("Sábado desmarcado no cadastro");
   });
+
+  it("regras de grade e de sala", () => {
+    expect(descrever({ regra: "faixa" }, nomes)).toBe("Horário fora da grade");
+    expect(descrever({ regra: "D16" }, nomes)).toBe("Disciplina não ofertada");
+    expect(descrever({ regra: "D1", aula: aulaOcupada() }, nomes)).toBe("Já há aula neste horário");
+    expect(descrever({ regra: "D13" }, nomes)).toBe("Fora dos turnos do curso");
+    expect(descrever({ regra: "D3-sem-sala" }, nomes)).toBe("Nenhuma sala aceitável livre");
+    expect(descrever({ regra: "sala-invalida", salaId: null }, nomes)).toBe("Aula sem sala");
+    expect(descrever({ regra: "sala-invalida", salaId: 1 }, nomes)).toBe("Sala A01 fora do requisito");
+  });
 });
