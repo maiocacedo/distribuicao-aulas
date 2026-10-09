@@ -24,12 +24,12 @@ describe("custo", () => {
   it("contraturno conta aula fora do turno do período", () => {
     const p = problemaMinimo({ fatias: [fatia({ aulas: 1 })] });
     const pesos = {
-      padraoForaDoIdeal: 0,
       buracoProfessor: 0,
       buracoAluno: 0,
       contraturno: 1,
       preferenciaDias: 0,
       excessoContraturno: 0,
+      optativaSemTurno: 0,
       salaAceitavel: 0,
     };
     expect(custoTotal(p, [aula(0, 6)], pesos)).toBe(1);

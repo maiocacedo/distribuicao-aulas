@@ -81,13 +81,14 @@ export interface Alocacao {
 }
 
 export interface Pesos {
-  padraoForaDoIdeal: number;
   buracoProfessor: number;
   buracoAluno: number;
   contraturno: number;
   preferenciaDias: number;
   excessoContraturno: number;
-  /** Por aula numa sala aceitável (e não ideal). */
+  /** Por período cujas optativas ficaram todas fora do turno. */
+  optativaSemTurno: number;
+  /** Por aula em sala só "aceitável" da lista da disciplina. */
   salaAceitavel: number;
 }
 
@@ -100,12 +101,13 @@ export interface Pesos {
  * grade manual.
  */
 export const PESOS_PADRAO: Pesos = {
-  padraoForaDoIdeal: 1,
   buracoProfessor: 8,
   buracoAluno: 8,
   contraturno: 30,
   preferenciaDias: 3,
   excessoContraturno: 20,
+  // Ponto de partida; a calibração fina é do solver v2.
+  optativaSemTurno: 40,
   salaAceitavel: 2,
 };
 
