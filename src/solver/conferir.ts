@@ -18,7 +18,11 @@ export type TipoViolacao =
   | "requisito-sala"
   | "contagem"
   | "padrao"
-  | "bloco-turno";
+  | "bloco-turno"
+  | "turno-curso"
+  | "turno-forcado"
+  | "max-dias"
+  | "faixa";
 
 export interface Violacao {
   tipo: TipoViolacao;
@@ -56,6 +60,14 @@ export function conferir(problema: Problema, alocacoes: Alocacao[]): Violacao[] 
   const indisponiveis = new Set(problema.indisponiveis);
   const fatias = new Map(problema.fatias.map((f) => [chaveFatia(f), f]));
   const comFixada = new Set(problema.fixadas.map(chaveFatia));
+  // Isenção de "dois blocos no mesmo dia": a fixada foi posta à mão naquele
+  // dia, e o resto da fatia pode ter de encostar nela. Nos outros dias, não.
+  const comFixadaNoDia = new Set(problema.fixadas.map((a) => `${chaveFatia(a)}:${a.dia}`));
+  const salasExistentes = new Set(problema.salas.map((s) => s.id));
+  const professorFora = new Set(problema.externas.map((a) => `${a.professorId}:${a.dia}:${a.hora}`));
+  const salaFora = new Set(
+    problema.externas.filter((a) => a.salaId != null).map((a) => `${a.salaId}:${a.dia}:${a.hora}`),
+  );
 
   const duplicadas = (xs: Alocacao[], chave: (a: Alocacao) => string, tipo: TipoViolacao, texto: string) => {
     for (const [k, v] of agrupar(xs, chave)) if (v.length > 1) add(tipo, `${texto} (${k})`);
@@ -70,6 +82,13 @@ export function conferir(problema: Problema, alocacoes: Alocacao[]): Violacao[] 
   );
 
   for (const a of alocacoes) {
+    if (a.dia < 0 || a.dia >= problema.dias || !turnoDaHora.has(a.hora))
+      add("faixa", `aula fora da grade em ${a.dia}:${a.hora}`);
+    if (a.salaId != null && !salasExistentes.has(a.salaId)) add("faixa", `sala ${a.salaId} não existe`);
+    if (professorFora.has(`${a.professorId}:${a.dia}:${a.hora}`))
+      add("professor", `professor ${a.professorId} também em outro curso (${a.dia}:${a.hora})`);
+    if (a.salaId != null && salaFora.has(`${a.salaId}:${a.dia}:${a.hora}`))
+      add("sala", `sala ${a.salaId} também em outro curso (${a.dia}:${a.hora})`);
     if (indisponiveis.has(`${a.professorId}:${a.dia}:${a.hora}`))
       add("indisponivel", `professor ${a.professorId} indisponível em ${a.dia}:${a.hora}`);
     const f = fatias.get(chaveFatia(a));
@@ -79,12 +98,25 @@ export function conferir(problema: Problema, alocacoes: Alocacao[]): Violacao[] 
     }
     if (a.periodo !== f.periodo)
       add("periodo", `${f.nome}: aula no ${a.periodo}º período, mas a disciplina é do ${f.periodo}º`);
-    if (a.dia === SABADO && !f.permiteSabado) add("sabado", `${f.nome} no sábado sem permissão`);
     const turno = turnoDaHora.get(a.hora);
+    if (turno && !problema.turnosDoCurso.includes(turno)) add("turno-curso", `${f.nome} fora dos turnos do curso`);
+    if (turno && f.turno && turno !== f.turno) add("turno-forcado", `${f.nome} fora do turno ${f.turno}`);
+    if (a.dia === SABADO && !f.permiteSabado) add("sabado", `${f.nome} no sábado sem permissão`);
     if (a.dia === SABADO && turno && !problema.turnosSabado.includes(turno))
       add("sabado", `${f.nome} num turno que o sábado não tem`);
     const problemaSala = requisitoDeSala(f, a.salaId, salas);
     if (problemaSala) add("requisito-sala", `${f.nome}: ${problemaSala}`);
+  }
+
+  // Máximo de dias conta também os dias que o professor já tem em outros cursos.
+  const diasDoProfessor = new Map<number, Set<number>>();
+  for (const a of [...alocacoes, ...problema.externas]) {
+    diasDoProfessor.set(a.professorId, (diasDoProfessor.get(a.professorId) ?? new Set()).add(a.dia));
+  }
+  for (const prof of problema.professores) {
+    const usados = diasDoProfessor.get(prof.id)?.size ?? 0;
+    if (prof.maxDias != null && usados > prof.maxDias)
+      add("max-dias", `professor ${prof.id} em ${usados} dias, máximo ${prof.maxDias}`);
   }
 
   for (const [k, aulas] of agrupar(alocacoes, chaveFatia)) {
@@ -95,7 +127,7 @@ export function conferir(problema: Problema, alocacoes: Alocacao[]): Violacao[] 
       continue;
     }
     const blocos: number[] = [];
-    for (const doDia of agrupar(aulas, (a) => String(a.dia)).values()) {
+    for (const [dia, doDia] of agrupar(aulas, (a) => String(a.dia))) {
       const horas = doDia.map((a) => a.hora).sort((x, y) => x - y);
       const doDiaBlocos: number[] = [];
       let tamanho = 1;
@@ -109,7 +141,7 @@ export function conferir(problema: Problema, alocacoes: Alocacao[]): Violacao[] 
           tamanho = 1;
         }
       }
-      if (doDiaBlocos.length > 1 && !comFixada.has(k)) add("padrao", `${f.nome}: dois blocos no mesmo dia`);
+      if (doDiaBlocos.length > 1 && !comFixadaNoDia.has(`${k}:${dia}`)) add("padrao", `${f.nome}: dois blocos no mesmo dia`);
       blocos.push(...doDiaBlocos);
     }
     if (f.blocosLivres || comFixada.has(k)) continue;

@@ -120,4 +120,48 @@ describe("conferir", () => {
   it("não acusa fatia sem nenhuma aula (completude é do Resultado)", () => {
     expect(conferir(problemaMinimo({ fatias: [fatia()] }), [])).toEqual([]);
   });
+
+  it("acusa professor e sala ocupados por outro curso", () => {
+    const externa = { cursoId: 2, periodo: 1, dia: 0, hora: 0, disciplinaId: 9, professorId: 1, salaId: 1 };
+    const p = problemaMinimo({
+      salas: [{ id: 1, tipo: "Sala de Aula" }],
+      fatias: [fatia({ aulas: 1, exigeSala: true })],
+      externas: [externa],
+    });
+    expect(tipos(conferir(p, [aula(0, 0, { salaId: 1 })]))).toEqual(["professor", "sala"]);
+  });
+
+  it("acusa aula fora dos turnos do curso", () => {
+    const p = problemaMinimo({ fatias: [fatia({ aulas: 1 })], turnosDoCurso: ["manha"] });
+    expect(tipos(conferir(p, [aula(0, 6)]))).toEqual(["turno-curso"]);
+  });
+
+  it("acusa aula fora do turno forçado", () => {
+    const p = problemaMinimo({ fatias: [fatia({ aulas: 1, turno: "tarde" })] });
+    expect(tipos(conferir(p, [aula(0, 0)]))).toEqual(["turno-forcado"]);
+  });
+
+  it("acusa professor acima do máximo de dias, somando outros cursos", () => {
+    const p = problemaMinimo({
+      professores: [{ id: 1, prefDias: "indiferente", peso: 0, maxDias: 1 }],
+      fatias: [fatia({ aulas: 1 })],
+      externas: [{ cursoId: 2, periodo: 1, dia: 3, hora: 0, disciplinaId: 9, professorId: 1, salaId: null }],
+    });
+    expect(tipos(conferir(p, [aula(0, 0)]))).toEqual(["max-dias"]);
+  });
+
+  it("acusa dia, hora ou sala inexistentes", () => {
+    const p = problemaMinimo({ dias: 5, fatias: [fatia({ aulas: 1, exigeSala: true })], salas: [{ id: 1, tipo: "Sala de Aula" }] });
+    expect(tipos(conferir(p, [aula(5, 0, { salaId: 1 })]))).toContain("faixa");
+    expect(tipos(conferir(p, [aula(0, 12, { salaId: 1 })]))).toContain("faixa");
+    expect(tipos(conferir(p, [aula(0, 0, { salaId: 7 })]))).toContain("faixa");
+  });
+
+  it("fixada só isenta de 'dois blocos no mesmo dia' no dia dela", () => {
+    const p = problemaMinimo({ fatias: [fatia({ aulas: 4 })], fixadas: [aula(0, 0)] });
+    const noDiaDaFixada = [aula(0, 0), aula(0, 3), aula(2, 0), aula(2, 1)];
+    const emOutroDia = [aula(0, 0), aula(2, 0), aula(2, 3), aula(4, 0)];
+    expect(tipos(conferir(p, noDiaDaFixada))).toEqual([]);
+    expect(tipos(conferir(p, emOutroDia))).toEqual(["padrao"]);
+  });
 });
