@@ -30,6 +30,7 @@ describe("custo", () => {
       contraturno: 1,
       preferenciaDias: 0,
       excessoContraturno: 0,
+      salaAceitavel: 0,
     };
     expect(custoTotal(p, [aula(0, 6)], pesos)).toBe(1);
     expect(custoTotal(p, [aula(0, 0)], pesos)).toBe(0);

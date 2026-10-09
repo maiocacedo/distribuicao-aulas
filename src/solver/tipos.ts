@@ -87,6 +87,8 @@ export interface Pesos {
   contraturno: number;
   preferenciaDias: number;
   excessoContraturno: number;
+  /** Por aula numa sala aceitável (e não ideal). */
+  salaAceitavel: number;
 }
 
 /**
@@ -104,6 +106,7 @@ export const PESOS_PADRAO: Pesos = {
   contraturno: 30,
   preferenciaDias: 3,
   excessoContraturno: 20,
+  salaAceitavel: 2,
 };
 
 export interface Resultado {

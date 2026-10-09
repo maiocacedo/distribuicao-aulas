@@ -1,4 +1,8 @@
+import { impedimentoDeHorario, salasPossiveis } from "../regras/impedimentos";
+import { Ocupacao } from "../regras/ocupacao";
+import type { AulaOcupada } from "../regras/tipos";
 import { blocoCabeNoDia, padroesDe } from "./blocos";
+import { contextoDe } from "./contexto";
 import { custoTotal } from "./custo";
 import {
   PESOS_PADRAO,
@@ -34,19 +38,17 @@ interface Bloco {
   salaId: number | null;
 }
 
-/** Estado mutável da busca. Chaves em texto: legível, e rápido o bastante. */
+/**
+ * Estado mutável da busca. A ocupação é a do módulo de regras — a mesma que a
+ * grade manual monta —, já com as aulas dos outros cursos e as fixadas.
+ */
 class Estado {
-  grade = new Set<string>(); // periodo:dia:hora
-  prof = new Set<string>(); // professor:dia:hora
-  sala = new Set<string>(); // sala:dia:hora
+  oc: Ocupacao;
   colocados = new Map<string, Bloco[]>(); // fatia -> blocos
 
-  constructor(fixadas: Alocacao[]) {
-    for (const a of fixadas) {
-      this.grade.add(`${a.periodo}:${a.dia}:${a.hora}`);
-      this.prof.add(`${a.professorId}:${a.dia}:${a.hora}`);
-      if (a.salaId != null) this.sala.add(`${a.salaId}:${a.dia}:${a.hora}`);
-    }
+  constructor(problema: Problema) {
+    this.oc = new Ocupacao(problema.cursoId, problema.externas);
+    for (const a of problema.fixadas) this.oc.colocar({ ...a, cursoId: problema.cursoId });
   }
 }
 
@@ -58,46 +60,49 @@ export function resolver(problema: Problema, opcoes: Opcoes = {}): Resultado {
   const rodadas = opcoes.rodadasDeMelhoria ?? 4000;
   const comeco = Date.now();
 
-  const indisponiveis = new Set(problema.indisponiveis);
   const turnoDaHora = new Map(problema.horarios.map((h) => [h.indice, h.turno]));
   const turnoDoPeriodo = new Map(problema.periodos.map((p) => [p.numero, p.turno]));
+  const ctx = contextoDe(problema);
 
-  /** Salas que atendem o requisito da fatia, na ordem em que serão tentadas. */
-  function salasDe(f: Fatia): (number | null)[] {
-    if (!f.exigeSala) return [null];
-    if (f.tipoSala) return problema.salas.filter((s) => s.tipo === f.tipoSala).map((s) => s.id);
-    if (f.salas.length > 0) return f.salas.map((s) => s.id);
-    return problema.salas.map((s) => s.id);
-  }
+  /** Salas que atendem o requisito, ideais primeiro (D6–D8). */
+  const salasPorFatia = new Map(problema.fatias.map((f) => [idDe(f), salasPossiveis(ctx, f).map((s) => s.id)]));
+  const aceitaveis = new Map(
+    problema.fatias.map((f) => [idDe(f), new Set(f.salas.filter((s) => s.preferencia === 2).map((s) => s.id))]),
+  );
 
-  const salasPorFatia = new Map(problema.fatias.map((f) => [idDe(f), salasDe(f)]));
-
+  /**
+   * A sala em que o bloco inteiro cabe, `null` se a fatia não usa sala, ou
+   * `undefined` se o bloco não pode ir ali. As regras de horário são as do
+   * módulo compartilhado com a grade manual.
+   */
   function livre(e: Estado, f: Fatia, dia: number, h0: number, tam: number): number | null | undefined {
     for (let i = 0; i < tam; i++) {
-      const h = problema.horarios[h0 + i].indice;
-      if (e.grade.has(`${f.periodo}:${dia}:${h}`)) return undefined;
-      if (e.prof.has(`${f.professorId}:${dia}:${h}`)) return undefined;
-      if (indisponiveis.has(`${f.professorId}:${dia}:${h}`)) return undefined;
+      if (impedimentoDeHorario(ctx, e.oc, f, dia, problema.horarios[h0 + i].indice)) return undefined;
     }
-    const candidatas = salasPorFatia.get(idDe(f))!;
     if (!f.exigeSala) return null;
-    for (const s of candidatas) {
+    for (const s of salasPorFatia.get(idDe(f))!) {
       let cabe = true;
       for (let i = 0; i < tam && cabe; i++) {
-        if (e.sala.has(`${s}:${dia}:${problema.horarios[h0 + i].indice}`)) cabe = false;
+        if (e.oc.daSala(s, dia, problema.horarios[h0 + i].indice)) cabe = false;
       }
-      if (cabe) return s as number;
+      if (cabe) return s;
     }
     return undefined;
   }
 
-  /** Quantos horários vagos existem entre a primeira e a última aula do dia. */
-  function buracosDoDia(e: Estado, prefixo: string, dia: number, extras: number[]): number {
+  /**
+   * Quantos horários vagos existem entre a primeira e a última aula do dia.
+   *
+   * B6, conhecido e deixado para o solver v2: a mesma `chave` é procurada como
+   * período E como professor, então o professor 3 enxerga as aulas do 3º
+   * período e vice-versa. Corrigir só isto piorou o custo médio do benchmark
+   * (619 → 838): a nota local está desalinhada do objetivo, e o conserto de
+   * verdade é reescrever a busca (subprojeto 3).
+   */
+  function buracosDoDia(e: Estado, chave: number, dia: number, extras: number[]): number {
     const horas: number[] = [...extras];
     for (const h of problema.horarios) {
-      if (e.grade.has(`${prefixo}:${dia}:${h.indice}`) || e.prof.has(`${prefixo}:${dia}:${h.indice}`)) {
-        horas.push(h.indice);
-      }
+      if (e.oc.noPeriodo(chave, dia, h.indice) || e.oc.doProfessor(chave, dia, h.indice)) horas.push(h.indice);
     }
     if (horas.length === 0) return 0;
     horas.sort((a, b) => a - b);
@@ -105,30 +110,37 @@ export function resolver(problema: Problema, opcoes: Opcoes = {}): Resultado {
   }
 
   /** Custo local aproximado: serve só para ordenar candidatos, não para decidir. */
-  function pontuar(e: Estado, f: Fatia, dia: number, h0: number, tam: number): number {
+  function pontuar(e: Estado, f: Fatia, dia: number, h0: number, tam: number, sala: number | null): number {
     const horas = Array.from({ length: tam }, (_, i) => problema.horarios[h0 + i].indice);
-    const esperado = f.turno ?? turnoDoPeriodo.get(f.periodo);
     let p = 0;
-    for (const h of horas) if (turnoDaHora.get(h) !== esperado) p += pesos.contraturno;
-    p += buracosDoDia(e, `${f.professorId}`, dia, horas) * pesos.buracoProfessor;
-    p += buracosDoDia(e, `${f.periodo}`, dia, horas) * pesos.buracoAluno;
+    // Optativa no contraturno não custa: quem cobra é `optativaSemTurno`, no
+    // custo total. E o buraco que ela abre na turma não é de quem não a cursa.
+    if (!f.optativa) {
+      const esperado = f.turno ?? turnoDoPeriodo.get(f.periodo);
+      for (const h of horas) if (turnoDaHora.get(h) !== esperado) p += pesos.contraturno;
+      p += buracosDoDia(e, f.periodo, dia, horas) * pesos.buracoAluno;
+    }
+    p += buracosDoDia(e, f.professorId, dia, horas) * pesos.buracoProfessor;
+    if (sala != null && aceitaveis.get(idDe(f))!.has(sala)) p += tam * pesos.salaAceitavel;
     return f.prioridade === 3 ? p * 0.3 : p;
+  }
+
+  function aulaDe(f: Fatia, b: Bloco, i: number): AulaOcupada {
+    return {
+      cursoId: problema.cursoId,
+      periodo: f.periodo,
+      dia: b.dia,
+      hora: problema.horarios[b.horaInicio + i].indice,
+      disciplinaId: f.disciplinaId,
+      professorId: f.professorId,
+      salaId: b.salaId,
+    };
   }
 
   function ocupar(e: Estado, f: Fatia, b: Bloco, ligar: boolean) {
     for (let i = 0; i < b.tamanho; i++) {
-      const h = problema.horarios[b.horaInicio + i].indice;
-      const g = `${f.periodo}:${b.dia}:${h}`;
-      const pr = `${f.professorId}:${b.dia}:${h}`;
-      if (ligar) {
-        e.grade.add(g);
-        e.prof.add(pr);
-        if (b.salaId != null) e.sala.add(`${b.salaId}:${b.dia}:${h}`);
-      } else {
-        e.grade.delete(g);
-        e.prof.delete(pr);
-        if (b.salaId != null) e.sala.delete(`${b.salaId}:${b.dia}:${h}`);
-      }
+      if (ligar) e.oc.colocar(aulaDe(f, b, i));
+      else e.oc.retirar(aulaDe(f, b, i));
     }
   }
 
@@ -159,7 +171,7 @@ export function resolver(problema: Problema, opcoes: Opcoes = {}): Resultado {
         if (sala === undefined) continue;
         candidatos.push({
           b: { dia, horaInicio: h0, tamanho: tam, salaId: sala },
-          nota: pontuar(e, f, dia, h0, tam),
+          nota: pontuar(e, f, dia, h0, tam, sala),
         });
       }
     }
@@ -211,7 +223,7 @@ export function resolver(problema: Problema, opcoes: Opcoes = {}): Resultado {
       a.nome.localeCompare(b.nome, "pt-BR"),
   );
 
-  const estado = new Estado(problema.fixadas);
+  const estado = new Estado(problema);
   const faltantes: { fatia: Fatia; motivo: string }[] = [];
 
   // Aulas que o usuário fixou já estão no lugar: descontam da fatia, e o dia
@@ -265,21 +277,27 @@ export function resolver(problema: Problema, opcoes: Opcoes = {}): Resultado {
     const anterior = estado.colocados.get(idDe(f))!;
     retirarFatia(estado, f);
     const antesDosPassos = passos;
-    if (!colocarFatia(estado, f)) {
-      // Não recolocou: devolve exatamente onde estava.
-      for (const b of anterior) ocupar(estado, f, b, true);
-      estado.colocados.set(idDe(f), anterior);
-      continue;
+    try {
+      if (!colocarFatia(estado, f)) {
+        // Não recolocou: devolve exatamente onde estava.
+        for (const b of anterior) ocupar(estado, f, b, true);
+        estado.colocados.set(idDe(f), anterior);
+        continue;
+      }
+      const agora = custoTotal(problema, materializar(estado, problema, fatiasEfetivas), pesos);
+      if (agora <= melhor) {
+        melhor = agora;
+      } else {
+        retirarFatia(estado, f);
+        for (const b of anterior) ocupar(estado, f, b, true);
+        estado.colocados.set(idDe(f), anterior);
+      }
+    } finally {
+      // A melhoria não consome o orçamento da busca — nem quando a rodada
+      // falha (B7: antes, a falha deixava os passos somados e as rodadas
+      // seguintes estouravam o teto em cascata).
+      passos = antesDosPassos;
     }
-    const agora = custoTotal(problema, materializar(estado, problema, fatiasEfetivas), pesos);
-    if (agora <= melhor) {
-      melhor = agora;
-    } else {
-      retirarFatia(estado, f);
-      for (const b of anterior) ocupar(estado, f, b, true);
-      estado.colocados.set(idDe(f), anterior);
-    }
-    passos = antesDosPassos; // a melhoria não consome o orçamento da busca
   }
 
   return {
