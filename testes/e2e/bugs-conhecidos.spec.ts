@@ -40,7 +40,6 @@ test("B3: mudar o período da disciplina leva as aulas junto", async ({ page, ba
   await expect(seletor).toBeVisible();
   await seletor.selectOption(String(novo));
 
-  test.fail(true, "B3 — aulas ficam no período antigo; corrigir no subprojeto 1");
   await page.getByRole("button", { name: "Salvar" }).click();
   await expect
     .poll(() => contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE disciplina_id = ? AND periodo = ?", d.id, d.periodo), {

@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { consultar, executar, proximoId, transacao, type Instrucao } from "../db";
-import type { Disciplina, Periodo, Professor, Sala, TipoDisciplina, Turno } from "../tipos";
+import { carregarContexto } from "../regras/carregar";
+import { descrever } from "../regras/descrever";
+import { violacoesDaAula } from "../regras/impedimentos";
+import { Ocupacao } from "../regras/ocupacao";
+import type { AulaOcupada, FatiaRegras, Motivo } from "../regras/tipos";
+import { DIAS, TURNOS, type Disciplina, type Periodo, type Professor, type Sala, type TipoDisciplina, type Turno } from "../tipos";
 import {
   BotaoIcone,
   CabecalhoLista,
@@ -23,6 +28,13 @@ interface Fatia {
   aulas: number;
 }
 
+/**
+ * As regras que uma edição de disciplina pode passar a violar nas aulas que
+ * ela já tem. Choques de horário não entram: não mudam com o cadastro, e um
+ * choque antigo apareceria aqui como se fosse culpa da edição.
+ */
+const MUDAM_COM_O_CADASTRO = new Set<Motivo["regra"]>(["D5", "D14", "D16", "sala-invalida"]);
+
 type Campo = "periodo" | "nome" | "aulas_semanais" | "professores" | "marcas";
 
 /**
@@ -31,6 +43,7 @@ type Campo = "periodo" | "nome" | "aulas_semanais" | "professores" | "marcas";
  */
 function marcasDe(l: Linha): string {
   return [
+    !l.ofertada ? "não ofertada" : "",
     !l.exige_sala ? "sem sala" : "",
     l.tipo_sala ? `só ${l.tipo_sala}` : "",
     l.n_salas > 0 ? `${l.n_salas} sala(s)` : "",
@@ -55,6 +68,7 @@ interface Linha extends Disciplina {
 interface Rascunho extends Disciplina {
   fatias: Fatia[];
   salas: number[];
+  aceitaveis: number[];
   /** O modo escolhido na tela; ver `modoDe` sobre por que não é derivado. */
   modoSala: Modo;
 }
@@ -78,6 +92,7 @@ const novo = (cursoId: number, periodo: number): Rascunho => ({
   observacao: null,
   fatias: [],
   salas: [],
+  aceitaveis: [],
   modoSala: "qualquer",
 });
 
@@ -88,8 +103,9 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
   const [salas, setSalas] = useState<Sala[]>([]);
   const [tipos, setTipos] = useState<TipoDisciplina[]>([]);
   const [aulasComPadrao, setChsComPadrao] = useState<Set<number>>(new Set());
-  // Conversão currículo → grade, definida na página Curso.
+  // Conversão currículo → grade, definida em Gerenciar cursos.
   const [horasPorAula, setHorasPorAula] = useState(15);
+  const [turnosDoCurso, setTurnosDoCurso] = useState<string[]>(["manha", "tarde"]);
   const [filtro, setFiltro] = useState<number | "todos">("todos");
   const [edicao, setEdicao] = useState<Rascunho | null>(null);
   const [erro, setErro] = useState("");
@@ -131,9 +147,10 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
     );
     const chs = await consultar<{ aulas: number }>("SELECT DISTINCT aulas FROM padroes_blocos");
     setChsComPadrao(new Set(chs.map((c) => c.aulas)));
-    const [curso] = await consultar<{ horas_por_aula_semanal: number }>(
-      "SELECT horas_por_aula_semanal FROM cursos WHERE id = ?", [cursoId]);
+    const [curso] = await consultar<{ horas_por_aula_semanal: number; turnos: string }>(
+      "SELECT horas_por_aula_semanal, turnos FROM cursos WHERE id = ?", [cursoId]);
     setHorasPorAula(curso?.horas_por_aula_semanal || 15);
+    setTurnosDoCurso((curso?.turnos ?? "manha,tarde").split(",").filter(Boolean));
     setCarregando(false);
   }
 
@@ -146,8 +163,8 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
       "SELECT professor_id, aulas FROM disciplina_professores WHERE disciplina_id = ?",
       [l.id],
     );
-    const ds = await consultar<{ sala_id: number }>(
-      "SELECT sala_id FROM disciplina_salas WHERE disciplina_id = ?",
+    const ds = await consultar<{ sala_id: number; preferencia: number }>(
+      "SELECT sala_id, preferencia FROM disciplina_salas WHERE disciplina_id = ?",
       [l.id],
     );
     const escolhidas = ds.map((s) => s.sala_id);
@@ -155,6 +172,7 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
       ...l,
       fatias,
       salas: escolhidas,
+      aceitaveis: ds.filter((s) => s.preferencia === 2).map((s) => s.sala_id),
       modoSala: modoDe({ ...l, salas: escolhidas }),
     });
   }
@@ -177,6 +195,132 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
       return setErro("Há uma fatia sem professor escolhido.");
     }
 
+    // Edição de disciplina com aulas: o período leva as aulas junto (B3), e o
+    // que a mudança invalida é confirmado e apagado na mesma transação.
+    const antes: Instrucao[] = [];
+    const depois: Instrucao[] = [];
+    if (d.id) {
+      const original = linhas.find((l) => l.id === d.id);
+      const dela = (
+        await consultar<{
+          curso_id: number;
+          periodo: number;
+          dia: number;
+          hora: number;
+          professor_id: number;
+          sala_id: number | null;
+          fixada: number;
+        }>(
+          "SELECT curso_id, periodo, dia, hora, professor_id, sala_id, fixada FROM alocacoes WHERE disciplina_id = ?",
+          [d.id],
+        )
+      ).filter((a) => d.fatias.some((f) => f.professor_id === a.professor_id));
+
+      if (dela.length > 0 && original && original.periodo !== d.periodo) {
+        const choques = await consultar<{ dia: number; hora: number; codigo: string }>(
+          `SELECT a.dia, a.hora, h.codigo FROM alocacoes a JOIN horarios h ON h.indice = a.hora
+            WHERE a.curso_id = ? AND a.periodo = ? AND a.disciplina_id <> ?
+              AND EXISTS (SELECT 1 FROM alocacoes b
+                           WHERE b.disciplina_id = ? AND b.dia = a.dia AND b.hora = a.hora)
+            ORDER BY a.dia, a.hora`,
+          [cursoId, d.periodo, d.id, d.id],
+        );
+        if (choques.length > 0) {
+          return setErro(
+            `O ${d.periodo}º período já tem aula em ` +
+              choques.map((c) => `${DIAS[c.dia]} ${c.codigo}`).join(", ") +
+              ". Libere esses horários na grade antes de mudar o período.",
+          );
+        }
+      }
+
+      if (dela.length > 0) {
+        const ctx = await carregarContexto(cursoId, consultar);
+        const todas = (
+          await consultar<{
+            curso_id: number;
+            periodo: number;
+            dia: number;
+            hora: number;
+            disciplina_id: number;
+            professor_id: number;
+            sala_id: number | null;
+          }>("SELECT curso_id, periodo, dia, hora, disciplina_id, professor_id, sala_id FROM alocacoes")
+        ).map(
+          (a): AulaOcupada => ({
+            cursoId: a.curso_id,
+            periodo: a.disciplina_id === d.id ? d.periodo : a.periodo,
+            dia: a.dia,
+            hora: a.hora,
+            disciplinaId: a.disciplina_id,
+            professorId: a.professor_id,
+            salaId: a.sala_id,
+          }),
+        );
+        const oc = new Ocupacao(cursoId, todas);
+        const regras = (professorId: number): FatiaRegras => ({
+          disciplinaId: d.id,
+          professorId,
+          periodo: d.periodo,
+          permiteSabado: !!d.permite_sabado,
+          turno: d.turno,
+          exigeSala: !!d.exige_sala,
+          tipoSala: d.tipo_sala,
+          salas:
+            d.exige_sala && !d.tipo_sala
+              ? d.salas.map((id) => ({ id, preferencia: d.aceitaveis.includes(id) ? 2 : 1 }))
+              : [],
+          ofertada: !!d.ofertada,
+        });
+        const invalidas = dela.flatMap((a) => {
+          const aula: AulaOcupada = {
+            cursoId: a.curso_id,
+            periodo: d.periodo,
+            dia: a.dia,
+            hora: a.hora,
+            disciplinaId: d.id,
+            professorId: a.professor_id,
+            salaId: a.sala_id,
+          };
+          const motivos = violacoesDaAula(ctx, oc, regras(a.professor_id), aula).filter((m) =>
+            MUDAM_COM_O_CADASTRO.has(m.regra),
+          );
+          return motivos.length ? [{ a, motivos }] : [];
+        });
+
+        if (invalidas.length > 0) {
+          const fixadas = invalidas.filter((x) => x.a.fixada).length;
+          const nomes = {
+            cursoAtual: cursoId,
+            professor: (id: number) => professores.find((p) => p.id === id)?.nome ?? `#${id}`,
+            curso: (id: number) => `#${id}`,
+            sala: (id: number) => salas.find((s) => s.id === id)?.nome ?? `#${id}`,
+          };
+          const razoes = [...new Set(invalidas.flatMap((x) => x.motivos.map((m) => descrever(m, nomes))))];
+          if (
+            !confirm(
+              `${invalidas.length} aula(s) desta disciplina serão apagadas, porque deixam de valer com a mudança` +
+                (fixadas ? ` (${fixadas} fixada(s))` : "") +
+                `:\n\n- ${razoes.join("\n- ")}\n\nContinuar?`,
+            )
+          )
+            return;
+          antes.push(
+            ...invalidas.map((x) => ({
+              sql: "DELETE FROM alocacoes WHERE curso_id = ? AND periodo = ? AND dia = ? AND hora = ?",
+              params: [x.a.curso_id, x.a.periodo, x.a.dia, x.a.hora],
+            })),
+          );
+        }
+        if (original && original.periodo !== d.periodo) {
+          depois.push({
+            sql: "UPDATE alocacoes SET periodo = ? WHERE disciplina_id = ?",
+            params: [d.periodo, d.id],
+          });
+        }
+      }
+    }
+
     const campos = [
       cursoId,
       nome,
@@ -187,6 +331,7 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
       d.permite_sabado,
       d.turno,
       d.optativa,
+      d.ofertada,
       d.exige_sala,
       d.tipo_sala,
       d.blocos_livres,
@@ -203,11 +348,12 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
       const marcadores = mantidos.map(() => "?").join(",");
 
       const instrucoes: Instrucao[] = [
+        ...antes,
         d.id
           ? {
               sql: `UPDATE disciplinas SET curso_id = ?, nome = ?, abreviacao = ?,
                            tipo_id = ?, periodo = ?, aulas_semanais = ?,
-                           permite_sabado = ?, turno = ?, optativa = ?,
+                           permite_sabado = ?, turno = ?, optativa = ?, ofertada = ?,
                            exige_sala = ?, tipo_sala = ?, blocos_livres = ?,
                            prioridade = ?, observacao = ?
                       WHERE id = ?`,
@@ -216,9 +362,9 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
           : {
               sql: `INSERT INTO disciplinas (curso_id, nome, abreviacao, tipo_id,
                            periodo, aulas_semanais, permite_sabado, turno,
-                           optativa, exige_sala, tipo_sala, blocos_livres,
+                           optativa, ofertada, exige_sala, tipo_sala, blocos_livres,
                            prioridade, observacao, id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
               params: [...campos, id],
             },
 
@@ -244,10 +390,13 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
         // duas chega a ter conteúdo, garantido pelo seletor de modo.
         ...(d.exige_sala && !d.tipo_sala
           ? d.salas.map((sala) => ({
-              sql: "INSERT INTO disciplina_salas (disciplina_id, sala_id) VALUES (?, ?)",
-              params: [id, sala],
+              sql: "INSERT INTO disciplina_salas (disciplina_id, sala_id, preferencia) VALUES (?, ?, ?)",
+              params: [id, sala, d.aceitaveis.includes(sala) ? 2 : 1],
             }))
           : []),
+
+        // Por último: as aulas mudam de período depois que a disciplina já está nele.
+        ...depois,
       ];
 
       await transacao(instrucoes);
@@ -377,6 +526,7 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
                   {l.professores ?? <span className="fraco">sem professor</span>}
                 </td>
                 <td>
+                  {!l.ofertada && <span className="marca-prop">não ofertada</span>}
                   {!l.exige_sala && <span className="marca-prop">sem sala</span>}
                   {l.n_salas > 0 && (
                     <span className="marca-prop">{l.n_salas} sala(s)</span>
@@ -413,6 +563,7 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
           tipos={tipos}
           aulasComPadrao={aulasComPadrao}
           horasPorAula={horasPorAula}
+          turnosDoCurso={turnosDoCurso}
           aoMudar={setEdicao}
           aoSalvar={salvar}
           aoFechar={() => setEdicao(null)}
@@ -430,6 +581,7 @@ function Editor({
   tipos,
   aulasComPadrao,
   horasPorAula,
+  turnosDoCurso,
   aoMudar,
   aoSalvar,
   aoFechar,
@@ -441,6 +593,7 @@ function Editor({
   tipos: TipoDisciplina[];
   aulasComPadrao: Set<number>;
   horasPorAula: number;
+  turnosDoCurso: string[];
   aoMudar: (v: Rascunho) => void;
   aoSalvar: (v: Rascunho) => void;
   aoFechar: () => void;
@@ -448,7 +601,10 @@ function Editor({
   const soma = valor.fatias.reduce((s, f) => s + f.aulas, 0);
   const fecha = soma === valor.aulas_semanais;
   const turnoPeriodo = periodos.find((p) => p.numero === valor.periodo)?.turno;
-  const semPadrao = !valor.blocos_livres && !aulasComPadrao.has(valor.aulas_semanais);
+  // O gerador planeja cada professor separadamente: o padrão que importa é o
+  // da fatia, não o do total da disciplina (B9).
+  const cargas = valor.fatias.length ? valor.fatias.map((f) => f.aulas) : [valor.aulas_semanais];
+  const semPadrao = valor.blocos_livres ? [] : [...new Set(cargas)].filter((n) => !aulasComPadrao.has(n));
 
   const aplicarTipo = (id: number | null) => {
     const t = tipos.find((x) => x.id === id);
@@ -460,6 +616,7 @@ function Editor({
       exige_sala: t.exige_sala,
       tipo_sala: t.tipo_sala,
       salas: [],
+      aceitaveis: [],
       modoSala: modoDe({ exige_sala: t.exige_sala, tipo_sala: t.tipo_sala, salas: [] }),
       blocos_livres: t.blocos_livres,
       prioridade: t.prioridade,
@@ -552,11 +709,11 @@ function Editor({
           </Campo>
         </div>
 
-        {semPadrao && (
+        {semPadrao.length > 0 && (
           <p className="aviso">
-            Não há padrões de bloco cadastrados para {valor.aulas_semanais} aula(s). O gerador
-            não saberá como dividir essa carga — cadastre os padrões na página
-            Curso, ou marque a disciplina como "blocos livres".
+            Não há padrões de bloco cadastrados para fatia(s) de {semPadrao.join(", ")} aula(s). O
+            gerador planeja cada professor separadamente e não saberá dividir essa carga —
+            cadastre os padrões na página Regras, ou marque a disciplina como "blocos livres".
           </p>
         )}
 
@@ -662,6 +819,20 @@ function Editor({
           )}
         </fieldset>
 
+        <div className="marcadores">
+          <label>
+            <input
+              type="checkbox"
+              checked={!!valor.ofertada}
+              onChange={() => aoMudar({ ...valor, ofertada: valor.ofertada ? 0 : 1 })}
+            />
+            <span>
+              Ofertada neste semestre
+              <em>desmarcada, sai da grade, das pendências e do gerador, mas continua cadastrada</em>
+            </span>
+          </label>
+        </div>
+
         <PropriedadesDisciplina
           valor={valor}
           aoMudar={(v) => aoMudar({ ...valor, ...v })}
@@ -669,7 +840,7 @@ function Editor({
 
         <Campo
           rotulo="Turno"
-          dica={`Por padrão segue o período (${turnoPeriodo ?? "—"}). Forçar outro turno é o que joga a disciplina no contraturno.`}
+          dica={`Por padrão segue o período (${turnoPeriodo ?? "—"}). Forçar um turno é regra: o gerador e a grade manual não põem a disciplina fora dele.`}
         >
           <select
             value={valor.turno ?? ""}
@@ -678,9 +849,11 @@ function Editor({
             }
           >
             <option value="">Segue o período</option>
-            <option value="manha">Manhã</option>
-            <option value="tarde">Tarde</option>
-            <option value="noite">Noite</option>
+            {TURNOS.filter((t) => turnosDoCurso.includes(t.valor) || t.valor === valor.turno).map((t) => (
+              <option key={t.valor} value={t.valor}>
+                {t.rotulo}
+              </option>
+            ))}
           </select>
         </Campo>
 
@@ -690,7 +863,7 @@ function Editor({
           salas={salas}
           permitirEspecificas
           aoMudar={(v, m) =>
-            aoMudar({ ...valor, ...v, salas: v.salas ?? [], modoSala: m })
+            aoMudar({ ...valor, ...v, salas: v.salas ?? [], aceitaveis: v.aceitaveis ?? [], modoSala: m })
           }
         />
 

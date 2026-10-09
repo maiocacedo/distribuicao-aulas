@@ -666,6 +666,14 @@ legend {
   margin-bottom: 0;
 }
 
+/* A preferência fica ao lado da sala marcada, sem empurrar a grade. */
+.escolha-sala {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
 .marcadores label,
 .grade-salas label {
   display: flex;

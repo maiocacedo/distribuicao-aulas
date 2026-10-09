@@ -13,6 +13,8 @@ export interface ValorSala {
   exige_sala: number;
   tipo_sala: string | null;
   salas?: number[];
+  /** Das `salas`, as que são só "aceitáveis" (preferência 2); as demais são ideais. */
+  aceitaveis?: number[];
 }
 
 /**
@@ -58,9 +60,9 @@ export function RequisitoSala({
 }) {
   function trocarModo(novo: Modo) {
     if (novo === "nenhuma") {
-      aoMudar({ ...valor, exige_sala: 0, tipo_sala: null, salas: [] }, novo);
+      aoMudar({ ...valor, exige_sala: 0, tipo_sala: null, salas: [], aceitaveis: [] }, novo);
     } else if (novo === "qualquer") {
-      aoMudar({ ...valor, exige_sala: 1, tipo_sala: null, salas: [] }, novo);
+      aoMudar({ ...valor, exige_sala: 1, tipo_sala: null, salas: [], aceitaveis: [] }, novo);
     } else if (novo === "tipo") {
       aoMudar(
         {
@@ -68,12 +70,19 @@ export function RequisitoSala({
           exige_sala: 1,
           tipo_sala: valor.tipo_sala ?? TIPOS_SALA[0],
           salas: [],
+          aceitaveis: [],
         },
         novo,
       );
     } else {
       aoMudar(
-        { ...valor, exige_sala: 1, tipo_sala: null, salas: valor.salas ?? [] },
+        {
+          ...valor,
+          exige_sala: 1,
+          tipo_sala: null,
+          salas: valor.salas ?? [],
+          aceitaveis: valor.aceitaveis ?? [],
+        },
         novo,
       );
     }
@@ -126,31 +135,58 @@ export function RequisitoSala({
       {modo === "especificas" && (
         <>
           <div className="grade-salas">
-            {salas.map((s) => (
-              <label key={s.id}>
-                <input
-                  type="checkbox"
-                  checked={marcadas.includes(s.id)}
-                  onChange={() =>
-                    aoMudar(
-                      {
-                        ...valor,
-                        salas: marcadas.includes(s.id)
-                          ? marcadas.filter((x) => x !== s.id)
-                          : [...marcadas, s.id],
-                      },
-                      modo,
-                    )
-                  }
-                />
-                <span>
-                  {s.nome}
-                  <em>
-                    {s.tipo} · {s.capacidade}
-                  </em>
-                </span>
-              </label>
-            ))}
+            {salas.map((s) => {
+              const marcada = marcadas.includes(s.id);
+              const aceitaveis = valor.aceitaveis ?? [];
+              return (
+                <div key={s.id} className="escolha-sala">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={marcada}
+                      onChange={() =>
+                        aoMudar(
+                          {
+                            ...valor,
+                            salas: marcada ? marcadas.filter((x) => x !== s.id) : [...marcadas, s.id],
+                            aceitaveis: aceitaveis.filter((x) => x !== s.id),
+                          },
+                          modo,
+                        )
+                      }
+                    />
+                    <span>
+                      {s.nome}
+                      <em>
+                        {s.tipo} · {s.capacidade}
+                      </em>
+                    </span>
+                  </label>
+                  {marcada && (
+                    <select
+                      className="embutido"
+                      aria-label={`Preferência por ${s.nome}`}
+                      value={aceitaveis.includes(s.id) ? 2 : 1}
+                      onChange={(e) =>
+                        aoMudar(
+                          {
+                            ...valor,
+                            aceitaveis:
+                              Number(e.target.value) === 2
+                                ? [...aceitaveis, s.id]
+                                : aceitaveis.filter((x) => x !== s.id),
+                          },
+                          modo,
+                        )
+                      }
+                    >
+                      <option value={1}>ideal</option>
+                      <option value={2}>aceitável</option>
+                    </select>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {marcadas.length === 0 && (
@@ -159,6 +195,11 @@ export function RequisitoSala({
               marque as que valem.
             </p>
           )}
+
+          <p className="explica">
+            O gerador e a grade manual tentam primeiro as salas ideais; as
+            aceitáveis entram quando nenhuma ideal está livre.
+          </p>
 
           {equivaleATipo && (
             <p className="aviso">
@@ -171,7 +212,7 @@ export function RequisitoSala({
                 className="ligacao"
                 onClick={() =>
                   aoMudar(
-                    { ...valor, exige_sala: 1, tipo_sala: equivaleATipo, salas: [] },
+                    { ...valor, exige_sala: 1, tipo_sala: equivaleATipo, salas: [], aceitaveis: [] },
                     "tipo",
                   )
                 }
