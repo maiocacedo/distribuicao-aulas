@@ -115,7 +115,10 @@ describe("bugs conhecidos (falha esperada até o subprojeto 1)", () => {
       expect(turnosDoCurso).toEqual(["manha", "tarde"]);
     });
 
-    it.fails("B1: não aloca fora dos turnos do curso", () => {
+    // A migração 010 tirou os horários da noite, então o cenário que reproduzia o B1
+    // (aula num turno que o curso não ocupa) deixou de existir; a regra D13 no solver
+    // continua para a tarefa 4.
+    it("B1: não aloca fora dos turnos do curso", () => {
       const turno = new Map(p.horarios.map((h) => [h.indice, h.turno]));
       expect(r.alocacoes.filter((a) => !turnosDoCurso.includes(turno.get(a.hora)!))).toEqual([]);
     });

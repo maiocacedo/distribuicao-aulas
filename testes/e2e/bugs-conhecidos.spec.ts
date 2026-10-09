@@ -10,7 +10,6 @@ test.describe("B2", () => {
     const linha = page.getByRole("row", { name: /Engenharia/ });
     await expect(linha).toBeVisible();
     expect(contar(banco, "SELECT COUNT(*) FROM disciplinas WHERE curso_id = 1")).toBeGreaterThan(0);
-    test.fail(true, "B2 — falta ON DELETE CASCADE; corrigir no subprojeto 1");
     await linha.getByRole("button", { name: "Remover" }).click();
     await expect.poll(() => contar(banco, "SELECT COUNT(*) FROM disciplinas WHERE curso_id = 1"), { timeout: 3_000 }).toBe(0);
   });

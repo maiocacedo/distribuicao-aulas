@@ -67,6 +67,12 @@ fn migracoes() -> Vec<Migration> {
             sql: include_str!("../../scripts/migracoes/009_sabado_manha.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 10,
+            description: "regras e integridade",
+            sql: include_str!("../../scripts/migracoes/010_regras_e_integridade.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

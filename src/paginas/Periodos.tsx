@@ -120,15 +120,9 @@ export default function Periodos({ cursoId }: { cursoId: number }) {
                         tentar(
                           () =>
                             executar(
-                              "UPDATE periodos SET max_disciplinas_contraturno = ?,"
-                                + " permite_contraturno = ?"
+                              "UPDATE periodos SET max_disciplinas_contraturno = ?"
                                 + " WHERE curso_id = ? AND numero = ?",
-                              [
-                                Number(e.target.value),
-                                Number(e.target.value) > 0 ? 1 : 0,
-                                cursoId,
-                                p.numero,
-                              ],
+                              [Number(e.target.value), cursoId, p.numero],
                             ),
                           "O período",
                         )

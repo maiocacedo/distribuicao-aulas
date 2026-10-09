@@ -34,7 +34,6 @@ export interface Periodo {
   curso_id: number;
   numero: number;
   turno: Turno;
-  permite_contraturno: number;
   max_disciplinas_contraturno: number;
 }
 

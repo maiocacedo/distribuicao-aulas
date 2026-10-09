@@ -307,12 +307,12 @@ def migrar(origem, destino, migracoes, n_periodos=None, unificar=True,
             contraturno.append((did, nomes[did], proprio))
             novo.execute("UPDATE disciplinas SET turno = ? WHERE id = ?", (proprio, did))
 
+    # Optativas não contam: o gerador as põe no contraturno quando convém.
     novo.execute(
         "UPDATE periodos SET"
-        " permite_contraturno = (SELECT COUNT(*) > 0 FROM disciplinas d"
-        "   WHERE d.periodo = periodos.numero AND d.turno IS NOT NULL),"
         " max_disciplinas_contraturno = (SELECT COUNT(*) FROM disciplinas d"
-        "   WHERE d.periodo = periodos.numero AND d.turno IS NOT NULL)")
+        "   WHERE d.periodo = periodos.numero AND d.turno IS NOT NULL"
+        "   AND d.optativa = 0)")
 
     # ---- tipos de disciplina -----------------------------------------------
     # Derivados das PROPRIEDADES ja inferidas, nunca dos nomes: disciplinas que
@@ -415,23 +415,37 @@ def migrar(origem, destino, migracoes, n_periodos=None, unificar=True,
             print("    %3d  %-45s -> %s" % (did, nome[:45], t))
 
     print("\n  consistência:")
-    ch_bad = list(novo.execute("SELECT * FROM aulas_conferencia"))
+    ch_bad = list(novo.execute(
+        "SELECT d.id, d.curso_id, d.nome, d.aulas_semanais,"
+        "       COALESCE((SELECT SUM(aulas) FROM disciplina_professores dp"
+        "                  WHERE dp.disciplina_id = d.id), 0) AS distribuidas"
+        "  FROM disciplinas d WHERE d.aulas_semanais <> distribuidas"))
     print("    aulas da disciplina x soma das fatias: %s"
           % ("ok" if not ch_bad else "%d divergências" % len(ch_bad)))
     for _i, _c, nome, esperado, dist in ch_bad[:10]:
         print("      %-45s disciplina %d  fatias %d" % (nome[:45], esperado, dist))
 
-    al_bad = list(novo.execute("SELECT * FROM alocacao_conferencia"))
+    al_bad = list(novo.execute(
+        "SELECT dp.disciplina_id, d.curso_id, d.nome, dp.professor_id,"
+        "       p.nome, dp.aulas AS previsto,"
+        "       (SELECT COUNT(*) FROM alocacoes a"
+        "         WHERE a.disciplina_id = dp.disciplina_id"
+        "           AND a.professor_id  = dp.professor_id) AS alocado"
+        "  FROM disciplina_professores dp"
+        "  JOIN disciplinas d ON d.id = dp.disciplina_id"
+        "  JOIN professores p ON p.id = dp.professor_id"
+        " WHERE previsto <> alocado"))
     print("    aulas alocadas x fatia contratada: %s"
           % ("ok" if not al_bad else "%d divergências" % len(al_bad)))
     for _d, _c, nome, _p, prof, prev, real in al_bad[:10]:
         print("      %-38s %-12s previsto %d  alocado %d" % (nome[:38], prof, prev, real))
 
     cp = list(novo.execute(
-        "SELECT dia, hora, professor_id, COUNT(*) c FROM ocupacao_professor"
+        "SELECT dia, hora, professor_id, COUNT(*) c FROM alocacoes"
         " GROUP BY dia, hora, professor_id HAVING c > 1"))
     cs = list(novo.execute(
-        "SELECT dia, hora, sala_id, COUNT(*) c FROM ocupacao_sala"
+        "SELECT dia, hora, sala_id, COUNT(*) c FROM alocacoes"
+        " WHERE sala_id IS NOT NULL"
         " GROUP BY dia, hora, sala_id HAVING c > 1"))
     print("    professor em dois lugares: %d" % len(cp))
     for dia, hora, pid, c in cp[:10]:
