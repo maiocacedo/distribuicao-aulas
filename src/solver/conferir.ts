@@ -43,7 +43,7 @@ function requisitoDeSala(f: Fatia, salaId: number | null, salas: Map<number, Sal
   if (!f.exigeSala) return salaId == null ? null : "recebeu sala sem precisar";
   if (salaId == null) return "ficou sem sala";
   if (f.tipoSala) return salas.get(salaId)?.tipo === f.tipoSala ? null : `sala fora do tipo ${f.tipoSala}`;
-  if (f.salas.length > 0 && !f.salas.includes(salaId)) return "sala fora da lista aceita";
+  if (f.salas.length > 0 && !f.salas.some((s) => s.id === salaId)) return "sala fora da lista aceita";
   return null;
 }
 

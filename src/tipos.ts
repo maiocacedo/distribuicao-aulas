@@ -1,6 +1,7 @@
-/** Espelha o esquema em `scripts/schema.sql`. */
+/** Espelha o esquema criado pelas migrações em `scripts/migracoes/`. */
 
-export type Turno = "manha" | "tarde" | "noite";
+import type { Turno } from "./regras/tipos";
+export type { Turno } from "./regras/tipos";
 
 export const DIAS = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"];
 
@@ -17,13 +18,12 @@ export interface Horario {
 export const TURNOS: { valor: Turno; rotulo: string; inicial: string }[] = [
   { valor: "manha", rotulo: "Manhã", inicial: "M" },
   { valor: "tarde", rotulo: "Tarde", inicial: "T" },
-  { valor: "noite", rotulo: "Noite", inicial: "N" },
 ];
 
 export interface Curso {
   id: number;
   nome: string;
-  /** Turnos que o curso ocupa, em ordem: "manha,tarde", "tarde,noite"… */
+  /** Turnos que o curso ocupa, em ordem: "manha,tarde", "tarde"… */
   turnos: string;
   /** Quantas horas de currículo equivalem a 1 aula por semana. */
   horas_por_aula_semanal: number;
@@ -86,6 +86,8 @@ export interface Disciplina {
   permite_sabado: number;
   turno: Turno | null;
   optativa: number;
+  /** 0 = não ofertada neste semestre: fica fora da grade e do gerador (D16). */
+  ofertada: number;
   exige_sala: number;
   tipo_sala: string | null;
   blocos_livres: number;

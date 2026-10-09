@@ -66,7 +66,7 @@ export function resolver(problema: Problema, opcoes: Opcoes = {}): Resultado {
   function salasDe(f: Fatia): (number | null)[] {
     if (!f.exigeSala) return [null];
     if (f.tipoSala) return problema.salas.filter((s) => s.tipo === f.tipoSala).map((s) => s.id);
-    if (f.salas.length > 0) return f.salas;
+    if (f.salas.length > 0) return f.salas.map((s) => s.id);
     return problema.salas.map((s) => s.id);
   }
 

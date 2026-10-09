@@ -6,12 +6,10 @@
  * que é a única forma honesta de saber se ele presta.
  */
 
-export type Turno = "manha" | "tarde" | "noite";
+import type { AulaOcupada, FatiaRegras, HorarioRegra, Turno } from "../regras/tipos";
+export type { Turno } from "../regras/tipos";
 
-export interface HorarioDoDia {
-  indice: number;
-  turno: Turno;
-}
+export type HorarioDoDia = HorarioRegra;
 
 export interface PeriodoDoCurso {
   numero: number;
@@ -34,23 +32,14 @@ export interface SalaDisponivel {
 /**
  * A unidade que o solver aloca: a fatia de uma disciplina que pertence a um
  * professor. Uma disciplina dividida entre dois professores são duas fatias
- * independentes, cada uma com seus próprios blocos.
+ * independentes, cada uma com seus próprios blocos. Os campos de regra vêm
+ * de `FatiaRegras`; aqui só o que é do solver.
  */
-export interface Fatia {
-  disciplinaId: number;
-  professorId: number;
+export interface Fatia extends FatiaRegras {
   nome: string;
-  periodo: number;
   aulas: number;
-  permiteSabado: boolean;
-  /** Turno forçado da disciplina; `null` = segue o turno do período. */
-  turno: Turno | null;
+  /** Optativa vai ao contraturno sem custo; ver `custo.ts`. */
   optativa: boolean;
-  exigeSala: boolean;
-  /** Exige sala deste tipo; `null` = sem exigência de tipo. */
-  tipoSala: string | null;
-  /** Salas específicas aceitas; vazio = qualquer uma que sirva. */
-  salas: number[];
   prioridade: number;
   blocosLivres: boolean;
 }
@@ -61,6 +50,7 @@ export interface PadraoDeBloco {
 }
 
 export interface Problema {
+  cursoId: number;
   dias: number;
   horarios: HorarioDoDia[];
   periodos: PeriodoDoCurso[];
@@ -73,6 +63,10 @@ export interface Problema {
   indisponiveis: string[];
   /** Turnos que existem no sábado. Sábado à tarde não existe na instituição. */
   turnosSabado: Turno[];
+  /** Turnos que o curso ocupa (D13). */
+  turnosDoCurso: Turno[];
+  /** Aulas dos outros cursos: ocupam professor e sala (D2, D3). */
+  externas: AulaOcupada[];
   /** Aulas que o gerador não pode mexer. */
   fixadas: Alocacao[];
 }

@@ -70,6 +70,7 @@ const novo = (cursoId: number, periodo: number): Rascunho => ({
   permite_sabado: 0,
   turno: null,
   optativa: 0,
+  ofertada: 1,
   exige_sala: 1,
   tipo_sala: null,
   blocos_livres: 0,

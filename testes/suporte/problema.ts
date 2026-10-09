@@ -8,6 +8,7 @@ const HORARIOS: HorarioDoDia[] = Array.from({ length: 12 }, (_, i) => ({
 
 export function problemaMinimo(extra: Partial<Problema> = {}): Problema {
   return {
+    cursoId: 1,
     dias: 6,
     horarios: HORARIOS,
     periodos: [{ numero: 1, turno: "manha", maxContraturno: 0 }],
@@ -27,6 +28,8 @@ export function problemaMinimo(extra: Partial<Problema> = {}): Problema {
     professores: [{ id: 1, prefDias: "indiferente", peso: 0, maxDias: null }],
     indisponiveis: [],
     turnosSabado: ["manha"],
+    turnosDoCurso: ["manha", "tarde"],
+    externas: [],
     fixadas: [],
     ...extra,
   };
@@ -47,6 +50,7 @@ export function fatia(extra: Partial<Fatia> = {}): Fatia {
     salas: [],
     prioridade: 2,
     blocosLivres: false,
+    ofertada: true,
     ...extra,
   };
 }

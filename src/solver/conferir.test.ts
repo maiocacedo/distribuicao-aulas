@@ -63,7 +63,7 @@ describe("conferir", () => {
     ];
     const casos = [
       { f: fatia({ aulas: 1, exigeSala: true, tipoSala: "Laboratório" }), sala: 1 },
-      { f: fatia({ aulas: 1, exigeSala: true, salas: [2] }), sala: 1 },
+      { f: fatia({ aulas: 1, exigeSala: true, salas: [{ id: 2, preferencia: 1 }] }), sala: 1 },
       { f: fatia({ aulas: 1, exigeSala: true }), sala: null },
       { f: fatia({ aulas: 1, exigeSala: false }), sala: 1 },
     ];

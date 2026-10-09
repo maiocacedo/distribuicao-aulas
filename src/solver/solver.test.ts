@@ -64,7 +64,7 @@ describe("solver atual — cenários mínimos", () => {
   it("põe a disciplina numa das salas da lista", () => {
     const p = problemaMinimo({
       salas: [1, 2, 3].map((id) => ({ id, tipo: "Sala de Aula" })),
-      fatias: [fatia({ exigeSala: true, salas: [3] })],
+      fatias: [fatia({ exigeSala: true, salas: [{ id: 3, preferencia: 1 }] })],
     });
     expect(resolver(p).alocacoes.map((a) => a.salaId)).toEqual([3, 3]);
   });
