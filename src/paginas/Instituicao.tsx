@@ -81,12 +81,20 @@ export default function Instituicao() {
    * são da instituição.
    */
   async function mudarDias(novo: number) {
+    // Sem `setDias(novo)`: `tentar` relê o banco depois de gravar, e é só aí
+    // que o seletor muda. Se a gravação falhar, ele continua mostrando o que
+    // está no banco, em vez de 5 dias com o banco em 6.
     if (novo < dias) {
-      const [{ n }] = await consultar<{ n: number }>("SELECT COUNT(*) AS n FROM alocacoes WHERE dia >= ?", [novo]);
+      setErro("");
+      let n: number;
+      try {
+        [{ n }] = await consultar<{ n: number }>("SELECT COUNT(*) AS n FROM alocacoes WHERE dia >= ?", [novo]);
+      } catch (e) {
+        return setErro(mensagemErro(e, "A configuração"));
+      }
       if (n > 0) {
         if (!confirm(`${n} ${n === 1 ? "aula" : "aulas"} no sábado, somando todos os cursos, serão apagadas. Continuar?`))
           return;
-        setDias(novo);
         return tentar(
           () =>
             transacao([
@@ -102,8 +110,7 @@ export default function Instituicao() {
         );
       }
     }
-    setDias(novo);
-    gravarConfig("dias_letivos", String(novo));
+    return gravarConfig("dias_letivos", String(novo));
   }
 
   /** '2+2' → [2,2]; devolve null se a escrita não for válida. */
