@@ -2,8 +2,8 @@ import type { Fatia, PadraoDeBloco, Problema } from "./tipos";
 
 /**
  * Todas as partições de `n` em partes decrescentes. Usado só por fatias com
- * `blocosLivres`, que ignoram a tabela de padrões — os Projetos Integradores
- * do curso do Evandro fazem 3+1+1+1, que nenhum padrão cadastrado descreve.
+ * `blocosLivres`, que ignoram a tabela de padrões — uma disciplina de projeto
+ * pode fazer 3+1+1+1, que nenhum padrão cadastrado descreve.
  */
 export function particoes(n: number): number[][] {
   const saida: number[][] = [];

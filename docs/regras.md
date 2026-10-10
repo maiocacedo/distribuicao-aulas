@@ -25,20 +25,20 @@ São da **instituição**, compartilhados por todos os cursos: professores, sala
 horários do dia, padrões de bloco, tipos de disciplina, dias letivos e as
 indisponibilidades dos professores.
 
-**Os cursos não se validam entre si.** O gerador roda um curso por vez e ignora
-o que os outros alocaram. O compromisso de um professor em outra coordenação
-chega até aqui como **indisponibilidade dele** — ele declara os horários uma vez
-e todo curso os respeita. A view `conflitos` existe como diagnóstico opcional
-(mesmo professor ou mesma sala em dois cursos no mesmo horário), mas nenhuma
-regra a consulta.
+Professores e salas são da instituição, e um professor ou uma sala **não estão
+em dois lugares no mesmo horário em curso nenhum** (D2, D3). O gerador monta um
+curso por vez e trata as aulas dos outros cursos como ocupação fixa. A grade
+manual mostra quem ocupa o horário ("A. Souza em Beta (1º)") e lista, num
+diagnóstico, as aulas gravadas antes desta regra que a violam.
 
-Compartilhar professores e salas é conveniência de cadastro, não mecanismo de
-verificação: não se recadastram 22 professores por curso.
+O compromisso de um professor fora de qualquer curso continua sendo a
+**indisponibilidade** dele: declara-se os horários uma vez e todo curso os
+respeita.
 
 ## Unidade de medida
 
 A grade conta **aulas**, não horas. Uma disciplina de "4" tem quatro aulas por
-semana. Quanto cada aula dura é outra coisa — 50 minutos de dia, 45 à noite,
+semana. Quanto cada aula dura é outra coisa — 50 minutos,
 guardado em `horarios.duracao_min` — e não entra em cálculo nenhum.
 
 O currículo do curso, esse sim, fala em horas. A conversão fica em
@@ -53,9 +53,10 @@ calculado: era o `slot = dia * 12 + hora` do programa antigo que amarrava tudo e
 12 horários por dia.
 
 - `horarios` define os horários do dia, em ordem, cada um com seu turno.
-  Hoje: 7:30 · 8:20 · 9:10 · 10:20 · 11:10 · 12:00 (manhã) · 13:00 · 13:50 ·
-  14:40 · 15:50 · 16:40 · 17:30 (tarde). Acrescentar turno da noite é inserir
-  linhas nessa tabela.
+  São **fixos** (migração 008): 7:30 · 8:20 · 9:10 · 10:20 · 11:10 · 12:00
+  (manhã) · 13:00 · 13:50 · 14:40 · 15:50 · 16:40 · 17:30 (tarde). O que varia
+  de um curso para outro é quais turnos ele ocupa (`cursos.turnos`): manhã e/ou
+  tarde. A noite saiu do escopo na migração 010.
 - `dia` 0 = Segunda .. 5 = Sábado; quantos dias valem vem de
   `configuracao['dias_letivos']`.
 - `periodos` é uma tabela: 6, 8, 10 ou quantos períodos o curso tiver. Nenhum
@@ -78,18 +79,30 @@ próprios blocos, e as restrições de professor se aplicam ao dono da fatia.
 
 | # | Regra | Onde vive |
 |---|---|---|
-| D1 | Um período não tem duas aulas no mesmo (dia, hora) | `alocacoes` PK |
-| D2 | Um professor não está em dois períodos do MESMO curso no mesmo (dia, hora) | view `ocupacao_professor` |
-| D3 | Uma sala não recebe duas turmas do mesmo curso no mesmo (dia, hora) | view `ocupacao_sala` |
-| D4 | Professor não é alocado onde declarou indisponibilidade | `indisponibilidades` |
-| D5 | Disciplina só vai ao sábado se `permite_sabado = 1` | `disciplinas` |
-| D6 | Disciplina com `exige_sala = 1` recebe sala; com `0`, `sala_id` fica nulo | `disciplinas.exige_sala` |
-| D7 | Se `tipo_sala` está preenchido, a sala tem de ser daquele tipo | `disciplinas.tipo_sala` |
-| D8 | Se há linhas em `disciplina_salas`, a sala tem de ser uma delas | `disciplina_salas` |
-| D9 | As aulas alocadas de cada fatia somam exatamente as `aulas` dela | view `alocacao_conferencia` |
-| D10 | O padrão de blocos existe em `padroes_blocos`, salvo se `blocos_livres = 1` | `padroes_blocos` |
+| D1 | Um período não tem duas aulas no mesmo (dia, hora) | `src/regras/impedimentos.ts` (e `alocacoes` PK) |
+| D2 | Um professor não está em dois lugares no mesmo (dia, hora), **em qualquer curso** | `src/regras/impedimentos.ts` |
+| D3 | Uma sala não recebe duas turmas no mesmo (dia, hora), **em qualquer curso** | `src/regras/impedimentos.ts` |
+| D4 | Professor não é alocado onde declarou indisponibilidade | `src/regras/impedimentos.ts` |
+| D5 | Sábado só com `permite_sabado = 1` e só nos `turnos_sabado` | `src/regras/impedimentos.ts` |
+| D6 | Disciplina com `exige_sala = 1` recebe sala; com `0`, `sala_id` fica nulo | `src/regras/impedimentos.ts` |
+| D7 | Se `tipo_sala` está preenchido, a sala tem de ser daquele tipo | `src/regras/impedimentos.ts` |
+| D8 | Se há linhas em `disciplina_salas`, a sala tem de ser uma delas | `src/regras/impedimentos.ts` |
+| D9 | As aulas alocadas de cada fatia somam exatamente as `aulas` dela | solver (`src/solver/`) |
+| D10 | O padrão de blocos existe em `padroes_blocos`, salvo se `blocos_livres = 1` | solver (`src/solver/`) |
 | D11 | Alocação com `fixada = 1` não é movida pelo gerador | `alocacoes.fixada` |
-| D12 | Um bloco não atravessa troca de turno | `horarios.turno` |
+| D12 | Um bloco não atravessa troca de turno | solver (`src/solver/`) |
+| D13 | Aula só nos turnos do curso (`cursos.turnos`) | `src/regras/impedimentos.ts` |
+| D14 | Disciplina com `turno` preenchido só tem aula naquele turno | `src/regras/impedimentos.ts` |
+| D15 | Professor aparece em no máximo `max_dias_semana` dias distintos, somando todos os cursos | `src/regras/impedimentos.ts` |
+| D16 | Disciplina com `ofertada = 0` não tem aula | `src/regras/impedimentos.ts` |
+
+O mesmo módulo, `src/regras/`, serve ao gerador e à grade manual: as regras de
+célula (D1–D8, D13–D16) são decididas num lugar só, e a grade manual mostra o
+motivo quando recusa uma célula. D9 e D10 dependem da fatia inteira; na grade
+manual aparecem como **aviso na pendência** (a fatia está sempre incompleta
+durante a montagem à mão), não como bloqueio. D9, D10 e D12 são estruturais do
+gerador. O auditor `src/solver/conferir.ts` reimplementa todas de forma
+independente, para que um erro no módulo de regras não passe despercebido.
 
 ## Prioridade
 
@@ -164,18 +177,27 @@ Padrão ausente da tabela = proibido; `custo 0` = ideal; custo maior = evitar.
 
 Descartados de propósito para 4 aulas: `1+1+1+1` e `2+1+1` — por isso não constam
 da tabela. Um número de aulas que não tiver linha nenhuma bloqueia o gerador; cadastrar
-uma disciplina com um total novo exige cadastrar seus padrões. A página Curso
+uma disciplina com um total novo exige cadastrar seus padrões. A página Regras
 tem o editor.
 
 ## Turnos
 
 - Cada período tem um `turno` e o gerador tenta manter tudo nele.
-- `periodos.permite_contraturno` libera exceções; `max_disciplinas_contraturno`
-  limita quantas.
 - `disciplinas.turno` preenchido força a disciplina naquele turno,
-  independentemente do período — é o mecanismo das optativas.
-- **Preferência**: quando um período tem várias optativas, uma delas deve ficar no
-  turno do período e as demais no contraturno. Custo, não proibição.
+  independentemente do período. É **regra dura** (D14), não custo.
+- `periodos.max_disciplinas_contraturno` limita quantas disciplinas
+  **obrigatórias** do período podem ir ao contraturno; as optativas não entram
+  na conta. Passar do limite é custo, não proibição.
+- **Optativas.** São exclusivas no horário do período: cada uma ocupa um horário
+  próprio. O gerador decide quais vão ao contraturno; a optativa no contraturno
+  não paga custo de contraturno, mas há custo se **nenhuma** optativa do período
+  ficar inteira no turno.
+
+## Oferta
+
+`disciplinas.ofertada = 0` tira a disciplina da grade, das pendências e do
+gerador. Desmarcar uma disciplina que já tem aulas pede confirmação e apaga as
+aulas (D16).
 
 ## Sábado
 
@@ -184,7 +206,7 @@ domínio da variável.
 
 ## Preferências do professor
 
-Duas dimensões, ambas brandas, ambas por professor:
+Duas dimensões brandas, ambas por professor:
 
 1. **Buracos na agenda** — dar aula às 7:30 e depois só às 15h é ruim. Penaliza-se
    cada horário vago entre a primeira e a última aula do professor no dia.
@@ -194,8 +216,10 @@ Duas dimensões, ambas brandas, ambas por professor:
    - `intercalados` — prefere pelo menos um dia de intervalo (Seg+Qua);
    - `indiferente` — não pontua.
 
-   `pref_dias_peso` (0..3) diz o quanto isso pesa para aquele professor;
-   `max_dias_semana` limita em quantos dias distintos ele aparece.
+   `pref_dias_peso` (0..3) diz o quanto isso pesa para aquele professor.
+
+Além dessas, `max_dias_semana` é **regra dura** (D15): limita em quantos dias
+distintos o professor aparece, somando as aulas de **todos** os cursos.
 
 ## Salas
 
@@ -217,25 +241,59 @@ equipamento", use a lista.
 
 - `disciplina_salas` lista as salas aceitáveis, com `preferencia` 1 (ideal) ou 2
   (aceitável). É assim que se expressa "esta disciplina precisa do laboratório L4".
+  A preferência é editável no cadastro da disciplina; o gerador e a grade manual
+  tentam as ideais primeiro.
+- Na grade manual a sala de uma aula pode ser trocada pela própria célula, entre
+  as salas válidas e livres naquele horário, ou ficar sem sala quando a disciplina
+  não a exige.
 - `salas.capacidade` e `salas.tipo` ficam disponíveis para checagem, mas a regra
   operativa é a lista explícita.
 
 ## Custos brandos
 
-Nenhum destes impede uma solução; todos entram na função objetivo. O peso
-relativo entre eles ainda está por definir.
+Nenhum destes impede uma solução; todos entram na função objetivo. Os pesos
+iniciais estão em `PESOS_PADRAO` (`src/solver/tipos.ts`); a calibração fina é do
+gerador v2.
 
 | Custo | Escopo | Peso |
 |---|---|---|
-| Padrão de bloco fora do ideal | fatia | o `custo` da linha em `padroes_blocos` |
-| Buraco na agenda do professor | professor/dia | alto |
-| Buraco na grade do aluno | período/dia | alto |
-| Preferência de dias do professor | professor | `pref_dias_peso` (0..3) |
-| Disciplina no contraturno | disciplina | médio |
-| Optativa: uma no turno, resto no contraturno | período | médio |
-| Sala apenas "aceitável" em vez de "ideal" | aula | baixo |
+| Buraco na agenda do professor | professor/dia | `buracoProfessor` (8) |
+| Buraco na grade do aluno | período/dia, só obrigatórias | `buracoAluno` (8) |
+| Preferência de dias do professor | professor | `preferenciaDias` (3) × `pref_dias_peso` (0..3) |
+| Disciplina no contraturno | disciplina | `contraturno` (30) |
+| Excesso sobre `max_disciplinas_contraturno` | período | `excessoContraturno` (20) |
+| Optativa: nenhuma no turno | período | `optativaSemTurno` (40) |
+| Sala apenas "aceitável" em vez de "ideal" | aula | `salaAceitavel` (2) |
+
+O `custo` de cada linha de `padroes_blocos` não entra na soma: ele só ordena as
+tentativas do gerador, que experimenta primeiro os padrões de custo menor.
+O buraco na grade do aluno conta só as disciplinas obrigatórias, porque quem não
+cursa uma optativa não tem buraco por causa dela.
 
 Disciplinas com `prioridade = 3` têm todos os seus custos atenuados.
+
+## Mudanças de cadastro que invalidam aulas
+
+Alterar o cadastro pode deixar aulas já gravadas fora das regras. O app não deixa
+isso passar em silêncio:
+
+- **Dias letivos** (6 para 5 com aula no sábado), **turnos do curso**, **oferta**,
+  **turno forçado**, **sábado** e **requisito de sala**: o app confirma, diz quantas
+  aulas serão atingidas (no diálogo de apagar, quais: dia, horário e motivo) e,
+  se o usuário confirmar, apaga-as na mesma transação da alteração. Cancelar não
+  muda nada.
+- **Tirar um turno do curso** é recusado se algum período ou disciplina com turno
+  forçado ainda o usa; senão confirma e apaga as aulas nele.
+- **Mudar o período** de uma disciplina leva as aulas junto, no mesmo (dia, hora,
+  sala). Se algum horário do período novo estiver ocupado, a mudança é recusada,
+  com a lista dos horários em choque.
+- **Sala que deixou de servir** ao editar a disciplina: a aula não é apagada de
+  imediato. Se a disciplina não exige mais sala, a aula fica sem sala; se exige,
+  recebe uma sala válida e livre, preferindo a da aula vizinha do mesmo professor.
+  Só quando não há sala livre a aula entra na confirmação de apagar. Se só houve
+  reatribuições, não há diálogo.
+- **Baixar `max_dias_semana`** abaixo dos dias que o professor já usa é recusado,
+  com explicação: não há como escolher sozinho qual dia sai.
 
 ## Pendências
 

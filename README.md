@@ -72,10 +72,11 @@ npm run bench:solver   # compara solvers em cenários × sementes
   `msedgedriver-tool` na raiz. Depois:
   `npm run tauri build -- --debug --no-bundle && npm run test:smoke`. O banco
   do smoke é temporário (`DISTRIBUICAO_BANCO`, só em debug); o seu não é tocado.
-- **Falha esperada.** Bugs conhecidos são testes marcados com `it.fails`
-  (Vitest) ou `test.fail(true, "<id> — …")` (Playwright). Eles passam enquanto
-  o bug existir. Quando o bug for corrigido, a ferramenta acusa "passou
-  inesperadamente": remova a marcação nesse momento.
+- **Falha esperada.** Todos os bugs conhecidos do subprojeto de regras e
+  integridade foram corrigidos: não restam testes marcados com `it.fails` ou
+  `test.fail`. Ao descobrir um bug novo, a convenção é escrever o teste com essa
+  marcação (ele passa enquanto o bug existir, e a ferramenta acusa "passou
+  inesperadamente" quando for corrigido) e removê-la na correção.
 - **CI.** `.github/workflows/ci.yml` roda typecheck, Vitest, Playwright e
   `cargo fmt`/`clippy` em todo push; o smoke roda em PR para `main` e pelo
   botão "Run workflow".
@@ -89,7 +90,9 @@ npm run bench:solver   # compara solvers em cenários × sementes
 | `scripts/migrar.py` | Converte o banco do programa antigo. Uso pontual. |
 | `src/db.ts` | Conexão com o SQLite e utilitários de consulta. |
 | `src/tipos.ts` | Tipos do domínio, espelhando o esquema. |
-| `src-tauri/` | Lado Rust: registro dos plugins e migrações. |
+| `src/regras/` | Regras duras de célula, compartilhadas pelo gerador e pela grade manual. |
+| `src/solver/` | O gerador automático e o auditor independente (`conferir.ts`). |
+| `src-tauri/` | Lado Rust: plugin SQL, migrações e o comando `transacao`, a única escrita do app. |
 
 ## Massa de teste
 

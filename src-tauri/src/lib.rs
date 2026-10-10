@@ -191,7 +191,6 @@ pub fn run() {
     let url = url_do_banco();
     tauri::Builder::default()
         .manage(Banco(url.clone()))
-        .plugin(tauri_plugin_opener::init())
         .plugin(
             tauri_plugin_sql::Builder::default()
                 .add_migrations(&url, migracoes())

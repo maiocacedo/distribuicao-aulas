@@ -29,6 +29,7 @@ código morto listada no handoff.
 | Sala na grade manual | Escolha automática (vizinha → ideal → aceitável) e troca manual entre salas válidas e livres | brainstorming |
 | Mudança de cadastro que invalida aulas | Confirmar mostrando quantas e quais; se confirmar, apaga na mesma transação | brainstorming |
 | Preferência de sala ideal/aceitável | Editável no cadastro; o solver tenta a ideal primeiro, e a aceitável paga custo baixo | handoff |
+| Sala inválida após editar disciplina | Reatribui (ou tira a sala); só apaga, com confirmação, se não houver sala livre | usuário, na execução |
 | Arquitetura das regras | Módulo `src/regras/` compartilhado por solver e grade manual; `conferir` continua independente | brainstorming (abordagem A) |
 
 ### Decisões tomadas sem o usuário (revisar)
@@ -263,7 +264,7 @@ Tipos novos de `TipoViolacao`: `turno-curso`, `turno-forcado`, `max-dias`, `faix
 |---|---|
 | Cursos | Remover: o confirm já promete cascata, e o gatilho a cumpre (B2). Turnos: sem "noite". Desmarcar um turno: recusa se algum período ou disciplina usa o turno; senão, se há aulas nele, confirma e apaga |
 | Períodos | Sem `permite_contraturno`. Rótulo "Máx. de **obrigatórias** no contraturno", com dica explicando que optativas não contam. Remover o último período com disciplinas já é impedido (botão desabilitado com dica) |
-| Disciplinas | Checkbox **Ofertada** e marca "não ofertada" na lista. Preferência por sala na lista específica (ideal/aceitável). Mudar o período leva as aulas (B3, decisão 7). Salvar revalida as aulas da disciplina com `violacoesDaAula` (sábado, turno forçado, sala, oferta) e confirma e apaga as inválidas. B9: o aviso de padrão olha cada fatia. Turno forçado: só os turnos do curso |
+| Disciplinas | Checkbox **Ofertada** e marca "não ofertada" na lista. Preferência por sala na lista específica (ideal/aceitável). Mudar o período leva as aulas (B3, decisão 7). Salvar revalida as aulas da disciplina com `violacoesDaAula` (sábado, turno forçado, sala, oferta). Aula com sala inválida não é apagada: se a disciplina não exige mais sala, fica sem sala; se exige, recebe uma sala válida e livre (preferindo a da aula vizinha do mesmo professor); só sem sala livre entra na confirmação de apagar. As demais inválidas confirmam e apagam, e o diálogo lista quais aulas (dia, horário, motivo). B9: o aviso de padrão olha cada fatia. Turno forçado: só os turnos do curso |
 | Regras (`Instituicao.tsx`) | Dias letivos 6→5 com aula no sábado: confirma "N aulas no sábado serão apagadas" (I2); cancelar volta o seletor. (`turnos_sabado` não é editável na interface; nada a fazer) |
 | Indisponibilidades | B10: `persistir` sai do updater (o arrasto grava uma vez só). Marcar sobre aula já é impedido hoje (a célula com aula não pinta), então nada muda aí |
 | Professores | Reduzir `max_dias_semana` abaixo dos dias em uso: recusa com explicação (decisão 8) |

@@ -23,7 +23,7 @@ type Props = { cursoId: number; aoMudarCursos: () => void };
 type Pagina = {
   id: string;
   rotulo: string;
-  componente?: (p: Props) => React.ReactNode;
+  componente: (p: Props) => React.ReactNode;
 };
 
 const GRUPOS: { titulo: string; paginas: Pagina[] }[] = [
@@ -114,7 +114,7 @@ function App() {
     );
   }
 
-  const atual = TODAS.find((p) => p.id === pagina && p.componente) ?? TODAS[0];
+  const atual = TODAS.find((p) => p.id === pagina) ?? TODAS[0];
   const semCurso = cursoId == null;
 
   return (
@@ -154,9 +154,7 @@ function App() {
               <button
                 key={p.id}
                 className={p.id === pagina ? "ativo" : ""}
-                disabled={!p.componente}
-                title={!p.componente ? "ainda não construída" : undefined}
-                onClick={() => p.componente && setPagina(p.id)}
+                onClick={() => setPagina(p.id)}
               >
                 {p.rotulo}
               </button>
@@ -176,7 +174,7 @@ function App() {
             </p>
           </>
         ) : (
-          atual.componente?.({ cursoId: cursoId ?? 0, aoMudarCursos: carregarCursos })
+          atual.componente({ cursoId: cursoId ?? 0, aoMudarCursos: carregarCursos })
         )}
       </main>
     </div>
