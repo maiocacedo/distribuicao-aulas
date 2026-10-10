@@ -156,3 +156,55 @@ test.describe("sala inválida é reatribuída, não apagada", () => {
     expect(mensagens).toEqual([]);
   });
 });
+
+test.describe("sem sala válida livre", () => {
+  // O único laboratório está tomado por outro período no horário da aula.
+  test.use({
+    semMassa: true,
+    semente: `
+      INSERT INTO periodos (curso_id, numero, turno) VALUES (1, 1, 'manha'), (1, 2, 'manha');
+      INSERT INTO professores (id, nome) VALUES (1, 'Ana Souza'), (2, 'Bruno Lima');
+      INSERT INTO salas (id, nome, tipo, capacidade) VALUES (1, 'A01', 'Sala de Aula', 40), (2, 'Lab 1', 'Laboratório', 30);
+      INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais, exige_sala, tipo_sala)
+        VALUES (1, 1, 'Cálculo', 1, 1, 1, NULL), (2, 1, 'Química', 2, 1, 1, 'Laboratório');
+      INSERT INTO disciplina_professores (disciplina_id, professor_id, aulas) VALUES (1, 1, 1), (2, 2, 1);
+      INSERT INTO alocacoes (curso_id, periodo, dia, hora, disciplina_id, professor_id, sala_id)
+        VALUES (1, 1, 0, 0, 1, 1, 1), (1, 2, 0, 0, 2, 2, 2);`,
+  });
+
+  const exigirLaboratorio = async (page: import("@playwright/test").Page) => {
+    await editar(page, "Cálculo");
+    await page.getByLabel(/^Requisito/).selectOption("tipo");
+    await page.getByLabel(/^Tipo exigido/).selectOption("Laboratório");
+  };
+
+  test("exigir um tipo sem sala livre no horário lista a aula e, aceito, a apaga", async ({ page, banco }) => {
+    const mensagens: string[] = [];
+    page.on("dialog", (d) => {
+      mensagens.push(d.message());
+      d.accept();
+    });
+    await exigirLaboratorio(page);
+    await page.getByRole("button", { name: "Salvar" }).click();
+    await expect
+      .poll(() => contar(banco, "SELECT tipo_sala = 'Laboratório' FROM disciplinas WHERE id = 1"))
+      .toBe(1);
+    expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE disciplina_id = 1")).toBe(0);
+    // A aula que ocupa o laboratório não é tocada.
+    expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE disciplina_id = 2 AND sala_id = 2")).toBe(1);
+    expect(mensagens).toHaveLength(1);
+    expect(mensagens[0]).toMatch(/1 aula\(s\) desta disciplina serão apagadas/);
+    expect(mensagens[0]).toMatch(/Segunda M1 — sem sala válida livre/);
+  });
+
+  test("cancelar mantém a aula, a sala e o requisito", async ({ page, banco }) => {
+    page.on("dialog", (d) => d.dismiss());
+    await exigirLaboratorio(page);
+    const dialogo = page.waitForEvent("dialog");
+    await page.getByRole("button", { name: "Salvar" }).click();
+    await dialogo;
+    await expect(page.getByRole("button", { name: "Salvar" })).toBeVisible();
+    expect(contar(banco, "SELECT COUNT(*) FROM disciplinas WHERE id = 1 AND tipo_sala IS NULL")).toBe(1);
+    expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE disciplina_id = 1 AND sala_id = 1")).toBe(1);
+  });
+});
