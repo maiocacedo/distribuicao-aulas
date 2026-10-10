@@ -29,13 +29,18 @@ test.describe("oferta", () => {
     await expect.poll(() => contar(banco, "SELECT ofertada FROM disciplinas WHERE id = 1")).toBe(0);
     expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE disciplina_id = 1")).toBe(0);
     expect(mensagens.join("\n")).toMatch(/2 aula\(s\) desta disciplina serão apagadas/);
+    // Quantas e quais: uma linha por aula, com o horário e o motivo.
+    expect(mensagens.join("\n")).toMatch(/Segunda M1 — Disciplina não ofertada/);
   });
 
   test("cancelar a confirmação não muda nada", async ({ page, banco }) => {
     page.on("dialog", (d) => d.dismiss());
     await editar(page, "Libras");
     await page.getByRole("checkbox", { name: /Ofertada/ }).uncheck();
+    // Sem esperar o diálogo, as asserções do banco correriam antes do salvar.
+    const dialogo = page.waitForEvent("dialog");
     await page.getByRole("button", { name: "Salvar" }).click();
+    await dialogo;
     await expect(page.getByRole("button", { name: "Salvar" })).toBeVisible();
     expect(contar(banco, "SELECT ofertada FROM disciplinas WHERE id = 1")).toBe(1);
     expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE disciplina_id = 1")).toBe(2);
@@ -103,5 +108,51 @@ test.describe("B3 com choque", () => {
     await expect(page.getByText(/2º período já tem aula em Segunda M1/)).toBeVisible();
     expect(contar(banco, "SELECT periodo FROM disciplinas WHERE id = 1")).toBe(1);
     expect(contar(banco, "SELECT periodo FROM alocacoes WHERE disciplina_id = 1")).toBe(1);
+  });
+});
+
+test.describe("sala inválida é reatribuída, não apagada", () => {
+  test.use({
+    semMassa: true,
+    semente: `
+      INSERT INTO periodos (curso_id, numero, turno) VALUES (1, 1, 'manha');
+      INSERT INTO professores (id, nome) VALUES (1, 'Ana Souza');
+      INSERT INTO salas (id, nome, tipo, capacidade) VALUES (1, 'A01', 'Sala de Aula', 40), (2, 'Lab 1', 'Laboratório', 30);
+      INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais, exige_sala)
+        VALUES (1, 1, 'Cálculo', 1, 2, 1), (2, 1, 'Química', 1, 2, 0);
+      INSERT INTO disciplina_professores (disciplina_id, professor_id, aulas) VALUES (1, 1, 2), (2, 1, 2);
+      INSERT INTO alocacoes (curso_id, periodo, dia, hora, disciplina_id, professor_id, sala_id)
+        VALUES (1, 1, 0, 0, 1, 1, 1), (1, 1, 0, 1, 1, 1, 1), (1, 1, 1, 0, 2, 1, NULL), (1, 1, 1, 1, 2, 1, NULL);`,
+  });
+
+  test("deixar de ocupar sala mantém as aulas, sem sala e sem diálogo", async ({ page, banco }) => {
+    const mensagens: string[] = [];
+    page.on("dialog", (d) => {
+      mensagens.push(d.message());
+      d.dismiss();
+    });
+    await editar(page, "Cálculo");
+    await page.getByLabel(/^Requisito/).selectOption("nenhuma");
+    await page.getByRole("button", { name: "Salvar" }).click();
+    await expect.poll(() => contar(banco, "SELECT exige_sala FROM disciplinas WHERE id = 1")).toBe(0);
+    expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE disciplina_id = 1 AND sala_id IS NULL")).toBe(2);
+    expect(mensagens).toEqual([]);
+  });
+
+  test("passar a exigir laboratório leva as aulas para o laboratório livre", async ({ page, banco }) => {
+    const mensagens: string[] = [];
+    page.on("dialog", (d) => {
+      mensagens.push(d.message());
+      d.dismiss();
+    });
+    await editar(page, "Química");
+    await page.getByLabel(/^Requisito/).selectOption("tipo");
+    await page.getByLabel(/^Tipo exigido/).selectOption("Laboratório");
+    await page.getByRole("button", { name: "Salvar" }).click();
+    await expect
+      .poll(() => contar(banco, "SELECT tipo_sala = 'Laboratório' FROM disciplinas WHERE id = 2"))
+      .toBe(1);
+    expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE disciplina_id = 2 AND sala_id = 2")).toBe(2);
+    expect(mensagens).toEqual([]);
   });
 });

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { consultar, executar, proximoId, transacao, type Instrucao } from "../db";
 import { carregarContexto } from "../regras/carregar";
 import { descrever } from "../regras/descrever";
-import { violacoesDaAula } from "../regras/impedimentos";
+import { escolherSala, violacoesDaAula } from "../regras/impedimentos";
 import { Ocupacao } from "../regras/ocupacao";
 import type { AulaOcupada, FatiaRegras, Motivo } from "../regras/tipos";
 import { DIAS, TURNOS, type Disciplina, type Periodo, type Professor, type Sala, type TipoDisciplina, type Turno } from "../tipos";
@@ -177,6 +177,190 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
     });
   }
 
+  /**
+   * O que a edição faz com as aulas que a disciplina já tem: o período leva as
+   * aulas junto (B3); a aula cuja sala deixou de servir troca de sala; a que
+   * deixou de valer por outro motivo é apagada, com confirmação. Tudo vai na
+   * mesma transação do cadastro: `antes` roda antes dele, ainda com o período
+   * antigo na chave das aulas, e `depois` por último, levando-as ao novo.
+   * `null` = salvar não segue (recusado, com o erro na tela, ou cancelado).
+   */
+  async function prepararAulas(
+    d: Rascunho,
+  ): Promise<{ antes: Instrucao[]; depois: Instrucao[] } | null> {
+    const antes: Instrucao[] = [];
+    const depois: Instrucao[] = [];
+    const original = linhas.find((l) => l.id === d.id);
+    const mudouPeriodo = !!original && original.periodo !== d.periodo;
+    const dela = (
+      await consultar<{
+        curso_id: number;
+        periodo: number;
+        dia: number;
+        hora: number;
+        professor_id: number;
+        sala_id: number | null;
+        fixada: number;
+      }>(
+        `SELECT curso_id, periodo, dia, hora, professor_id, sala_id, fixada FROM alocacoes
+          WHERE disciplina_id = ? ORDER BY dia, hora`,
+        [d.id],
+      )
+    ).filter((a) => d.fatias.some((f) => f.professor_id === a.professor_id));
+    if (dela.length === 0) return { antes, depois };
+
+    const ctx = await carregarContexto(cursoId, consultar);
+    const codigos = new Map(
+      (await consultar<{ indice: number; codigo: string }>("SELECT indice, codigo FROM horarios")).map(
+        (h) => [h.indice, h.codigo],
+      ),
+    );
+    const todas = (
+      await consultar<{
+        curso_id: number;
+        periodo: number;
+        dia: number;
+        hora: number;
+        disciplina_id: number;
+        professor_id: number;
+        sala_id: number | null;
+      }>("SELECT curso_id, periodo, dia, hora, disciplina_id, professor_id, sala_id FROM alocacoes")
+    ).map(
+      (a): AulaOcupada => ({
+        cursoId: a.curso_id,
+        periodo: a.disciplina_id === d.id ? d.periodo : a.periodo,
+        dia: a.dia,
+        hora: a.hora,
+        disciplinaId: a.disciplina_id,
+        professorId: a.professor_id,
+        salaId: a.sala_id,
+      }),
+    );
+    const oc = new Ocupacao(cursoId, todas);
+    const regras = (professorId: number): FatiaRegras => ({
+      disciplinaId: d.id,
+      professorId,
+      periodo: d.periodo,
+      permiteSabado: !!d.permite_sabado,
+      turno: d.turno,
+      exigeSala: !!d.exige_sala,
+      tipoSala: d.tipo_sala,
+      salas:
+        d.exige_sala && !d.tipo_sala
+          ? d.salas.map((id) => ({ id, preferencia: d.aceitaveis.includes(id) ? 2 : 1 }))
+          : [],
+      ofertada: !!d.ofertada,
+    });
+    const nomes = {
+      cursoAtual: cursoId,
+      professor: (id: number) => professores.find((p) => p.id === id)?.nome ?? `#${id}`,
+      curso: (id: number) => `#${id}`,
+      sala: (id: number) => salas.find((s) => s.id === id)?.nome ?? `#${id}`,
+    };
+
+    // A sala que cada aula da disciplina fica tendo, para a vizinha da mesma
+    // pessoa no mesmo dia preferir a mesma e o bloco não trocar de sala.
+    const salaDe = new Map(dela.map((a) => [`${a.professor_id}:${a.dia}:${a.hora}`, a.sala_id]));
+    const apagar: { a: (typeof dela)[number]; razao: string }[] = [];
+    const trocar: { a: (typeof dela)[number]; sala: number | null }[] = [];
+    for (const a of dela) {
+      const aula: AulaOcupada = {
+        cursoId: a.curso_id,
+        periodo: d.periodo,
+        dia: a.dia,
+        hora: a.hora,
+        disciplinaId: d.id,
+        professorId: a.professor_id,
+        salaId: a.sala_id,
+      };
+      const f = regras(a.professor_id);
+      const motivos = violacoesDaAula(ctx, oc, f, aula).filter((m) => MUDAM_COM_O_CADASTRO.has(m.regra));
+      if (motivos.length === 0) continue;
+
+      // Sala que deixou de servir não condena a aula: o horário continua bom,
+      // basta outra sala (ou nenhuma, se a disciplina deixou de ocupar sala).
+      if (motivos.every((m) => m.regra === "sala-invalida")) {
+        const vizinha = (h: number) => salaDe.get(`${a.professor_id}:${a.dia}:${h}`) ?? null;
+        const nova = oc.sem(aula, () =>
+          escolherSala(ctx, oc, f, a.dia, a.hora, vizinha(a.hora - 1) ?? vizinha(a.hora + 1)),
+        );
+        if (nova !== undefined) {
+          trocar.push({ a, sala: nova });
+          salaDe.set(`${a.professor_id}:${a.dia}:${a.hora}`, nova);
+          oc.retirar(aula);
+          oc.colocar({ ...aula, salaId: nova });
+          continue;
+        }
+        apagar.push({ a, razao: "sem sala válida livre" });
+      } else {
+        apagar.push({ a, razao: [...new Set(motivos.map((m) => descrever(m, nomes)))].join("; ") });
+      }
+      salaDe.delete(`${a.professor_id}:${a.dia}:${a.hora}`);
+      oc.retirar(aula);
+    }
+
+    // O choque de período só conta para as aulas que ficam: a que vai ser
+    // apagada não ocupa o horário no período novo.
+    if (mudouPeriodo) {
+      const choques = (
+        await consultar<{ dia: number; hora: number; codigo: string }>(
+          `SELECT a.dia, a.hora, h.codigo FROM alocacoes a JOIN horarios h ON h.indice = a.hora
+            WHERE a.curso_id = ? AND a.periodo = ? AND a.disciplina_id <> ?
+              AND EXISTS (SELECT 1 FROM alocacoes b
+                           WHERE b.disciplina_id = ? AND b.dia = a.dia AND b.hora = a.hora)
+            ORDER BY a.dia, a.hora`,
+          [cursoId, d.periodo, d.id, d.id],
+        )
+      ).filter((c) => !apagar.some((x) => x.a.dia === c.dia && x.a.hora === c.hora));
+      if (choques.length > 0) {
+        setErro(
+          `O ${d.periodo}º período já tem aula em ` +
+            choques.map((c) => `${DIAS[c.dia]} ${c.codigo}`).join(", ") +
+            ". Libere esses horários na grade antes de mudar o período.",
+        );
+        return null;
+      }
+    }
+
+    if (apagar.length > 0) {
+      const fixadas = apagar.filter((x) => x.a.fixada).length;
+      const MAXIMO = 10;
+      const quais = apagar
+        .slice(0, MAXIMO)
+        .map((x) => `- ${DIAS[x.a.dia]} ${codigos.get(x.a.hora) ?? x.a.hora} — ${x.razao}`);
+      if (apagar.length > MAXIMO) quais.push(`… e mais ${apagar.length - MAXIMO}`);
+      if (
+        !confirm(
+          `${apagar.length} aula(s) desta disciplina serão apagadas, porque deixam de valer com a mudança` +
+            (fixadas ? ` (${fixadas} fixada(s))` : "") +
+            `:\n\n${quais.join("\n")}` +
+            (trocar.length ? `\n\nOutras ${trocar.length} aula(s) trocam de sala.` : "") +
+            "\n\nContinuar?",
+        )
+      )
+        return null;
+    }
+
+    // Pela chave com o período antigo: o UPDATE de período vem depois.
+    antes.push(
+      ...apagar.map((x) => ({
+        sql: "DELETE FROM alocacoes WHERE curso_id = ? AND periodo = ? AND dia = ? AND hora = ?",
+        params: [x.a.curso_id, x.a.periodo, x.a.dia, x.a.hora],
+      })),
+      ...trocar.map((x) => ({
+        sql: "UPDATE alocacoes SET sala_id = ? WHERE curso_id = ? AND periodo = ? AND dia = ? AND hora = ?",
+        params: [x.sala, x.a.curso_id, x.a.periodo, x.a.dia, x.a.hora],
+      })),
+    );
+    if (mudouPeriodo) {
+      depois.push({
+        sql: "UPDATE alocacoes SET periodo = ? WHERE disciplina_id = ?",
+        params: [d.periodo, d.id],
+      });
+    }
+    return { antes, depois };
+  }
+
   async function salvar(d: Rascunho) {
     setErro("");
     const nome = d.nome.trim();
@@ -193,132 +377,6 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
     }
     if (d.fatias.some((f) => !f.professor_id)) {
       return setErro("Há uma fatia sem professor escolhido.");
-    }
-
-    // Edição de disciplina com aulas: o período leva as aulas junto (B3), e o
-    // que a mudança invalida é confirmado e apagado na mesma transação.
-    const antes: Instrucao[] = [];
-    const depois: Instrucao[] = [];
-    if (d.id) {
-      const original = linhas.find((l) => l.id === d.id);
-      const dela = (
-        await consultar<{
-          curso_id: number;
-          periodo: number;
-          dia: number;
-          hora: number;
-          professor_id: number;
-          sala_id: number | null;
-          fixada: number;
-        }>(
-          "SELECT curso_id, periodo, dia, hora, professor_id, sala_id, fixada FROM alocacoes WHERE disciplina_id = ?",
-          [d.id],
-        )
-      ).filter((a) => d.fatias.some((f) => f.professor_id === a.professor_id));
-
-      if (dela.length > 0 && original && original.periodo !== d.periodo) {
-        const choques = await consultar<{ dia: number; hora: number; codigo: string }>(
-          `SELECT a.dia, a.hora, h.codigo FROM alocacoes a JOIN horarios h ON h.indice = a.hora
-            WHERE a.curso_id = ? AND a.periodo = ? AND a.disciplina_id <> ?
-              AND EXISTS (SELECT 1 FROM alocacoes b
-                           WHERE b.disciplina_id = ? AND b.dia = a.dia AND b.hora = a.hora)
-            ORDER BY a.dia, a.hora`,
-          [cursoId, d.periodo, d.id, d.id],
-        );
-        if (choques.length > 0) {
-          return setErro(
-            `O ${d.periodo}º período já tem aula em ` +
-              choques.map((c) => `${DIAS[c.dia]} ${c.codigo}`).join(", ") +
-              ". Libere esses horários na grade antes de mudar o período.",
-          );
-        }
-      }
-
-      if (dela.length > 0) {
-        const ctx = await carregarContexto(cursoId, consultar);
-        const todas = (
-          await consultar<{
-            curso_id: number;
-            periodo: number;
-            dia: number;
-            hora: number;
-            disciplina_id: number;
-            professor_id: number;
-            sala_id: number | null;
-          }>("SELECT curso_id, periodo, dia, hora, disciplina_id, professor_id, sala_id FROM alocacoes")
-        ).map(
-          (a): AulaOcupada => ({
-            cursoId: a.curso_id,
-            periodo: a.disciplina_id === d.id ? d.periodo : a.periodo,
-            dia: a.dia,
-            hora: a.hora,
-            disciplinaId: a.disciplina_id,
-            professorId: a.professor_id,
-            salaId: a.sala_id,
-          }),
-        );
-        const oc = new Ocupacao(cursoId, todas);
-        const regras = (professorId: number): FatiaRegras => ({
-          disciplinaId: d.id,
-          professorId,
-          periodo: d.periodo,
-          permiteSabado: !!d.permite_sabado,
-          turno: d.turno,
-          exigeSala: !!d.exige_sala,
-          tipoSala: d.tipo_sala,
-          salas:
-            d.exige_sala && !d.tipo_sala
-              ? d.salas.map((id) => ({ id, preferencia: d.aceitaveis.includes(id) ? 2 : 1 }))
-              : [],
-          ofertada: !!d.ofertada,
-        });
-        const invalidas = dela.flatMap((a) => {
-          const aula: AulaOcupada = {
-            cursoId: a.curso_id,
-            periodo: d.periodo,
-            dia: a.dia,
-            hora: a.hora,
-            disciplinaId: d.id,
-            professorId: a.professor_id,
-            salaId: a.sala_id,
-          };
-          const motivos = violacoesDaAula(ctx, oc, regras(a.professor_id), aula).filter((m) =>
-            MUDAM_COM_O_CADASTRO.has(m.regra),
-          );
-          return motivos.length ? [{ a, motivos }] : [];
-        });
-
-        if (invalidas.length > 0) {
-          const fixadas = invalidas.filter((x) => x.a.fixada).length;
-          const nomes = {
-            cursoAtual: cursoId,
-            professor: (id: number) => professores.find((p) => p.id === id)?.nome ?? `#${id}`,
-            curso: (id: number) => `#${id}`,
-            sala: (id: number) => salas.find((s) => s.id === id)?.nome ?? `#${id}`,
-          };
-          const razoes = [...new Set(invalidas.flatMap((x) => x.motivos.map((m) => descrever(m, nomes))))];
-          if (
-            !confirm(
-              `${invalidas.length} aula(s) desta disciplina serão apagadas, porque deixam de valer com a mudança` +
-                (fixadas ? ` (${fixadas} fixada(s))` : "") +
-                `:\n\n- ${razoes.join("\n- ")}\n\nContinuar?`,
-            )
-          )
-            return;
-          antes.push(
-            ...invalidas.map((x) => ({
-              sql: "DELETE FROM alocacoes WHERE curso_id = ? AND periodo = ? AND dia = ? AND hora = ?",
-              params: [x.a.curso_id, x.a.periodo, x.a.dia, x.a.hora],
-            })),
-          );
-        }
-        if (original && original.periodo !== d.periodo) {
-          depois.push({
-            sql: "UPDATE alocacoes SET periodo = ? WHERE disciplina_id = ?",
-            params: [d.periodo, d.id],
-          });
-        }
-      }
     }
 
     const campos = [
@@ -340,6 +398,11 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
     ];
 
     try {
+      // Tudo o que consulta o banco fica dentro do `try`: uma falha aqui tem de
+      // aparecer na tela, não sumir numa promessa rejeitada.
+      const aulas = d.id ? await prepararAulas(d) : { antes: [], depois: [] };
+      if (!aulas) return;
+
       // Uma transação só para as três tabelas. O id é reservado antes de abrir
       // a transação porque `last_insert_rowid()` não serve de referência: ele
       // muda a cada INSERT seguinte dentro da mesma transação.
@@ -348,7 +411,7 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
       const marcadores = mantidos.map(() => "?").join(",");
 
       const instrucoes: Instrucao[] = [
-        ...antes,
+        ...aulas.antes,
         d.id
           ? {
               sql: `UPDATE disciplinas SET curso_id = ?, nome = ?, abreviacao = ?,
@@ -396,7 +459,7 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
           : []),
 
         // Por último: as aulas mudam de período depois que a disciplina já está nele.
-        ...depois,
+        ...aulas.depois,
       ];
 
       await transacao(instrucoes);
