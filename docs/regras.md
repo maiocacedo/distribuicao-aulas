@@ -108,7 +108,9 @@ independente, para que um erro no módulo de regras não passe despercebido.
 
 `disciplinas.prioridade` define a ordem em que o solver aloca: **1** primeiro,
 **3** por último, no que sobrar. A prioridade 3 também atenua os custos brandos da
-disciplina — ela se encaixa nas folgas em vez de disputar horário com as demais.
+disciplina **na hora de ordenar as tentativas** — ela se encaixa nas folgas em vez
+de disputar horário com as demais. O custo total da grade não muda com a
+prioridade (ver "Custos brandos").
 
 Existe uma categoria de disciplina que combina três campos e se comporta de modo
 bem diferente das demais: muitas aulas, divididas entre professores, sem sala fixa,
@@ -116,7 +118,7 @@ sem padrão de bloco, encaixada onde não atrapalha o resto.
 
 | Campo | Valor | Efeito |
 |---|---|---|
-| `prioridade` | 3 | alocado por último, custos brandos atenuados |
+| `prioridade` | 3 | alocado por último, custos brandos atenuados na ordenação das tentativas |
 | `blocos_livres` | 1 | qualquer partição das aulas vale — `3+1+1+1` é legal |
 | `exige_sala` | 0 | não ocupa sala, não disputa sala com ninguém |
 
@@ -192,6 +194,12 @@ tem o editor.
   próprio. O gerador decide quais vão ao contraturno; a optativa no contraturno
   não paga custo de contraturno, mas há custo se **nenhuma** optativa do período
   ficar inteira no turno.
+- **Turno forçado de optativa.** Preencher o turno era o jeito antigo de mandar
+  uma optativa ao contraturno. A migração 010 **limpou o turno forçado das
+  optativas** (as que apontavam para fora do turno do período), para a escolha
+  voltar ao gerador, e descontou as optativas de turno forçado de
+  `max_disciplinas_contraturno`. Preencher o turno de uma optativa de novo volta
+  a travá-la naquele turno: é a mesma regra dura (D14) das obrigatórias.
 
 ## Oferta
 
@@ -246,8 +254,9 @@ equipamento", use a lista.
 - Na grade manual a sala de uma aula pode ser trocada pela própria célula, entre
   as salas válidas e livres naquele horário, ou ficar sem sala quando a disciplina
   não a exige.
-- `salas.capacidade` e `salas.tipo` ficam disponíveis para checagem, mas a regra
-  operativa é a lista explícita.
+- `salas.tipo` é regra (D7): quando a disciplina tem `tipo_sala`, só as salas
+  daquele tipo servem. `salas.capacidade` continua só informativa — nenhuma regra
+  a consulta.
 
 ## Custos brandos
 
@@ -260,7 +269,7 @@ gerador v2.
 | Buraco na agenda do professor | professor/dia | `buracoProfessor` (8) |
 | Buraco na grade do aluno | período/dia, só obrigatórias | `buracoAluno` (8) |
 | Preferência de dias do professor | professor | `preferenciaDias` (3) × `pref_dias_peso` (0..3) |
-| Disciplina no contraturno | disciplina | `contraturno` (30) |
+| Disciplina no contraturno | aula, só de disciplina obrigatória | `contraturno` (30) |
 | Excesso sobre `max_disciplinas_contraturno` | período | `excessoContraturno` (20) |
 | Optativa: nenhuma no turno | período | `optativaSemTurno` (40) |
 | Sala apenas "aceitável" em vez de "ideal" | aula | `salaAceitavel` (2) |
@@ -270,18 +279,24 @@ tentativas do gerador, que experimenta primeiro os padrões de custo menor.
 O buraco na grade do aluno conta só as disciplinas obrigatórias, porque quem não
 cursa uma optativa não tem buraco por causa dela.
 
-Disciplinas com `prioridade = 3` têm todos os seus custos atenuados.
+O custo de contraturno é contado **por aula**: uma disciplina com quatro aulas
+fora do turno do período paga quatro vezes. Optativas não pagam, e a aula no
+turno que a própria disciplina força também não.
+
+Disciplinas com `prioridade = 3` têm os custos atenuados **só na ordenação local
+das tentativas** (`pontuar`, em `src/solver/solver.ts`), que decide qual
+candidato o gerador experimenta primeiro. No custo total da grade
+(`src/solver/custo.ts`) elas pesam como qualquer outra.
 
 ## Mudanças de cadastro que invalidam aulas
 
 Alterar o cadastro pode deixar aulas já gravadas fora das regras. O app não deixa
 isso passar em silêncio:
 
-- **Dias letivos** (6 para 5 com aula no sábado), **turnos do curso**, **oferta**,
-  **turno forçado**, **sábado** e **requisito de sala**: o app confirma, diz quantas
-  aulas serão atingidas (no diálogo de apagar, quais: dia, horário e motivo) e,
-  se o usuário confirmar, apaga-as na mesma transação da alteração. Cancelar não
-  muda nada.
+- **Dias letivos** (6 para 5 com aula no sábado), **oferta**, **turno forçado**
+  e **sábado**: o app confirma, diz quantas aulas serão atingidas (ao editar a
+  disciplina, quais: dia, horário e motivo) e, se o usuário confirmar, apaga-as
+  na mesma transação da alteração. Cancelar não muda nada.
 - **Tirar um turno do curso** é recusado se algum período ou disciplina com turno
   forçado ainda o usa; senão confirma e apaga as aulas nele.
 - **Mudar o período** de uma disciplina leva as aulas junto, no mesmo (dia, hora,
@@ -292,6 +307,12 @@ isso passar em silêncio:
   recebe uma sala válida e livre, preferindo a da aula vizinha do mesmo professor.
   Só quando não há sala livre a aula entra na confirmação de apagar. Se só houve
   reatribuições, não há diálogo.
+- **Mudar o tipo de uma sala** reatribui as aulas atingidas — as que estão nela e
+  cuja disciplina exige um tipo diferente do novo (D7) — em **todos os cursos**,
+  porque a sala é da instituição: cada uma recebe outra sala válida e livre no
+  mesmo horário, pela mesma regra da edição de disciplina. Só as que não acharem
+  sala entram na confirmação de apagar, que lista curso, período, dia, horário e
+  disciplina. Se só houve reatribuições, não há diálogo; cancelar não muda nada.
 - **Baixar `max_dias_semana`** abaixo dos dias que o professor já usa é recusado,
   com explicação: não há como escolher sozinho qual dia sai.
 
@@ -299,6 +320,6 @@ isso passar em silêncio:
 
 - [ ] Preencher `disciplina_salas` para as disciplinas que exigem laboratório.
 - [ ] Preencher as preferências de distribuição de dias de cada professor.
-- [ ] Definir o peso relativo entre os custos brandos.
+- [ ] Calibrar os pesos dos custos brandos (gerador v2).
 - [ ] Marcar `prioridade` e `blocos_livres` nas disciplinas que a migração
       listou como "aulas de menos para inferir" — os TCCs entre elas.

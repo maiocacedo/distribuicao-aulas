@@ -1,6 +1,6 @@
 import type { Motivo, Turno } from "./tipos";
 
-/** "Marina Sousa" → "M. Sousa": a célula é estreita e o sobrenome basta. */
+/** "Nome Sobrenome" → "N. Sobrenome": a célula é estreita e o sobrenome basta. */
 export function curto(nome: string): string {
   const partes = nome.trim().split(/\s+/);
   if (partes.length < 2) return nome;

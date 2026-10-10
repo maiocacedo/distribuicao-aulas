@@ -24,12 +24,14 @@ código morto listada no handoff.
 | Optativas de um período | **Exclusivas**: cada uma ocupa horário próprio do período (como hoje) | brainstorming |
 | Quem põe optativa no contraturno | **O solver.** Aula de optativa no contraturno não paga custo, mas há custo se nenhuma optativa do período ficar inteira no turno | brainstorming |
 | `disciplinas.turno` (forçar turno) | Vira **regra dura** | brainstorming |
-| `max_disciplinas_contraturno` | Passa a contar só não optativas; a migração desconta as optativas | brainstorming |
+| `max_disciplinas_contraturno` | Passa a contar só não optativas; a migração desconta as optativas com turno forçado, que eram as que o valor antigo contava | brainstorming; desconto corrigido na revisão final |
 | Oferta | Campo novo `disciplinas.ofertada`; a não ofertada sai do solver, das pendências e da grade | brainstorming |
 | Sala na grade manual | Escolha automática (vizinha → ideal → aceitável) e troca manual entre salas válidas e livres | brainstorming |
 | Mudança de cadastro que invalida aulas | Confirmar mostrando quantas e quais; se confirmar, apaga na mesma transação | brainstorming |
 | Preferência de sala ideal/aceitável | Editável no cadastro; o solver tenta a ideal primeiro, e a aceitável paga custo baixo | handoff |
 | Sala inválida após editar disciplina | Reatribui (ou tira a sala); só apaga, com confirmação, se não houver sala livre | usuário, na execução |
+| Turno forçado das optativas | A migração 010 o limpa: forçar o turno era o jeito antigo de mandar optativa ao contraturno, e como regra dura travaria a escolha que agora é do gerador. Quem quiser travar uma optativa preenche o turno de novo | usuário, na revisão final |
+| Mudar o tipo de uma sala | Reatribui as aulas atingidas, em todos os cursos, pela mesma regra da edição de disciplina; só apaga, com confirmação, as que não acharem sala | usuário, na revisão final |
 | Arquitetura das regras | Módulo `src/regras/` compartilhado por solver e grade manual; `conferir` continua independente | brainstorming (abordagem A) |
 
 ### Decisões tomadas sem o usuário (revisar)
@@ -115,18 +117,25 @@ Registrada em `src-tauri/src/lib.rs` como versão 10. O `criarBanco` a roda sobr
 v9.
 
 1. **Noite.** Apaga `alocacoes` e `indisponibilidades` em horários de turno `noite`,
-   depois os próprios horários. `disciplinas.turno = 'noite'` vira `NULL`, `periodos.turno
-   = 'noite'` vira `'tarde'`, e `'noite'` sai de `cursos.turnos` (um curso que ficaria
-   vazio recebe `'manha,tarde'`). O mesmo para `configuracao['turnos_sabado']`.
+   depois os próprios horários. `disciplinas.turno = 'noite'` vira `NULL`, e `'noite'`
+   sai de `cursos.turnos` (um curso que ficaria vazio recebe `'manha,tarde'`). Depois
+   disso, `periodos.turno = 'noite'` vira `'tarde'` se o curso ocupa a tarde, senão
+   `'manha'` — nunca um turno que o curso não tem. `'noite'` sai também de
+   `configuracao['turnos_sabado']` (vazio vira `'manha'`).
 2. **Views.** `DROP VIEW` em `ocupacao_professor`, `ocupacao_sala`, `aulas_conferencia`,
    `alocacao_conferencia` e `conflitos`. Vem antes do passo 3, porque a SQLite recusa
    `DROP COLUMN` de coluna citada em view.
 3. **`periodos.permite_contraturno`**: `ALTER TABLE periodos DROP COLUMN
    permite_contraturno`.
-4. **`max_disciplinas_contraturno`** passa a contar só não optativas. Para cada período,
-   `max(0, valor − nº de optativas do período)`. Na massa fica 3→0, 3→0 e 1→0.
-5. **`disciplinas.ofertada INTEGER NOT NULL DEFAULT 1`.**
-6. **Cascata do curso**:
+4. **`max_disciplinas_contraturno`** passa a contar só não optativas. O valor antigo
+   era o número de disciplinas com turno forçado, então a migração desconta as
+   optativas com turno forçado: `max(0, valor − nº de optativas do período com turno
+   preenchido)`. Na massa fica 3→0, 3→1 e 1→1.
+5. **Turno forçado das optativas.** Depois do passo 4, que as conta: `disciplinas.turno`
+   vira `NULL` nas optativas em que ele difere do turno do período. As obrigatórias
+   com turno forçado ficam como estão.
+6. **`disciplinas.ofertada INTEGER NOT NULL DEFAULT 1`.**
+7. **Cascata do curso**:
    ```sql
    CREATE TRIGGER cursos_cascata BEFORE DELETE ON cursos BEGIN
      DELETE FROM alocacoes   WHERE curso_id = OLD.id;
@@ -135,7 +144,7 @@ v9.
    ```
    Os `periodos` já caem pela FK `ON DELETE CASCADE`. `disciplina_professores` e
    `disciplina_salas` caem pela FK das disciplinas.
-7. **`configuracao['versao_schema']`** sai. Ninguém lê, e a versão real é a do
+8. **`configuracao['versao_schema']`** sai. Ninguém lê, e a versão real é a do
    `_sqlx_migrations`.
 
 `disciplina_salas.preferencia` já existe (1 ideal, 2 aceitável) e não muda no esquema.
@@ -268,6 +277,7 @@ Tipos novos de `TipoViolacao`: `turno-curso`, `turno-forcado`, `max-dias`, `faix
 | Regras (`Instituicao.tsx`) | Dias letivos 6→5 com aula no sábado: confirma "N aulas no sábado serão apagadas" (I2); cancelar volta o seletor. (`turnos_sabado` não é editável na interface; nada a fazer) |
 | Indisponibilidades | B10: `persistir` sai do updater (o arrasto grava uma vez só). Marcar sobre aula já é impedido hoje (a célula com aula não pinta), então nada muda aí |
 | Professores | Reduzir `max_dias_semana` abaixo dos dias em uso: recusa com explicação (decisão 8) |
+| Salas | Mudar o tipo de uma sala com aulas: as aulas cuja disciplina exige um tipo diferente do novo (D7) recebem outra sala válida e livre no mesmo horário, em todos os cursos, pela mesma função da edição de disciplina (`src/regras/reatribuir.ts`). As que não acharem sala entram num confirm que as lista (curso, período, dia, horário, disciplina); cancelar não grava nada; só reatribuições = sem diálogo. Tudo na transação do `UPDATE` da sala |
 | Grade Automática | B5: o `<Erro>` aparece mesmo sem problema carregado. Resumo mostra "N aulas de outros cursos respeitadas" |
 | Tipos | Optativa: dica atualizada ("o gerador põe no contraturno quando convém") |
 
@@ -313,7 +323,10 @@ do `confirm`.
 - Migração (`testes/suporte/banco.test.ts`): sobre a massa,
   - nenhum horário noturno;
   - `permite_contraturno` não existe;
-  - `max_disciplinas_contraturno` 0/0/0 nos períodos 2, 7 e 8;
+  - `max_disciplinas_contraturno` 0/1/1 nos períodos 2, 7 e 8;
+  - nenhuma optativa com turno forçado diferente do turno do período;
+  - com dado semeado antes da 010 (`criarBanco({ antes })`): noite em aulas,
+    indisponibilidades, disciplinas, períodos, cursos e sábado, e o `MAX(0, …)`;
   - toda disciplina `ofertada = 1`;
   - nenhuma view;
   - excluir o curso 1 zera disciplinas, períodos e alocações sem erro;
