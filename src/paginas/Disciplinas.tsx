@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { consultar, executar, proximoId, transacao, type Instrucao } from "../db";
 import { carregarContexto } from "../regras/carregar";
 import { descrever } from "../regras/descrever";
-import { escolherSala, violacoesDaAula } from "../regras/impedimentos";
+import { violacoesDaAula } from "../regras/impedimentos";
 import { Ocupacao } from "../regras/ocupacao";
+import { reatribuirSalas } from "../regras/reatribuir";
 import type { AulaOcupada, FatiaRegras, Motivo } from "../regras/tipos";
 import { DIAS, TURNOS, type Disciplina, type Periodo, type Professor, type Sala, type TipoDisciplina, type Turno } from "../tipos";
 import {
@@ -258,11 +259,13 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
       sala: (id: number) => salas.find((s) => s.id === id)?.nome ?? `#${id}`,
     };
 
-    // A sala que cada aula da disciplina fica tendo, para a vizinha da mesma
-    // pessoa no mesmo dia preferir a mesma e o bloco não trocar de sala.
-    const salaDe = new Map(dela.map((a) => [`${a.professor_id}:${a.dia}:${a.hora}`, a.sala_id]));
-    const apagar: { a: (typeof dela)[number]; razao: string }[] = [];
-    const trocar: { a: (typeof dela)[number]; sala: number | null }[] = [];
+    // Primeiro saem as aulas que deixam de valer pelo horário; só depois as de
+    // sala inválida procuram sala, para o bloco não seguir a sala de uma
+    // vizinha que vai ser apagada. A ordem não muda quem viola o quê: são
+    // regras do cadastro, não da ocupação (ver MUDAM_COM_O_CADASTRO).
+    type Aula = (typeof dela)[number];
+    const razoes = new Map<Aula, string>();
+    const semServir: { a: Aula; aula: AulaOcupada; fatia: FatiaRegras }[] = [];
     for (const a of dela) {
       const aula: AulaOcupada = {
         cursoId: a.curso_id,
@@ -273,31 +276,24 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
         professorId: a.professor_id,
         salaId: a.sala_id,
       };
-      const f = regras(a.professor_id);
-      const motivos = violacoesDaAula(ctx, oc, f, aula).filter((m) => MUDAM_COM_O_CADASTRO.has(m.regra));
+      const fatia = regras(a.professor_id);
+      const motivos = violacoesDaAula(ctx, oc, fatia, aula).filter((m) => MUDAM_COM_O_CADASTRO.has(m.regra));
       if (motivos.length === 0) continue;
 
       // Sala que deixou de servir não condena a aula: o horário continua bom,
       // basta outra sala (ou nenhuma, se a disciplina deixou de ocupar sala).
       if (motivos.every((m) => m.regra === "sala-invalida")) {
-        const vizinha = (h: number) => salaDe.get(`${a.professor_id}:${a.dia}:${h}`) ?? null;
-        const nova = oc.sem(aula, () =>
-          escolherSala(ctx, oc, f, a.dia, a.hora, vizinha(a.hora - 1) ?? vizinha(a.hora + 1)),
-        );
-        if (nova !== undefined) {
-          trocar.push({ a, sala: nova });
-          salaDe.set(`${a.professor_id}:${a.dia}:${a.hora}`, nova);
-          oc.retirar(aula);
-          oc.colocar({ ...aula, salaId: nova });
-          continue;
-        }
-        apagar.push({ a, razao: "sem sala válida livre" });
-      } else {
-        apagar.push({ a, razao: [...new Set(motivos.map((m) => descrever(m, nomes)))].join("; ") });
+        semServir.push({ a, aula, fatia });
+        continue;
       }
-      salaDe.delete(`${a.professor_id}:${a.dia}:${a.hora}`);
+      razoes.set(a, [...new Set(motivos.map((m) => descrever(m, nomes)))].join("; "));
       oc.retirar(aula);
     }
+    const { trocas, semSala } = reatribuirSalas(ctx, oc, semServir);
+    for (const x of semSala) razoes.set(x.a, "sem sala válida livre");
+    // Na ordem das aulas (dia, hora), que é a ordem em que o diálogo as lista.
+    const apagar = dela.filter((a) => razoes.has(a)).map((a) => ({ a, razao: razoes.get(a)! }));
+    const trocar = trocas.map((t) => ({ a: t.item.a, sala: t.sala }));
 
     // O choque de período só conta para as aulas que ficam: a que vai ser
     // apagada não ocupa o horário no período novo.

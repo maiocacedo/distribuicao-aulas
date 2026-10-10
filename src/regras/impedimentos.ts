@@ -54,8 +54,14 @@ export function impedimentoDeHorario(
   return null;
 }
 
+/**
+ * A escolha de sala só olha as salas da instituição. Pedir o contexto inteiro
+ * obrigaria o cadastro de salas, que não tem curso, a inventar um.
+ */
+type Salas = Pick<Contexto, "salas">;
+
 /** As salas que atendem o requisito (D6–D8), na ordem de tentativa: ideais primeiro. */
-export function salasPossiveis(ctx: Contexto, f: FatiaRegras): SalaAceita[] {
+export function salasPossiveis(ctx: Salas, f: FatiaRegras): SalaAceita[] {
   if (!f.exigeSala) return [];
   if (f.tipoSala) return ctx.salas.filter((s) => s.tipo === f.tipoSala).map((s) => ({ id: s.id, preferencia: 1 }));
   if (f.salas.length > 0) return [...f.salas].sort((a, b) => a.preferencia - b.preferencia);
@@ -68,7 +74,7 @@ export function salasPossiveis(ctx: Contexto, f: FatiaRegras): SalaAceita[] {
  * `null` = a fatia não usa sala; `undefined` = nenhuma serve.
  */
 export function escolherSala(
-  ctx: Contexto,
+  ctx: Salas,
   oc: Ocupacao,
   f: FatiaRegras,
   dia: number,
