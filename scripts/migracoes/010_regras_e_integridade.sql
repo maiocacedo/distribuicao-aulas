@@ -15,13 +15,22 @@ DELETE FROM indisponibilidades
  WHERE hora IN (SELECT indice FROM horarios WHERE turno = 'noite');
 DELETE FROM horarios WHERE turno = 'noite';
 
-UPDATE disciplinas SET turno = NULL    WHERE turno = 'noite';
-UPDATE periodos    SET turno = 'tarde' WHERE turno = 'noite';
+UPDATE disciplinas SET turno = NULL WHERE turno = 'noite';
 
 -- 'manha,tarde,noite' → 'manha,tarde'; um curso que só tinha noite volta ao padrão.
 UPDATE cursos SET turnos = COALESCE(
     NULLIF(TRIM(REPLACE(',' || turnos || ',', ',noite,', ','), ','), ''),
     'manha,tarde');
+
+-- Depois dos turnos do curso, e olhando para eles: o período noturno vai para
+-- a tarde se o curso a ocupa, senão para a manhã. Mandar todos para a tarde
+-- deixaria um período num turno em que o curso não tem aula.
+UPDATE periodos SET turno = CASE
+        WHEN (SELECT ',' || c.turnos || ',' FROM cursos c WHERE c.id = periodos.curso_id)
+             LIKE '%,tarde,%' THEN 'tarde'
+        ELSE 'manha'
+    END
+ WHERE turno = 'noite';
 UPDATE configuracao SET valor = COALESCE(
     NULLIF(TRIM(REPLACE(',' || valor || ',', ',noite,', ','), ','), ''),
     'manha')
@@ -44,14 +53,29 @@ DROP VIEW IF EXISTS conflitos;
 ALTER TABLE periodos DROP COLUMN permite_contraturno;
 
 -- O máximo passa a contar só as obrigatórias: as optativas vão ao contraturno
--- quando o gerador achar melhor. O valor antigo incluía as optativas — era o
--- "uma no turno, o resto no contraturno" escrito à mão.
+-- quando o gerador achar melhor. O valor antigo era o número de disciplinas com
+-- turno forçado, optativas incluídas — o "uma no turno, o resto no contraturno"
+-- escrito à mão. Saem da conta só as optativas que estavam nela: as de turno
+-- forçado. Descontar todas as optativas zeraria o máximo de quem tem
+-- obrigatória no contraturno.
 UPDATE periodos SET max_disciplinas_contraturno = MAX(0,
     max_disciplinas_contraturno - (
         SELECT COUNT(*) FROM disciplinas d
          WHERE d.curso_id = periodos.curso_id
            AND d.periodo  = periodos.numero
-           AND d.optativa = 1));
+           AND d.optativa = 1
+           AND d.turno IS NOT NULL));
+
+-- Só depois do desconto acima, que conta as optativas forçadas.
+--
+-- Forçar o turno era o jeito antigo de mandar optativa ao contraturno. Agora
+-- quem escolhe é o gerador, e turno forçado é regra dura: mantê-lo travaria
+-- a escolha. Quem quiser travar uma optativa preenche o turno de novo.
+UPDATE disciplinas SET turno = NULL
+ WHERE optativa = 1 AND turno IS NOT NULL
+   AND turno <> (SELECT p.turno FROM periodos p
+                  WHERE p.curso_id = disciplinas.curso_id
+                    AND p.numero   = disciplinas.periodo);
 
 -- ---------------------------------------------------------------- oferta
 

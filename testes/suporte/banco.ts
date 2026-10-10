@@ -21,8 +21,14 @@ function migracoes(): { versao: number; sql: string }[] {
  * Banco em memória montado como o do usuário: migrações reais até a versão em
  * que a massa foi gravada, a massa, e as migrações restantes. Cada migração
  * roda numa transação com a chave estrangeira ligada, como faz o sqlx.
+ *
+ * `antes[N]` é SQL executado logo antes da migração N, ainda no esquema
+ * anterior: é como se testa o que uma migração faz com dado que a massa não tem.
  */
-export function criarBanco({ massa = true }: { massa?: boolean } = {}): DatabaseSync {
+export function criarBanco({
+  massa = true,
+  antes = {},
+}: { massa?: boolean; antes?: Record<number, string> } = {}): DatabaseSync {
   const db = new DatabaseSync(":memory:");
   db.exec("PRAGMA foreign_keys = ON");
   const texto = massa ? readFileSync(MASSA, "utf-8") : "";
@@ -40,10 +46,15 @@ export function criarBanco({ massa = true }: { massa?: boolean } = {}): Database
     }
   };
 
+  const migrar = (m: { versao: number; sql: string }) => {
+    if (antes[m.versao]) aplicar(antes[m.versao]);
+    aplicar(m.sql);
+  };
+
   const todas = migracoes();
-  for (const m of todas.filter((m) => m.versao <= versaoMassa)) aplicar(m.sql);
+  for (const m of todas.filter((m) => m.versao <= versaoMassa)) migrar(m);
   if (massa) aplicar(texto);
-  for (const m of todas.filter((m) => m.versao > versaoMassa)) aplicar(m.sql);
+  for (const m of todas.filter((m) => m.versao > versaoMassa)) migrar(m);
   return db;
 }
 

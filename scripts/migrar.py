@@ -285,10 +285,12 @@ def migrar(origem, destino, migracoes, n_periodos=None, unificar=True,
         " FROM disciplinas d WHERE d.aulas_semanais <= 2"
         " ORDER BY d.aulas_semanais, d.nome"))
 
-    # Turno proprio: disciplina cujas aulas em dia util caem no turno oposto
-    # ao do periodo - e o caso das optativas jogadas no contraturno.
+    # Turno proprio: disciplina obrigatoria cujas aulas em dia util caem no
+    # turno oposto ao do periodo. A optativa fica de fora mesmo estando no
+    # contraturno na grade antiga: turno forcado e regra dura, e quem escolhe
+    # qual optativa vai ao contraturno e o gerador.
     contraturno = []
-    consulta = ("SELECT d.id, d.nome, p.turno, h.turno, COUNT(*)"
+    consulta = ("SELECT d.id, d.nome, p.turno, h.turno, COUNT(*), d.optativa"
                 " FROM alocacoes a"
                 " JOIN disciplinas d ON d.id = a.disciplina_id"
                 " JOIN periodos    p ON p.numero = a.periodo"
@@ -297,13 +299,16 @@ def migrar(origem, destino, migracoes, n_periodos=None, unificar=True,
     por_disc = defaultdict(dict)
     turno_periodo = {}
     nomes = {}
-    for did, nome, tp, th, n in novo.execute(consulta).fetchall():
+    optativas = set()
+    for did, nome, tp, th, n, opt in novo.execute(consulta).fetchall():
         por_disc[did][th] = n
         turno_periodo[did] = tp
         nomes[did] = nome
+        if opt:
+            optativas.add(did)
     for did, cont in por_disc.items():
         proprio = max(cont, key=cont.get)
-        if proprio != turno_periodo[did]:
+        if proprio != turno_periodo[did] and did not in optativas:
             contraturno.append((did, nomes[did], proprio))
             novo.execute("UPDATE disciplinas SET turno = ? WHERE id = ?", (proprio, did))
 
