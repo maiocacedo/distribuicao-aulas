@@ -15,7 +15,8 @@ DELETE FROM indisponibilidades
  WHERE hora IN (SELECT indice FROM horarios WHERE turno = 'noite');
 DELETE FROM horarios WHERE turno = 'noite';
 
-UPDATE disciplinas SET turno = NULL WHERE turno = 'noite';
+-- O turno forçado 'noite' das disciplinas só é limpo mais abaixo, depois do
+-- desconto do contraturno: a optativa forçada à noite também estava na conta.
 
 -- 'manha,tarde,noite' → 'manha,tarde'; um curso que só tinha noite volta ao padrão.
 UPDATE cursos SET turnos = COALESCE(
@@ -76,6 +77,9 @@ UPDATE disciplinas SET turno = NULL
    AND turno <> (SELECT p.turno FROM periodos p
                   WHERE p.curso_id = disciplinas.curso_id
                     AND p.numero   = disciplinas.periodo);
+
+-- O que sobrou forçado à noite é obrigatória: sem horário noturno, segue o período.
+UPDATE disciplinas SET turno = NULL WHERE turno = 'noite';
 
 -- ---------------------------------------------------------------- oferta
 

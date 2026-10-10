@@ -153,4 +153,19 @@ describe("migração 010 sobre dado que a massa não tem", () => {
     expect(um(db, "SELECT max_disciplinas_contraturno AS m FROM periodos WHERE curso_id = 1 AND numero = 2")).toEqual({ m: 0 });
     expect(coluna(db, "SELECT turno FROM disciplinas WHERE id IN (2, 3, 4) ORDER BY id")).toEqual([null, null, "tarde"]);
   });
+
+  it("optativa forçada à noite também sai da conta do máximo, antes de perder o turno", () => {
+    const db = criarBanco({
+      massa: false,
+      antes: {
+        10: `
+          UPDATE cursos SET turnos = 'manha,noite' WHERE id = 1;
+          INSERT INTO periodos (curso_id, numero, turno, max_disciplinas_contraturno) VALUES (1, 1, 'manha', 1);
+          INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais, turno, optativa, exige_sala)
+            VALUES (1, 1, 'Optativa noturna', 1, 1, 'noite', 1, 0);`,
+      },
+    });
+    expect(um(db, "SELECT max_disciplinas_contraturno AS m FROM periodos WHERE curso_id = 1 AND numero = 1")).toEqual({ m: 0 });
+    expect(um(db, "SELECT turno FROM disciplinas WHERE id = 1")).toEqual({ turno: null });
+  });
 });
