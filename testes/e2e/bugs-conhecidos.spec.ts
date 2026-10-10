@@ -70,7 +70,6 @@ test.describe("B5", () => {
     const botao = page.getByRole("navigation").getByRole("button", { name: "Automática", exact: true });
     await expect(botao).toBeVisible();
     await botao.click();
-    test.fail(true, "B5 — o return null vem antes do <Erro>; corrigir no subprojeto 1");
     await expect(page.getByText(/falha simulada/)).toBeVisible({ timeout: 3_000 });
   });
 });
@@ -157,14 +156,28 @@ test.describe("I2", () => {
     `,
   });
 
-  // Ao corrigir, a mensagem deve conter "aula(s) no sábado"; se a solução for um
-  // diálogo, troque a asserção pela captura do diálogo.
-  test("I2: tirar o sábado com aula no sábado avisa", async ({ page }) => {
+  test("I2: tirar o sábado com aula no sábado avisa, e cancelar não muda nada", async ({ page, banco }) => {
     await irPara(page, "Regras");
     const semana = page.getByLabel("Semana");
     await expect(semana).toBeVisible();
-    test.fail(true, "I2 — as aulas de sábado somem sem aviso; corrigir no subprojeto 1");
+    const mensagem = new Promise<string>((resolve) =>
+      page.once("dialog", (d) => {
+        resolve(d.message());
+        d.dismiss();
+      }),
+    );
     await semana.selectOption("5");
-    await expect(page.getByText(/aulas? no sábado/i)).toBeVisible({ timeout: 3_000 });
+    expect(await mensagem).toMatch(/aulas? no sábado/i);
+    await expect(semana).toHaveValue("6");
+    expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE dia = 5")).toBe(1);
+    expect(contar(banco, "SELECT valor FROM configuracao WHERE chave = 'dias_letivos'")).toBe(6);
+  });
+
+  test("I2: confirmar apaga as aulas do sábado e grava 5 dias", async ({ page, banco }) => {
+    aceitarConfirmacoes(page);
+    await irPara(page, "Regras");
+    await page.getByLabel("Semana").selectOption("5");
+    await expect.poll(() => contar(banco, "SELECT valor FROM configuracao WHERE chave = 'dias_letivos'")).toBe(5);
+    expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE dia = 5")).toBe(0);
   });
 });

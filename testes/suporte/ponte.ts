@@ -14,6 +14,8 @@ export type Resposta = { ok: true; valor: unknown } | { ok: false; erro: string 
 export interface OpcoesPonte {
   /** Toda consulta ou instrução cujo SQL casar com isto falha. */
   falharQuando?: RegExp;
+  /** Cada comando recebido é anotado aqui, na ordem — para contar escritas. */
+  registro?: string[];
 }
 
 interface Instrucao {
@@ -57,6 +59,7 @@ export function criarPonte(db: DatabaseSync, opcoes: OpcoesPonte = {}) {
   }
 
   function executar(cmd: string, args: Record<string, unknown>): unknown {
+    opcoes.registro?.push(cmd);
     switch (cmd) {
       case "banco":
         return NOME_DO_BANCO;

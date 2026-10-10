@@ -79,6 +79,19 @@ export default function Professores() {
     setErro("");
     const nome = p.nome.trim();
     if (!nome) return setErro("O nome é obrigatório.");
+    // D15 é regra dura: baixar o máximo abaixo do que a grade já usa deixaria
+    // aulas inválidas, e não há como escolher sozinho qual dia sai.
+    if (p.id && p.max_dias_semana != null) {
+      const [{ n }] = await consultar<{ n: number }>(
+        "SELECT COUNT(DISTINCT dia) AS n FROM alocacoes WHERE professor_id = ?",
+        [p.id],
+      );
+      if (n > p.max_dias_semana)
+        return setErro(
+          `${nome} já dá aula em ${n} dias da semana, somando todos os cursos. ` +
+            `Tire aulas dele na grade antes de baixar o máximo para ${p.max_dias_semana}.`,
+        );
+    }
     try {
       if (p.id) {
         await executar(

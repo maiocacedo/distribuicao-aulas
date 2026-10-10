@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { consultar, executar } from "../db";
+import { consultar, executar, transacao } from "../db";
 import { TURNOS, type Horario, type PadraoBloco } from "../tipos";
 import { Erro, mensagemErro } from "../componentes/ui";
 
@@ -75,6 +75,37 @@ export default function Instituicao() {
       "A configuração",
     );
 
+  /**
+   * Tirar o sábado com aula no sábado apagaria aulas sem ninguém ver — a grade
+   * só esconderia a coluna (I2). Vale para todos os cursos: os dias letivos
+   * são da instituição.
+   */
+  async function mudarDias(novo: number) {
+    if (novo < dias) {
+      const [{ n }] = await consultar<{ n: number }>("SELECT COUNT(*) AS n FROM alocacoes WHERE dia >= ?", [novo]);
+      if (n > 0) {
+        if (!confirm(`${n} ${n === 1 ? "aula" : "aulas"} no sábado, somando todos os cursos, serão apagadas. Continuar?`))
+          return;
+        setDias(novo);
+        return tentar(
+          () =>
+            transacao([
+              { sql: "DELETE FROM alocacoes WHERE dia >= ?", params: [novo] },
+              {
+                sql:
+                  "INSERT INTO configuracao (chave, valor) VALUES ('dias_letivos', ?)" +
+                  " ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor",
+                params: [String(novo)],
+              },
+            ]),
+          "A configuração",
+        );
+      }
+    }
+    setDias(novo);
+    gravarConfig("dias_letivos", String(novo));
+  }
+
   /** '2+2' → [2,2]; devolve null se a escrita não for válida. */
   function partes(texto: string): number[] | null {
     const p = texto
@@ -128,10 +159,7 @@ export default function Instituicao() {
             <span className="rotulo">Semana</span>
             <select
               value={dias}
-              onChange={(e) => {
-                setDias(Number(e.target.value));
-                gravarConfig("dias_letivos", e.target.value);
-              }}
+              onChange={(e) => mudarDias(Number(e.target.value))}
             >
               {[5, 6].map((d) => (
                 <option key={d} value={d}>

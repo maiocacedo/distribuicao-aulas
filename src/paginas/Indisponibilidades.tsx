@@ -25,7 +25,14 @@ export default function Indisponibilidades() {
   // O que está gravado no banco. O arrastar mexe só em `marcados`; ao soltar,
   // a diferença entre os dois vira INSERT/DELETE.
   const salvos = useRef<Set<string>>(new Set());
+  const marcadosRef = useRef<Set<string>>(new Set());
   const arrastando = useRef<null | "marcar" | "desmarcar">(null);
+
+  /** O conjunto da tela mora no estado (para desenhar) e no ref (para gravar ao soltar). */
+  function definirMarcados(s: Set<string>) {
+    marcadosRef.current = s;
+    setMarcados(s);
+  }
 
   async function carregarBase() {
     setProfessores(
@@ -50,7 +57,7 @@ export default function Indisponibilidades() {
     );
     const conjunto = new Set(linhas.map((l) => chave(l.dia, l.hora)));
     salvos.current = new Set(conjunto);
-    setMarcados(conjunto);
+    definirMarcados(conjunto);
 
     const aulas = await consultar<Ocupada>(
       `SELECT a.dia, a.hora, a.periodo, d.nome AS disciplina
@@ -110,14 +117,13 @@ export default function Indisponibilidades() {
 
   function pintar(dia: number, hora: number, modo: "marcar" | "desmarcar") {
     if (ocupadas.has(chave(dia, hora))) return;
-    setMarcados((antes) => {
-      const k = chave(dia, hora);
-      if (modo === "marcar" ? antes.has(k) : !antes.has(k)) return antes;
-      const novo = new Set(antes);
-      if (modo === "marcar") novo.add(k);
-      else novo.delete(k);
-      return novo;
-    });
+    const k = chave(dia, hora);
+    const antes = marcadosRef.current;
+    if (modo === "marcar" ? antes.has(k) : !antes.has(k)) return;
+    const novo = new Set(antes);
+    if (modo === "marcar") novo.add(k);
+    else novo.delete(k);
+    definirMarcados(novo);
   }
 
   // Soltar o botão em qualquer lugar encerra o arrasto e grava.
@@ -125,10 +131,9 @@ export default function Indisponibilidades() {
     const soltar = () => {
       if (!arrastando.current) return;
       arrastando.current = null;
-      setMarcados((atualSet) => {
-        persistir(atualSet);
-        return atualSet;
-      });
+      // Gravar fora do updater do estado: no StrictMode o React chama o
+      // updater duas vezes, e cada chamada abria uma transação (B10).
+      persistir(marcadosRef.current);
     };
     window.addEventListener("mouseup", soltar);
     return () => window.removeEventListener("mouseup", soltar);
@@ -143,7 +148,7 @@ export default function Indisponibilidades() {
     const todosMarcados = alvos.every((k) => marcados.has(k));
     const novo = new Set(marcados);
     alvos.forEach((k) => (todosMarcados ? novo.delete(k) : novo.add(k)));
-    setMarcados(novo);
+    definirMarcados(novo);
     persistir(novo);
   }
 
@@ -284,7 +289,7 @@ export default function Indisponibilidades() {
                 <button
                   disabled={marcados.size === 0}
                   onClick={() => {
-                    setMarcados(new Set());
+                    definirMarcados(new Set());
                     persistir(new Set());
                   }}
                 >

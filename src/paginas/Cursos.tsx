@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { consultar, executar } from "../db";
+import { consultar, executar, transacao, type Instrucao } from "../db";
 import { TURNOS, type Curso } from "../tipos";
 import {
   BotaoIcone,
@@ -56,11 +56,51 @@ export default function Cursos({ aoMudarLista }: { aoMudarLista: () => void }) {
     if (!c.turnos) return setErro("Escolha ao menos um turno.");
     try {
       if (c.id) {
-        await executar(
-          "UPDATE cursos SET nome = ?, turnos = ?, horas_por_aula_semanal = ?,"
-            + " observacao = ? WHERE id = ?",
-          [nome, c.turnos, c.horas_por_aula_semanal, c.observacao, c.id],
-        );
+        const original = linhas.find((l) => l.id === c.id);
+        const novos = c.turnos.split(",");
+        const retirados = (original?.turnos ?? "").split(",").filter((t) => t && !novos.includes(t));
+        const instrucoes: Instrucao[] = [];
+        if (retirados.length > 0) {
+          const marc = retirados.map(() => "?").join(",");
+          const rotulos = retirados.map((t) => TURNOS.find((x) => x.valor === t)?.rotulo.toLowerCase() ?? t).join(" e ");
+          const periodos = await consultar<{ numero: number }>(
+            `SELECT numero FROM periodos WHERE curso_id = ? AND turno IN (${marc}) ORDER BY numero`,
+            [c.id, ...retirados],
+          );
+          if (periodos.length > 0)
+            return setErro(
+              `O turno da ${rotulos} ainda é o do(s) período(s) ${periodos.map((p) => `${p.numero}º`).join(", ")}. ` +
+                "Mude o turno deles em Períodos antes.",
+            );
+          const forcadas = await consultar<{ nome: string }>(
+            `SELECT nome FROM disciplinas WHERE curso_id = ? AND turno IN (${marc}) ORDER BY nome`,
+            [c.id, ...retirados],
+          );
+          if (forcadas.length > 0)
+            return setErro(
+              `As disciplinas ${forcadas.map((d) => d.nome).join(", ")} têm o turno da ${rotulos} forçado. ` +
+                "Mude o turno delas em Disciplinas antes.",
+            );
+          const [{ n }] = await consultar<{ n: number }>(
+            `SELECT COUNT(*) AS n FROM alocacoes a JOIN horarios h ON h.indice = a.hora
+              WHERE a.curso_id = ? AND h.turno IN (${marc})`,
+            [c.id, ...retirados],
+          );
+          // Sem isto as aulas sumiriam da tela e continuariam no banco (D13).
+          if (n > 0) {
+            if (!confirm(`${n} ${n === 1 ? "aula" : "aulas"} no turno da ${rotulos} serão apagadas. Continuar?`)) return;
+            instrucoes.push({
+              sql: `DELETE FROM alocacoes WHERE curso_id = ?
+                      AND hora IN (SELECT indice FROM horarios WHERE turno IN (${marc}))`,
+              params: [c.id, ...retirados],
+            });
+          }
+        }
+        instrucoes.push({
+          sql: "UPDATE cursos SET nome = ?, turnos = ?, horas_por_aula_semanal = ?, observacao = ? WHERE id = ?",
+          params: [nome, c.turnos, c.horas_por_aula_semanal, c.observacao, c.id],
+        });
+        await transacao(instrucoes);
       } else {
         await executar(
           "INSERT INTO cursos (nome, turnos, horas_por_aula_semanal, observacao)"

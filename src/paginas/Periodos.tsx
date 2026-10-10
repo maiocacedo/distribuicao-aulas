@@ -13,7 +13,7 @@ export default function Periodos({ cursoId }: { cursoId: number }) {
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [erro, setErro] = useState("");
   const [salvo, setSalvo] = useState(false);
-  // Só os turnos que o curso ocupa: oferecer noite a um curso diurno é
+  // Só os turnos que o curso ocupa: oferecer um turno de fora é
   // convidar a um estado que a grade não sabe mostrar.
   const [turnosDoCurso, setTurnosDoCurso] = useState<string[]>([]);
 
@@ -75,7 +75,7 @@ export default function Periodos({ cursoId }: { cursoId: number }) {
               <tr>
                 <th className="num">Período</th>
                 <th>Turno</th>
-                <th className="num">Máx. no contraturno</th>
+                <th className="num">Máx. de obrigatórias no contraturno</th>
                 <th className="num">Disciplinas</th>
                 <th className="num">Aulas na grade</th>
               </tr>
@@ -148,8 +148,8 @@ export default function Periodos({ cursoId }: { cursoId: number }) {
             </strong>
             ; para liberar outro turno, mude em <strong>Gerenciar cursos</strong>.
           </dd>
-          <dt>Máx. no contraturno</dt>
-          <dd>Quantas disciplinas podem escapar do turno do período — normalmente optativas.</dd>
+          <dt>Máx. de obrigatórias no contraturno</dt>
+          <dd>Quantas disciplinas obrigatórias podem escapar do turno do período. Optativas não contam: o gerador as põe no contraturno quando convém, mantendo ao menos uma no turno.</dd>
           <dt>Disciplinas</dt>
           <dd>Quantas disciplinas estão cadastradas neste período.</dd>
           <dt>Aulas na grade</dt>

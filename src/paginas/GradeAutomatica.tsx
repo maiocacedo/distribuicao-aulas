@@ -137,7 +137,16 @@ export default function GradeAutomatica({ cursoId }: { cursoId: number }) {
     }
   }
 
-  if (!problema) return null;
+  // O erro de carga precisa aparecer mesmo sem problema montado (B5).
+  if (!problema)
+    return (
+      <>
+        <header className="cabecalho-pagina">
+          <h1>Grade automática</h1>
+        </header>
+        <Erro>{erro}</Erro>
+      </>
+    );
 
   const previstas = problema.fatias.reduce((s, f) => s + f.aulas, 0);
   const antes = medir(problema, atual);
@@ -166,6 +175,8 @@ export default function GradeAutomatica({ cursoId }: { cursoId: number }) {
           <h1>Grade automática</h1>
           <p className="sub">
             {previstas} aula(s) a distribuir em {problema.periodos.length} período(s).
+            {problema.externas.length > 0 &&
+              ` ${problema.externas.length} aula(s) de outros cursos respeitadas.`}
           </p>
         </div>
         <div className="acoes-cabecalho">

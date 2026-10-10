@@ -268,7 +268,7 @@ export function PropriedadesDisciplina<
           />
           <span>
             Optativa
-            <em>concorre pelo contraturno com as outras optativas do período</em>
+            <em>o gerador a põe no contraturno quando convém, mantendo ao menos uma optativa do período no turno</em>
           </span>
         </label>
         <label>

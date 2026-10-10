@@ -16,7 +16,7 @@ interface Opcoes {
  * apontando para a ponte no Node. O teste pode consultar `banco` direto para
  * conferir o que a tela gravou.
  */
-export const test = base.extend<Opcoes & { banco: DatabaseSync }>({
+export const test = base.extend<Opcoes & { banco: DatabaseSync; chamadas: string[] }>({
   semMassa: [false, { option: true }],
   semente: ["", { option: true }],
   opcoesPonte: [{}, { option: true }],
@@ -28,8 +28,12 @@ export const test = base.extend<Opcoes & { banco: DatabaseSync }>({
     db.close();
   },
 
-  page: async ({ page, banco, opcoesPonte }, use) => {
-    await page.exposeFunction("__ipc", criarPonte(banco, opcoesPonte));
+  chamadas: async ({}, use) => {
+    await use([]);
+  },
+
+  page: async ({ page, banco, opcoesPonte, chamadas }, use) => {
+    await page.exposeFunction("__ipc", criarPonte(banco, { ...opcoesPonte, registro: chamadas }));
     await page.addInitScript(() => {
       type Resposta = { ok: boolean; valor?: unknown; erro?: string };
       const w = window as unknown as Record<string, unknown>;
