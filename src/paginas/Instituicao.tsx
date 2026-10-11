@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { consultar, executar, transacao } from "../db";
 import { TURNOS, type Horario, type PadraoBloco } from "../tipos";
 import { Alerta } from "@/componentes/alerta";
@@ -6,9 +6,11 @@ import { CabecalhoPagina } from "@/componentes/cabecalho-pagina";
 import { Campo } from "@/componentes/campo";
 import { useConfirmar } from "@/componentes/confirmacao";
 import { EstadoVazio } from "@/componentes/estado-vazio";
+import { Secao } from "@/componentes/secao";
 import { Seletor } from "@/componentes/seletor";
 import { Button } from "@/componentes/ui/button";
 import { Input } from "@/componentes/ui/input";
+import { useSinalDeSalvo } from "@/componentes/use-sinal-de-salvo";
 import { mensagemErro } from "@/lib/erros";
 import { cn } from "@/lib/utils";
 
@@ -46,16 +48,6 @@ function faixaDaNota(custo: number) {
   return { chip: "border-input", filete: "border-line" };
 }
 
-/** Painel de uma seção da página: o mesmo contorno de 1 px que não conta na largura. */
-function Secao({ titulo, children }: { titulo: string; children: ReactNode }) {
-  return (
-    <section className="mb-3 rounded-lg bg-panel px-4 pb-4 pt-3 shadow-[inset_0_0_0_1px_var(--line)]">
-      <h2 className="mb-2 text-[10px] font-bold uppercase tracking-[0.08em] text-tx3">{titulo}</h2>
-      {children}
-    </section>
-  );
-}
-
 /** Parágrafo de explicação: o texto vai até a borda do painel, justificado. */
 function Explica({ children }: { children: ReactNode }) {
   return <p className="mb-3 text-justify text-xs leading-normal text-pretty text-tx2">{children}</p>;
@@ -74,11 +66,7 @@ export default function Instituicao() {
   const [novoPadrao, setNovoPadrao] = useState("");
   const [custoPadrao, setCustoPadrao] = useState(0);
   const [erro, setErro] = useState("");
-  const [salvo, setSalvo] = useState(false);
-  // O sinal "salvo" some sozinho; guardar o relógio evita que o de uma
-  // gravação apague o da seguinte (e que um dispare depois de a tela sair).
-  const relogio = useRef<ReturnType<typeof setTimeout>>(undefined);
-  useEffect(() => () => clearTimeout(relogio.current), []);
+  const [salvo, piscar] = useSinalDeSalvo();
 
   async function carregar() {
     const cfg = await consultar<{ chave: string; valor: string }>(
@@ -110,9 +98,7 @@ export default function Instituicao() {
     try {
       await acao();
       await carregar();
-      setSalvo(true);
-      clearTimeout(relogio.current);
-      relogio.current = setTimeout(() => setSalvo(false), 1500);
+      piscar();
       return true;
     } catch (e) {
       setErro(mensagemErro(e, contexto));

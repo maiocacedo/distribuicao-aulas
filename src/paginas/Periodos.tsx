@@ -1,14 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { consultar, executar } from "../db";
 import { TURNOS, type Periodo } from "../tipos";
 import { Alerta } from "@/componentes/alerta";
 import { CabecalhoPagina } from "@/componentes/cabecalho-pagina";
 import { EstadoVazio } from "@/componentes/estado-vazio";
+import { Secao } from "@/componentes/secao";
 import { Seletor } from "@/componentes/seletor";
 import { avisar } from "@/componentes/toasts";
 import { Button } from "@/componentes/ui/button";
 import { Input } from "@/componentes/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/componentes/ui/table";
+import { useSinalDeSalvo } from "@/componentes/use-sinal-de-salvo";
 import { mensagemErro } from "@/lib/erros";
 
 interface Linha extends Periodo {
@@ -23,15 +25,11 @@ const contagem = (n: number) => n || "—";
 export default function Periodos({ cursoId }: { cursoId: number }) {
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [erro, setErro] = useState("");
-  const [salvo, setSalvo] = useState(false);
+  const [salvo, piscar] = useSinalDeSalvo();
   const [carregando, setCarregando] = useState(true);
   // Só os turnos que o curso ocupa: oferecer um turno de fora é
   // convidar a um estado que a grade não sabe mostrar.
   const [turnosDoCurso, setTurnosDoCurso] = useState<string[]>([]);
-  // O sinal "salvo" some sozinho; guardar o relógio evita que o de uma
-  // gravação apague o da seguinte (e que um dispare depois de a tela sair).
-  const relogio = useRef<ReturnType<typeof setTimeout>>(undefined);
-  useEffect(() => () => clearTimeout(relogio.current), []);
 
   const carregar = useCallback(async () => {
     const [curso] = await consultar<{ turnos: string }>(
@@ -59,21 +57,25 @@ export default function Periodos({ cursoId }: { cursoId: number }) {
   const recarregar = useCallback(() => carregar().catch((e) => setErro(String(e))), [carregar]);
 
   useEffect(() => {
+    // Trocou de curso: até a recarga chegar, as linhas à mostra são do curso
+    // anterior e os botões "Adicionar" calculariam o próximo número sobre elas.
+    setCarregando(true);
     void recarregar();
   }, [recarregar]);
 
-  async function tentar(acao: () => Promise<unknown>, contexto: string) {
+  /** Devolve se gravou, para quem precisa desfazer o que o controle mostra. */
+  async function tentar(acao: () => Promise<unknown>, contexto: string): Promise<boolean> {
     try {
       await acao();
     } catch (e) {
       // Controle embutido na linha: não há formulário onde a recusa caiba.
-      return avisar.erro(mensagemErro(e, contexto));
+      avisar.erro(mensagemErro(e, contexto));
+      return false;
     }
     // Fora do `try`: a falha da recarga é do quadro e fica na página.
     await recarregar();
-    setSalvo(true);
-    clearTimeout(relogio.current);
-    relogio.current = setTimeout(() => setSalvo(false), 1500);
+    piscar();
+    return true;
   }
 
   const proximo = linhas.length ? Math.max(...linhas.map((p) => p.numero)) + 1 : 1;
@@ -88,7 +90,7 @@ export default function Periodos({ cursoId }: { cursoId: number }) {
 
       <Alerta tom="erro">{erro}</Alerta>
 
-      <section className="mb-3 rounded-lg bg-panel px-4 pb-4 pt-3 shadow-[inset_0_0_0_1px_var(--line)]">
+      <Secao>
         {carregando ? null : linhas.length === 0 ? (
           <EstadoVazio>Nenhum período ainda. Acrescente o primeiro.</EstadoVazio>
         ) : (
@@ -141,16 +143,23 @@ export default function Periodos({ cursoId }: { cursoId: number }) {
                       key={`${cursoId}-${p.numero}-${p.max_disciplinas_contraturno}`}
                       className="mx-auto block h-5 w-16 px-1 text-center font-mono"
                       defaultValue={p.max_disciplinas_contraturno}
-                      onBlur={(e) => {
-                        const valor = Number(e.target.value);
-                        if (valor === p.max_disciplinas_contraturno) return;
-                        // Fora de um formulário o navegador não valida: o `min` só
-                        // ajuda as setas. Vazio, decimal ou negativo volta ao gravado.
-                        if (e.target.value.trim() === "" || !Number.isInteger(valor) || valor < 0) {
-                          e.target.value = String(p.max_disciplinas_contraturno);
+                      onBlur={async (e) => {
+                        // Guardada antes do `await`: depois dele o evento já passou.
+                        const caixa = e.target;
+                        const texto = caixa.value.trim();
+                        const valor = Number(texto);
+                        // Fora de um formulário o navegador não valida: o `min` só ajuda as
+                        // setas. Valida o texto antes de compará-lo ao gravado; senão o vazio
+                        // (que dá 0) passaria por "sem mudança" com a caixa vazia.
+                        if (texto === "" || !Number.isInteger(valor) || valor < 0) {
+                          caixa.value = String(p.max_disciplinas_contraturno);
                           return avisar.erro("Use um número inteiro, zero ou maior.");
                         }
-                        void tentar(
+                        if (valor === p.max_disciplinas_contraturno) {
+                          caixa.value = String(valor);
+                          return;
+                        }
+                        const gravou = await tentar(
                           () =>
                             executar(
                               "UPDATE periodos SET max_disciplinas_contraturno = ? WHERE curso_id = ? AND numero = ?",
@@ -158,6 +167,9 @@ export default function Periodos({ cursoId }: { cursoId: number }) {
                             ),
                           "O período",
                         );
+                        // Gravou: a chave muda e a caixa nasce com o valor novo. Não gravou: o
+                        // banco guarda o antigo, e a caixa não pode seguir mostrando o digitado.
+                        if (!gravou) caixa.value = String(p.max_disciplinas_contraturno);
                       }}
                     />
                   </TableCell>
@@ -235,7 +247,7 @@ export default function Periodos({ cursoId }: { cursoId: number }) {
             )}
           </div>
         )}
-      </section>
+      </Secao>
     </>
   );
 }

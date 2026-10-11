@@ -1,6 +1,6 @@
 # Notas para converter uma tela
 
-Estado do molde depois do commit `dc25ecf`. O exemplo vivo é `src/paginas/Professores.tsx`: na dúvida, copie de lá. Restrições e receita em `restricoes.md`.
+Estado do molde depois da tarefa 9. O exemplo vivo é `src/paginas/Professores.tsx`: na dúvida, copie de lá. Restrições e receita em `restricoes.md`.
 
 ## Componentes
 
@@ -70,6 +70,16 @@ const alterado = useAlterado(edicao);
 `<BotaoIcone rotulo="Remover" icone={Trash2} perigo desabilitado={impedido} motivo="…por que não pode…" aoClicar={…} />`
 
 - **`Alerta`** (`@/componentes/alerta`): `{ tom: "erro" | "aviso" | "sucesso"; children: ReactNode; className?: string }`. Sem filhos não desenha nada: `<Alerta tom="erro">{erro}</Alerta>` fica sempre no JSX.
+- **`Secao`** (`@/componentes/secao`): `{ titulo?: string; children: ReactNode }`. O painel de seção (contorno de 1 px em sombra interna, `mb-3`) com o `h2` em caixa alta e peso 700 (o preflight o zera). Sem `titulo`, só o painel. Não passe classes. `Explica` (parágrafo justificado de explicação) só a página Regras usa e fica lá.
+```tsx
+<Secao titulo="Dias letivos"> … </Secao>
+```
+- **`useSinalDeSalvo`** (`@/componentes/use-sinal-de-salvo`): `useSinalDeSalvo(): [salvo: boolean, piscar: () => void]`. O "salvo" de tela sem botão de salvar: `piscar()` acende por 1,5 s; o relógio é guardado, então um sinal não apaga o seguinte nem dispara depois de a tela sair. `piscar` é estável.
+```tsx
+const [salvo, piscar] = useSinalDeSalvo();
+<CabecalhoPagina titulo="Períodos">{salvo && <span className="text-xs text-primary">salvo</span>}</CabecalhoPagina>
+// depois de gravar e recarregar: piscar();
+```
 - **`avisar`** (`@/componentes/toasts`): `avisar.sucesso(texto, descricao?)`, `avisar.erro(texto)` (fica até fechar), `avisar.aviso(texto)`, `avisar.desfazer(texto, aoDesfazer)`.
 - **`useConfirmar`** (`@/componentes/confirmacao`): `confirmar({ titulo: string; descricao?: string; itens?: string[]; confirmar: string; perigo?: boolean }): Promise<boolean>`. Ao fechar devolve o foco a quem pediu. Uso: `if (!(await confirmar({ titulo: `Remover ${l.nome}?`, confirmar: "Remover professor", perigo: true }))) return;`
 
@@ -101,6 +111,7 @@ O botão do caso 2 tem nome diferente do "Limpar filtros" da barra (os dois apar
 - Coluna só com `accessorKey` (sem `cell`) mostra o valor puro.
 - Valor da lista que não está nas `opcoes` não dá para filtrar; inclua os tipos distintos se importar.
 - **Validação.** Toda restrição de campo (`required`, `min`, `max`, `step`, `type="number"` que aceita vazio ou decimal) precisa de validação em JavaScript em `salvar`, com mensagem no `Campo`; o `noValidate` do diálogo deixa o navegador de fora. `min`/`max` podem ficar nos atributos (ajudam as setas), `required` sai. Número inteiro: `Number.isInteger`; campo numérico vazio vira `null` ou 0 conforme a tela, como antes.
+- **Campo numérico gravado no `onBlur`, fora de formulário** (Períodos): o navegador não valida e o `min` só ajuda as setas. Valide o texto (`trim`, vazio, `Number.isInteger`, `>= 0`) ANTES de compará-lo ao gravado: vazio dá `Number("") === 0` e passaria por "sem mudança" com a caixa vazia. Guarde `const caixa = e.target` antes de qualquer `await`; sempre que não gravar (recusa ou falha de gravação) faça `caixa.value = String(gravado)`. A tela que grava devolve se gravou (`tentar` → boolean). `defaultValue` pede `key` com o escopo e o valor gravado (`${cursoId}-${numero}-${valor}`), senão a caixa não acompanha o banco.
 - Validar vários campos juntos: monte um objeto de erros e chame `setErrosDeCampo` uma vez; o diálogo foca o primeiro `aria-invalid`.
 - Gravação que muda outras coisas (aulas trocadas de sala): devolva um plano (instruções + contagens) em vez de só a lista, e conte ao usuário depois de salvar com `avisar.sucesso`, também quando a mesma gravação apagou outras (a confirmação já foi dada).
 - Lista sem busca (poucos registros: Tipos, Cursos): `useTabela` sem `busca`/`textoDeBusca` e `CabecalhoPagina` só com `contagem`; o estado vazio tem um texto só.
@@ -151,6 +162,8 @@ Todo controle validado também limpa o próprio erro ao mudar (ver `Campo`). `re
 - **Peso de fonte e altura de linha.** Nunca `font-medium`: nesta fonte sai como semi-negrito. Era normal, `font-normal`; era 600, `font-semibold`. Nada de `leading-[razão]`; o tema já usa a natural da fonte. Botão `inline-flex` dentro de `th` pede `align-top`, senão a linha ganha 1 px.
 - **A célula de ações devolve só os `BotaoIcone`**, num fragmento. O embrulho que os esconde até o pouso mora em `TabelaDados`; um segundo muda a largura da coluna e desloca as outras.
 - **Borda conta na largura.** O contorno antigo era sombra interna; preenchimento copiado do CSS antigo perde 1 px (8 vira `px-[7px]`, 12 vira `px-[11px]`). Em painel, `shadow-[inset_0_0_0_1px_var(--line)]` em vez de `border`.
+- **`getByLabel` é por substring e sem diferenciar maiúsculas.** Um `aria-label` que contém o rótulo de outro controle da mesma tela ("…contraturno do 1º período" contém "turno do 1º período") faz o teste do outro falhar por modo estrito. Rótulos de controles vizinhos não podem conter um ao outro.
+- **Troca de escopo recarrega com `carregando`.** Página que depende de um id do shell (`cursoId`) põe `setCarregando(true)` no início do efeito de carga; senão, durante a recarga, ficam à mostra as linhas do escopo anterior e o que se calcula sobre elas (próximo número, botões).
 - **Foco.** Não use `ref` para focar o campo com erro nem para devolver o foco: o diálogo e a confirmação já fazem. Depois de remover com sucesso o foco vai para o `body`; se a remoção falha, volta ao botão "Remover". Colunas recriadas a cada desenho, ou linha que troca de chave, fazem a origem do foco sumir e ele cai no `body` também depois de editar. Depois de uma edição que reordena a lista o foco pode cair no `body` (o navegador o perde quando o React move o elemento focado).
 
 ## Classes que igualaram a captura antiga
@@ -158,6 +171,10 @@ Todo controle validado também limpa o próprio erro ao mudar (ver `Campo`). `re
 - **Cabeçalho:** nenhuma; o `CabecalhoPagina` escolhe. Botão principal `<Button>`, secundário `variant="outline"`.
 - **Tabela:** `.forte` vira `<span className="font-semibold">`; `.fraco`, `text-tx3`; etiqueta pequena, `rounded-[3px] bg-poco px-[5px] text-[10px] text-tx2 tabular-nums`. Número fora da tabela: `font-mono text-[12px] tabular-nums`. Quadro pequeno dentro de seção: `Table` de `@/componentes/ui/table` direto, sem painel, linha de 32 px com `[&_td]:h-8`.
 - **Diálogo:** o `DialogoFormulario` já dá 16 px entre os filhos e 20 px até o rodapé. `largo` leva a 720 px.
+- **Altura de controle:** a de um controle é a do componente, 28 px (`h-7`). Só dois desvios: a busca do cabeçalho de lista tem 30 px (define a altura do cabeçalho e está sozinha na linha); controle embutido em linha de tabela de 32 px usa `h-6` ou `h-5`. Nunca `h-[30px]` para igualar o pixel de um `<select>`/`<input>` nativo antigo: 2 a 3 px de deslocamento por causa do componente novo são diferença aceita.
+- **Botão desabilitado:** de ícone, `BotaoIcone` com `desabilitado` e `motivo`; de texto, `<Button disabled>` com o motivo em texto visível ao lado, ligado por `aria-describedby` (o `disabled` não recebe foco nem pouso, então uma dica não seria alcançada). Exemplo vivo: "Remover o último" em `Periodos.tsx`.
+- **Quadro de células centradas** (Períodos): `Table` com `className="table-fixed [&_td]:h-8 [&_td]:text-center [&_th]:text-center"`; números em `font-mono text-[12px] tabular-nums`, cabeçalho de coluna numérica em `font-mono`. `Seletor` centrado na célula: `className="mx-auto h-6 w-[150px] *:data-[slot=select-value]:flex-1 *:data-[slot=select-value]:justify-center"`; `Input` embutido: `mx-auto block h-5 w-16 px-1 text-center font-mono`.
+- **Chip-botão com contorno** (padrões de bloco): `border` + `py-px pl-1.5 pr-[3px]` iguala o chip antigo (`padding: 2px 4px 2px 7px` com sombra interna); `group` no botão e `group-hover:`/`group-focus-visible:` nos filhos para o "×" e o filete que mudam no pouso; reserve a largura do "×" (`w-[7px]`, `opacity-0`) para o chip não crescer.
 - **Campos:** `Seletor` em `Campo` com `className="w-full"` (o gatilho nasce `w-fit`); `Textarea` com `rows`; `<input type="range" className="w-full accent-primary">` nativo; `Input type="number"`.
 
 ## Comparar antes e depois
