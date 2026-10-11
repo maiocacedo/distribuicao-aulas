@@ -30,7 +30,9 @@ test.describe("turnos do curso", () => {
     await page.getByRole("checkbox", { name: "Tarde", exact: true }).uncheck();
     await page.getByRole("button", { name: "Salvar" }).click();
     await expect.poll(() => mensagens.length).toBe(1);
-    await expect(page.getByRole("button", { name: "Salvar" })).toBeVisible();
+    // O "Salvar" fica desabilitado enquanto `salvando`: habilitado de novo, a
+    // tela terminou de reagir à recusa e o banco já não pode mudar.
+    await expect(page.getByRole("button", { name: "Salvar" })).toBeEnabled();
     expect(contar(banco, "SELECT COUNT(*) FROM alocacoes")).toBe(1);
     expect(contar(banco, "SELECT COUNT(*) FROM cursos WHERE turnos = 'manha,tarde'")).toBe(1);
   });
@@ -41,6 +43,22 @@ test.describe("turnos do curso", () => {
     const grupo = page.getByRole("group", { name: "Turnos" });
     await expect(grupo.getByRole("checkbox", { name: "Manhã", exact: true })).toBeChecked();
     await expect(grupo.getByRole("checkbox", { name: "Tarde", exact: true })).toBeChecked();
+  });
+});
+
+test.describe("conversão de horas do curso", () => {
+  test.use({ semMassa: true, semente: "UPDATE cursos SET nome = 'Engenharia', horas_por_aula_semanal = 15 WHERE id = 1;" });
+
+  test("zero é recusado junto do campo, sem a bolha do navegador", async ({ page, banco }) => {
+    await irPara(page, "Gerenciar cursos");
+    await page.getByRole("row", { name: /Engenharia/ }).getByRole("button", { name: "Editar" }).click();
+    const campo = page.getByLabel("Horas de currículo por aula semanal");
+    await campo.fill("0");
+    await page.getByRole("button", { name: "Salvar" }).click();
+    await expect(page.getByText("A conversão tem de ser ao menos 1h.")).toBeVisible();
+    await expect(campo).toHaveAttribute("aria-invalid", "true");
+    await expect(page.getByRole("dialog")).toBeVisible();
+    expect(contar(banco, "SELECT COUNT(*) FROM cursos WHERE horas_por_aula_semanal = 15")).toBe(1);
   });
 });
 

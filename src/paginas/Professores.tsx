@@ -40,7 +40,7 @@ const vazio = (): Professor => ({
 });
 
 /** Mensagem de validação por campo do formulário; fica junto do campo, não no alerta. */
-type ErrosDeCampo = Partial<Record<"nome", string>>;
+type ErrosDeCampo = Partial<Record<"nome" | "maxDias", string>>;
 
 const SEM_ERROS: ErrosDeCampo = {};
 
@@ -97,8 +97,13 @@ export default function Professores() {
     setErroDoFormulario("");
     setErrosDeCampo(SEM_ERROS);
     const nome = p.nome.trim();
-    // Validação de campo: a mensagem vai para o campo e o diálogo leva o foco até ele.
-    if (!nome) return setErrosDeCampo({ nome: "O nome é obrigatório." });
+    // Validação de campo: a mensagem vai para o campo e o diálogo leva o foco até o primeiro.
+    const erros: ErrosDeCampo = {};
+    if (!nome) erros.nome = "O nome é obrigatório.";
+    // O que o `min`, o `max` e o `step` do campo barravam no navegador; vazio é "sem limite".
+    if (p.max_dias_semana != null && !(Number.isInteger(p.max_dias_semana) && p.max_dias_semana >= 1 && p.max_dias_semana <= 7))
+      erros.maxDias = "O máximo de dias tem de ser um número inteiro de 1 a 7.";
+    if (Object.keys(erros).length > 0) return setErrosDeCampo(erros);
     setSalvando(true);
     try {
       // D15 é regra dura: baixar o máximo abaixo do que a grade já usa deixaria
@@ -326,6 +331,7 @@ export default function Professores() {
           <Campo
             rotulo="Máximo de dias na semana"
             dica="Em quantos dias distintos ele pode aparecer. Deixe vazio para não limitar."
+            erro={errosDeCampo.maxDias}
           >
             {(a) => (
               <Input
@@ -334,9 +340,10 @@ export default function Professores() {
                 min={1}
                 max={7}
                 value={edicao.max_dias_semana ?? ""}
-                onChange={(e) =>
-                  setEdicao({ ...edicao, max_dias_semana: e.target.value ? Number(e.target.value) : null })
-                }
+                onChange={(e) => {
+                  setEdicao({ ...edicao, max_dias_semana: e.target.value ? Number(e.target.value) : null });
+                  setErrosDeCampo((erros) => ({ ...erros, maxDias: undefined }));
+                }}
               />
             )}
           </Campo>

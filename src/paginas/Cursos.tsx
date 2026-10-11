@@ -100,7 +100,9 @@ export default function Cursos({ aoMudarLista }: { aoMudarLista: () => void }) {
     const erros: ErrosDeCampo = {};
     if (!nome) erros.nome = "O nome é obrigatório.";
     if (!c.turnos) erros.turnos = "Escolha ao menos um turno.";
+    // O que o `min` e o `step` do campo barravam no navegador, agora com mensagem no campo.
     if (!(c.horas_por_aula_semanal >= 1)) erros.horas = "A conversão tem de ser ao menos 1h.";
+    else if (!Number.isInteger(c.horas_por_aula_semanal)) erros.horas = "A conversão tem de ser um número inteiro de horas.";
     if (Object.keys(erros).length > 0) return setErrosDeCampo(erros);
     setSalvando(true);
     try {

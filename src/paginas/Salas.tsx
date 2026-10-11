@@ -243,7 +243,8 @@ export default function Salas() {
     const erros: ErrosDeCampo = {};
     if (!nome) erros.nome = "O nome é obrigatório.";
     if (!tipo) erros.tipo = "O tipo é obrigatório.";
-    if (!Number.isFinite(s.capacidade) || s.capacidade < 0) erros.capacidade = "Capacidade inválida.";
+    // `min` e `step` do campo numérico barravam negativo e decimal no navegador.
+    if (!Number.isInteger(s.capacidade) || s.capacidade < 0) erros.capacidade = "Capacidade inválida.";
     if (Object.keys(erros).length > 0) return setErrosDeCampo(erros);
     setSalvando(true);
     let plano = SEM_MUDANCA;

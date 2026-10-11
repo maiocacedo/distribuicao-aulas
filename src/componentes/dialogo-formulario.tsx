@@ -114,6 +114,8 @@ export function DialogoFormulario({
         {/* 16 px entre os campos e 20 px até o rodapé, como no modal antigo. */}
         <form
           ref={formulario}
+          // Sem a bolha do navegador: a validação é a de cada tela, em português e junto do campo.
+          noValidate
           className="flex flex-col gap-4"
           onSubmit={(e) => {
             e.preventDefault();

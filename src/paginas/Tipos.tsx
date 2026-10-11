@@ -245,15 +245,11 @@ export default function Tipos() {
             )}
           </Campo>
 
-          {/* Ilha antiga: o requisito de sala e as propriedades ainda são os
-              componentes das telas não convertidas (os mesmos de Disciplinas).
-              Esta marca sai junto com eles, na conversão de Disciplinas
-              (tarefa 11). O `-mb-3` desfaz a margem de 12 px que o último bloco
-              antigo deixa dentro da ilha: item de flex não a colapsa, e o
-              diálogo já dá o espaço até o rodapé. Medido contra a tela antiga,
-              nada que desce do diálogo (alinhamento, peso, espaçamento de
-              letras, quebra de linha) vaza para dentro; se o diálogo passar a
-              pôr alguma dessas propriedades no contêiner, reponha-a aqui. */}
+          {/* Ilha antiga: o requisito de sala e as propriedades são os componentes
+              de Disciplinas, que ainda não foi convertida; a marca sai junto com
+              eles (tarefa 11). O `-mb-3` desfaz a margem de 12 px do último bloco
+              antigo, que o item de flex não colapsa: o diálogo já dá o espaço
+              até o rodapé. */}
           <div className="legado -mb-3">
             <RequisitoSala
               valor={edicao}
