@@ -358,7 +358,7 @@ Ao fim desta tarefa o app tem a mesma aparência, pixel a pixel. Tailwind e o te
 - Modificar: `package.json`, `vite.config.ts`, `vitest.config.ts`, `tsconfig.json`, `testes/tsconfig.json`, `src/main.tsx`, `src/App.tsx`, todo arquivo que importa `../componentes/ui`
 
 **Interfaces:**
-- Produz: alias `@/` → `src/`; `cn(...classes)` em `@/lib/utils`; classes de cor do tema (`bg-background`, `text-foreground`, `bg-panel`, `bg-inset`, `border-line`, `border-line-s`, `text-tx2`, `text-tx3`, `bg-acc-bg`, `border-acc-line`, `bg-off`, `bg-warn`, `text-destructive`, `bg-primary`…); contêiner `.legado`.
+- Produz: alias `@/` → `src/`; `cn(...classes)` em `@/lib/utils`; classes de cor do tema (`bg-background`, `text-foreground`, `bg-panel`, `bg-poco`, `border-line`, `border-line-s`, `text-tx2`, `text-tx3`, `bg-acc-bg`, `border-acc-line`, `bg-off`, `bg-warn`, `text-destructive`, `bg-primary`…); contêiner `.legado`.
 
 - [ ] **Passo 1: dependências**
 
@@ -547,7 +547,7 @@ Os valores de cor são os que você recortou do `legado.css`: copie-os sem alter
 
   /* Papéis sem par no shadcn. */
   --color-panel: var(--panel);
-  --color-inset: var(--inset);
+  --color-poco: var(--inset);
   --color-line: var(--line);
   --color-line-s: var(--lineS);
   --color-tx2: var(--tx2);
@@ -659,7 +659,7 @@ npx shadcn@latest add button alert-dialog
 git diff --stat src/estilos/tema.css   # tem de sair vazio
 ```
 
-Ajuste `src/componentes/ui/button.tsx` à densidade e às regras do design: tamanho padrão `h-7 px-3 text-sm`, `sm` com `h-6 px-2`, `icon` com `size-7`; raio `rounded-md`; em toda variante, troque `disabled:opacity-50` por `disabled:text-tx3 disabled:border-line disabled:bg-inset disabled:pointer-events-none`. A variante `outline` usa `border border-input bg-panel hover:bg-accent`. A variante `destructive` é a de ação destrutiva confirmada: `bg-destructive text-white`.
+Ajuste `src/componentes/ui/button.tsx` à densidade e às regras do design: tamanho padrão `h-7 px-3 text-sm`, `sm` com `h-6 px-2`, `icon` com `size-7`; raio `rounded-md`; em toda variante, troque `disabled:opacity-50` por `disabled:text-tx3 disabled:border-line disabled:bg-poco disabled:pointer-events-none`. A variante `outline` usa `border border-input bg-panel hover:bg-accent`. A variante `destructive` é a de ação destrutiva confirmada: `bg-destructive text-white`.
 
 Em `alert-dialog.tsx`: conteúdo com `bg-panel rounded-xl border border-line shadow-[0_10px_30px_var(--shadow)] max-w-[540px]`, título `text-lg font-bold`, descrição `text-base text-tx2`.
 
@@ -767,7 +767,7 @@ export function ProvedorDeConfirmacao({ children }: { children: ReactNode }) {
               {pedido.descricao && <AlertDialogDescription>{pedido.descricao}</AlertDialogDescription>}
             </AlertDialogHeader>
             {pedido.itens && pedido.itens.length > 0 && (
-              <ul className="max-h-48 overflow-auto rounded-md bg-inset px-3 py-2 text-sm">
+              <ul className="max-h-48 overflow-auto rounded-md bg-poco px-3 py-2 text-sm">
                 {pedido.itens.map((item) => (
                   <li key={item}>{item}</li>
                 ))}
@@ -1165,7 +1165,7 @@ O JSX principal:
         <nav className="flex flex-col gap-0.5 border-r border-line bg-panel px-2.5 py-3">
           <strong className="px-2 pb-3 text-base">Distribuição de Aulas</strong>
 
-          <div className="mb-1 rounded-md bg-inset p-2">
+          <div className="mb-1 rounded-md bg-poco p-2">
             <span className="mb-1 block text-[10px] uppercase tracking-[0.08em] text-tx3">Curso</span>
             <Seletor
               rotulo="Curso"
@@ -1301,7 +1301,7 @@ npx shadcn@latest add dialog input textarea label table
 git diff --stat src/estilos/tema.css   # vazio
 ```
 
-Ajustes: `input` e `textarea` com `h-7 px-2 text-sm border border-input bg-inset rounded-md` (o `textarea` sem altura fixa), sem `opacity` em desabilitado; `dialog` com o mesmo cartão do `alert-dialog` (`bg-panel rounded-xl border border-line`, `max-w-[540px]`, `max-h-[85vh] overflow-auto`, título `text-lg font-bold`); `label` com `text-xs text-tx2`; `table` com cabeçalho `text-xs text-tx3 font-normal`, célula `text-base py-1.5`, linha com `border-b border-line hover:bg-accent`, última linha sem borda.
+Ajustes: `input` e `textarea` com `h-7 px-2 text-sm border border-input bg-poco rounded-md` (o `textarea` sem altura fixa), sem `opacity` em desabilitado; `dialog` com o mesmo cartão do `alert-dialog` (`bg-panel rounded-xl border border-line`, `max-w-[540px]`, `max-h-[85vh] overflow-auto`, título `text-lg font-bold`); `label` com `text-xs text-tx2`; `table` com cabeçalho `text-xs text-tx3 font-normal`, célula `text-base py-1.5`, linha com `border-b border-line hover:bg-accent`, última linha sem borda.
 
 - [ ] **Passo 2: testes das funções puras (falham)**
 
