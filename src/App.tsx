@@ -1,4 +1,22 @@
 import { useCallback, useEffect, useState } from "react";
+import {
+  BookOpen,
+  CalendarCog,
+  CalendarRange,
+  CalendarX,
+  DoorOpen,
+  GraduationCap,
+  Layers,
+  Sparkles,
+  Tags,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
+import { Alerta } from "@/componentes/alerta";
+import { Seletor } from "@/componentes/seletor";
+import { Toaster } from "@/componentes/ui/sonner";
+import { TooltipProvider } from "@/componentes/ui/tooltip";
+import { cn } from "@/lib/utils";
 import { consultar } from "./db";
 import type { Curso } from "./tipos";
 import Cursos from "./paginas/Cursos";
@@ -12,27 +30,42 @@ import Professores from "./paginas/Professores";
 import Salas from "./paginas/Salas";
 import Tipos from "./paginas/Tipos";
 
-type Props = { cursoId: number; aoMudarCursos: () => void };
+type Props = { cursoId: number; aoMudarCursos: () => void; aoNavegar: (id: string) => void };
+
+type Pagina = {
+  id: string;
+  rotulo: string;
+  icone: LucideIcon;
+  /**
+   * Tela ainda não convertida: é desenhada dentro de `.legado`, que devolve às
+   * telas antigas o CSS que elas esperam. A marca sai página a página; a casca
+   * nunca fica dentro do `.legado`.
+   */
+  legado: boolean;
+  componente: (p: Props) => React.ReactNode;
+};
 
 /**
  * As páginas do curso selecionado ficam no primeiro grupo; as institucionais,
  * no segundo. A separação é a mesma do banco: o que é do curso tem `curso_id`,
  * o que é da instituição é compartilhado por todos.
  */
-type Pagina = {
-  id: string;
-  rotulo: string;
-  componente: (p: Props) => React.ReactNode;
-};
-
 const GRUPOS: { titulo: string; paginas: Pagina[] }[] = [
   {
     titulo: "curso",
     paginas: [
-      { id: "periodos", rotulo: "Períodos", componente: (p) => <Periodos cursoId={p.cursoId} /> },
+      {
+        id: "periodos",
+        rotulo: "Períodos",
+        icone: Layers,
+        legado: true,
+        componente: (p) => <Periodos cursoId={p.cursoId} />,
+      },
       {
         id: "disciplinas",
         rotulo: "Disciplinas",
+        icone: BookOpen,
+        legado: true,
         componente: (p) => <Disciplinas cursoId={p.cursoId} />,
       },
     ],
@@ -40,8 +73,14 @@ const GRUPOS: { titulo: string; paginas: Pagina[] }[] = [
   {
     titulo: "instituição",
     paginas: [
-      { id: "professores", rotulo: "Professores", componente: () => <Professores /> },
-      { id: "salas", rotulo: "Salas", componente: () => <Salas /> },
+      {
+        id: "professores",
+        rotulo: "Professores",
+        icone: Users,
+        legado: true,
+        componente: () => <Professores />,
+      },
+      { id: "salas", rotulo: "Salas", icone: DoorOpen, legado: true, componente: () => <Salas /> },
     ],
   },
   {
@@ -50,10 +89,24 @@ const GRUPOS: { titulo: string; paginas: Pagina[] }[] = [
       {
         id: "indisponibilidades",
         rotulo: "Indisponibilidades",
+        icone: CalendarX,
+        legado: true,
         componente: () => <Indisponibilidades />,
       },
-      { id: "tipos", rotulo: "Tipos de disciplina", componente: () => <Tipos /> },
-      { id: "regras", rotulo: "Regras", componente: () => <Instituicao /> },
+      {
+        id: "tipos",
+        rotulo: "Tipos de disciplina",
+        icone: Tags,
+        legado: true,
+        componente: () => <Tipos />,
+      },
+      {
+        id: "regras",
+        rotulo: "Regras",
+        icone: CalendarCog,
+        legado: true,
+        componente: () => <Instituicao />,
+      },
     ],
   },
   {
@@ -62,11 +115,15 @@ const GRUPOS: { titulo: string; paginas: Pagina[] }[] = [
       {
         id: "grade-manual",
         rotulo: "Manual",
+        icone: CalendarRange,
+        legado: true,
         componente: (p) => <GradeManual cursoId={p.cursoId} />,
       },
       {
         id: "grade-automatica",
         rotulo: "Automática",
+        icone: Sparkles,
+        legado: true,
         componente: (p) => <GradeAutomatica cursoId={p.cursoId} />,
       },
     ],
@@ -75,7 +132,9 @@ const GRUPOS: { titulo: string; paginas: Pagina[] }[] = [
 
 const PAGINA_CURSOS: Pagina = {
   id: "cursos",
-  rotulo: "Cursos",
+  rotulo: "Gerenciar cursos",
+  icone: GraduationCap,
+  legado: true,
   componente: (p) => <Cursos aoMudarLista={p.aoMudarCursos} />,
 };
 
@@ -103,80 +162,99 @@ function App() {
 
   if (erro) {
     return (
-      <main className="falha">
-        <h1>Distribuição de Aulas</h1>
-        <div className="alerta">
+      <main className="p-10">
+        <h1 className="mb-3 text-xl font-bold">Distribuição de Aulas</h1>
+        <Alerta tom="erro">
           <strong>Falha ao abrir o banco</strong>
-          <pre>{erro}</pre>
-        </div>
+          <pre className="mt-1 whitespace-pre-wrap text-xs">{erro}</pre>
+        </Alerta>
       </main>
     );
   }
 
   const atual = TODAS.find((p) => p.id === pagina) ?? TODAS[0];
   const semCurso = cursoId == null;
+  const conteudo = atual.componente({
+    cursoId: cursoId ?? 0,
+    aoMudarCursos: carregarCursos,
+    aoNavegar: setPagina,
+  });
+
+  const item = (p: Pagina, extra?: string) => (
+    <button
+      key={p.id}
+      aria-current={p.id === pagina ? "page" : undefined}
+      onClick={() => setPagina(p.id)}
+      className={cn(
+        "flex h-7 w-full items-center gap-2 rounded-md px-2.5 text-left text-[12px] text-tx2 hover:bg-accent hover:text-foreground",
+        extra,
+        // Fundo e peso carregam o estado junto com a cor.
+        p.id === pagina && "bg-acc-bg font-semibold text-primary hover:text-primary",
+      )}
+    >
+      <p.icone className="size-3.5 shrink-0" aria-hidden />
+      {p.rotulo}
+    </button>
+  );
 
   return (
-    <div className="janela">
-      <nav>
-        <div className="marca">
-          <strong>Distribuição de Aulas</strong>
-        </div>
+    <TooltipProvider delayDuration={400}>
+      <div className="grid min-h-screen grid-cols-[216px_1fr]">
+        <nav className="flex flex-col gap-px border-r border-line bg-panel px-2.5 py-3 leading-[normal]">
+          <strong className="px-2.5 pb-2.5 pt-0.5 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-tx3">
+            Distribuição de Aulas
+          </strong>
 
-        <div className="caixa-curso">
-          <span className="rotulo">Curso</span>
-          <select
-            className="seletor-curso"
-            value={cursoId ?? ""}
-            disabled={cursos.length === 0}
-            onChange={(e) => setCursoId(Number(e.target.value))}
-          >
-            {cursos.length === 0 && <option value="">nenhum curso</option>}
-            {cursos.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nome}
-              </option>
-            ))}
-          </select>
-        </div>
-        <button
-          className={`gerenciar-cursos ${pagina === "cursos" ? "ativo" : ""}`}
-          onClick={() => setPagina("cursos")}
-        >
-          Gerenciar cursos
-        </button>
-
-        {GRUPOS.map((g) => (
-          <div key={g.titulo}>
-            <div className="separador">{g.titulo}</div>
-            {g.paginas.map((p) => (
-              <button
-                key={p.id}
-                className={p.id === pagina ? "ativo" : ""}
-                onClick={() => setPagina(p.id)}
-              >
-                {p.rotulo}
-              </button>
-            ))}
+          {/* O escopo do que se edita fica visível o tempo todo, numa caixa
+              rebaixada acima dos grupos: o curso vale para as páginas do
+              primeiro grupo e para as grades. */}
+          <div className="mx-0.5 mb-2.5 rounded-[5px] bg-poco px-[9px] pb-[5px] pt-1.5 shadow-[inset_0_0_0_1px_var(--lineC)]">
+            <label htmlFor="curso-ativo" className="mb-0.5 block text-[10px] text-tx3">
+              Curso
+            </label>
+            <Seletor
+              id="curso-ativo"
+              className="h-auto w-full border-0 bg-transparent px-0 py-0 text-sm font-semibold hover:bg-transparent"
+              valor={cursoId}
+              opcoes={cursos.map((c) => ({ valor: c.id as number | null, rotulo: c.nome }))}
+              exibir={cursos.length === 0 ? "nenhum curso" : undefined}
+              aoMudar={(id) => setCursoId(id)}
+              desabilitado={cursos.length === 0}
+            />
           </div>
-        ))}
-      </nav>
+          {/* Atalho discreto, como era: menor e em cinza, sem o fundo de item. */}
+          {item(
+            PAGINA_CURSOS,
+            "mx-0.5 box-border h-auto w-[calc(100%-4px)] px-2 pb-[7px] pt-[5px] text-xs text-tx3",
+          )}
 
-      <main>
-        {semCurso && atual.id !== "cursos" ? (
-          <>
-            <header className="cabecalho-pagina">
-              <h1>Nenhum curso</h1>
-            </header>
-            <p className="vazio">
-              Crie um curso na página Cursos para começar.
-            </p>
-          </>
-        ) : (
-          atual.componente({ cursoId: cursoId ?? 0, aoMudarCursos: carregarCursos })
-        )}
-      </main>
-    </div>
+          {GRUPOS.map((g) => (
+            <div key={g.titulo} className="flex flex-col gap-px">
+              <div className="px-2.5 pb-1 pt-4 text-[10px] uppercase tracking-[0.08em] text-tx3">
+                {g.titulo}
+              </div>
+              {g.paginas.map((p) => item(p))}
+            </div>
+          ))}
+        </nav>
+
+        {/* O mesmo preenchimento do `main` antigo (20 20 40): as telas que
+            ainda são legado não mudam de lugar. */}
+        <main className="min-w-0 px-5 pb-10 pt-5">
+          {semCurso && atual.id !== "cursos" ? (
+            <>
+              <h1 className="text-xl font-bold">Nenhum curso</h1>
+              <p className="mt-2 text-tx2">Crie um curso em "Gerenciar cursos" para começar.</p>
+            </>
+          ) : atual.legado ? (
+            <div className="legado">{conteudo}</div>
+          ) : (
+            conteudo
+          )}
+        </main>
+      </div>
+      <Toaster />
+    </TooltipProvider>
   );
 }
 
