@@ -659,7 +659,7 @@ npx shadcn@latest add button alert-dialog
 git diff --stat src/estilos/tema.css   # tem de sair vazio
 ```
 
-Ajuste `src/componentes/ui/button.tsx` à densidade e às regras do design: tamanho padrão `h-7 px-3 text-sm`, `sm` com `h-6 px-2`, `icon` com `size-7`; raio `rounded-md`; em toda variante, troque `disabled:opacity-50` por `disabled:text-tx3 disabled:border-line disabled:bg-poco disabled:pointer-events-none`. A variante `outline` usa `border border-input bg-panel hover:bg-accent`. A variante `destructive` é a de ação destrutiva confirmada: `bg-destructive text-white`.
+Ajuste `src/componentes/ui/button.tsx` à densidade e às regras do design: tamanho padrão `h-7 px-3 text-sm`, `sm` com `h-6 px-2`, `icon` com `size-7`; raio `rounded-md`; em toda variante, troque `disabled:opacity-50` por `disabled:text-tx3 disabled:border-line disabled:bg-poco disabled:pointer-events-none`. A variante `outline` usa `border border-input bg-panel hover:bg-accent`. A variante `destructive` é a de ação destrutiva confirmada: `bg-destructive text-primary-foreground`.
 
 Em `alert-dialog.tsx`: conteúdo com `bg-panel rounded-xl border border-line shadow-[0_10px_30px_var(--shadow)] max-w-[540px]`, título `text-lg font-bold`, descrição `text-base text-tx2`.
 
@@ -776,7 +776,7 @@ export function ProvedorDeConfirmacao({ children }: { children: ReactNode }) {
             <AlertDialogFooter>
               <AlertDialogCancel>Cancelar</AlertDialogCancel>
               <AlertDialogAction
-                className={cn(pedido.perigo && "bg-destructive text-white hover:bg-destructive")}
+                className={cn(pedido.perigo && "bg-destructive text-primary-foreground hover:bg-destructive")}
                 onClick={() => responder(true)}
               >
                 {pedido.confirmar}
