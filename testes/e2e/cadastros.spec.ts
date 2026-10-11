@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures";
-import { aceitarConfirmacoes, celula, contar, irPara } from "./paginas";
+import { celula, contar, escolher, escolhida, irPara, responderConfirmacoes } from "./paginas";
 
 test.describe("turnos do curso", () => {
   test.use({
@@ -14,11 +14,7 @@ test.describe("turnos do curso", () => {
   });
 
   test("tirar a tarde com aula na tarde confirma e apaga", async ({ page, banco }) => {
-    const mensagens: string[] = [];
-    page.on("dialog", (d) => {
-      mensagens.push(d.message());
-      d.accept();
-    });
+    const mensagens = await responderConfirmacoes(page);
     await irPara(page, "Gerenciar cursos");
     await page.getByRole("row", { name: /Engenharia/ }).getByRole("button", { name: "Editar" }).click();
     await page.getByRole("checkbox", { name: "Tarde", exact: true }).uncheck();
@@ -96,7 +92,7 @@ test.describe("grade automática", () => {
   });
 
   test("informa quantas aulas de outros cursos respeita", async ({ page }) => {
-    aceitarConfirmacoes(page);
+    await responderConfirmacoes(page);
     await irPara(page, "Automática");
     await expect(page.getByText(/1 aula\(s\) de outros cursos respeitadas/)).toBeVisible();
   });
@@ -134,12 +130,12 @@ test.describe("tirar o sábado com a gravação falhando", () => {
   test.use({ semMassa: true, semente: AULA_NO_SABADO, opcoesPonte: { falharQuando: /^DELETE FROM alocacoes WHERE dia/ } });
 
   test("o seletor continua mostrando o que está no banco", async ({ page, banco }) => {
-    aceitarConfirmacoes(page);
+    await responderConfirmacoes(page);
     await irPara(page, "Regras");
     const semana = page.getByLabel("Semana");
-    await semana.selectOption("5");
+    await escolher(semana, "Segunda a sexta");
     await expect(page.getByText(/falha simulada/)).toBeVisible({ timeout: 3_000 });
-    await expect(semana).toHaveValue("6");
+    await expect.poll(() => escolhida(semana)).toBe("Segunda a sábado");
     expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE dia = 5")).toBe(1);
     expect(contar(banco, "SELECT COUNT(*) FROM configuracao WHERE chave = 'dias_letivos' AND valor = '5'")).toBe(0);
   });
@@ -149,14 +145,14 @@ test.describe("tirar o sábado com a consulta falhando", () => {
   test.use({ semMassa: true, semente: AULA_NO_SABADO, opcoesPonte: { falharQuando: /FROM alocacoes WHERE dia >= / } });
 
   test("o erro aparece na tela e o seletor não muda", async ({ page }) => {
-    aceitarConfirmacoes(page);
+    await responderConfirmacoes(page);
     await irPara(page, "Regras");
     const semana = page.getByLabel("Semana");
-    await semana.selectOption("5");
+    await escolher(semana, "Segunda a sexta");
     await expect(page.getByText(/falha simulada/)).toBeVisible({ timeout: 3_000 });
     // Na própria tela — não no aviso global de promessa rejeitada, que a substitui.
     await expect(page.getByText("Erro fora da tela")).toHaveCount(0);
-    await expect(semana).toHaveValue("6");
+    await expect.poll(() => escolhida(semana)).toBe("Segunda a sábado");
   });
 });
 
@@ -166,11 +162,11 @@ test.describe("dias letivos sem aula no sábado", () => {
   test("mudar a semana grava e o seletor acompanha, nos dois sentidos", async ({ page, banco }) => {
     await irPara(page, "Regras");
     const semana = page.getByLabel("Semana");
-    await semana.selectOption("5");
+    await escolher(semana, "Segunda a sexta");
     await expect.poll(() => contar(banco, "SELECT valor FROM configuracao WHERE chave = 'dias_letivos'")).toBe(5);
-    await expect(semana).toHaveValue("5");
-    await semana.selectOption("6");
+    await expect.poll(() => escolhida(semana)).toBe("Segunda a sexta");
+    await escolher(semana, "Segunda a sábado");
     await expect.poll(() => contar(banco, "SELECT valor FROM configuracao WHERE chave = 'dias_letivos'")).toBe(6);
-    await expect(semana).toHaveValue("6");
+    await expect.poll(() => escolhida(semana)).toBe("Segunda a sábado");
   });
 });

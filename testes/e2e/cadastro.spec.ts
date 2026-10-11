@@ -26,7 +26,7 @@ test("cadastra do zero e fecha as pendências na grade manual", async ({ page, b
   await page.getByRole("button", { name: "Nova disciplina" }).click();
   await page.getByLabel("Nome", { exact: true }).fill("Cálculo");
   await page.getByRole("button", { name: "Adicionar professor" }).click();
-  await page.locator(".linha-fatia input[type=number]").first().fill("2");
+  await page.getByLabel("Aulas da fatia 1").fill("2");
   await page.getByRole("button", { name: "Adicionar professor" }).click();
   await page.getByRole("button", { name: "Salvar" }).click();
   // GROUP_CONCAT não garante ordem: confere cada professor separadamente.

@@ -471,6 +471,7 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
                 return (
                   <li key={idFatia(f)}>
                     <button
+                      aria-pressed={escolhida === idFatia(f)}
                       className={`fatia ${escolhida === idFatia(f) ? "ativo" : ""} ${
                         completa ? "completa" : ""
                       }`}

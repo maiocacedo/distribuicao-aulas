@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures";
-import { aceitarConfirmacoes, celula, contar, irPara } from "./paginas";
+import { celula, contar, irPara, responderConfirmacoes } from "./paginas";
 
 test.describe("requisito de sala por tipo", () => {
   test.use({
@@ -21,7 +21,7 @@ test.describe("requisito de sala por tipo", () => {
   });
 
   test("no gerador todas as aulas vão para o laboratório", async ({ page, banco }) => {
-    aceitarConfirmacoes(page);
+    await responderConfirmacoes(page);
     await irPara(page, "Automática");
     await page.getByRole("button", { name: "Gerar grade" }).click();
     await page.getByRole("button", { name: "Aplicar esta grade" }).click({ timeout: 30_000 });

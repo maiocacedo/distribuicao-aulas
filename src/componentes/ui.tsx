@@ -19,7 +19,7 @@ export function Modal({
 
   return (
     <div className="fundo-modal" onMouseDown={aoFechar}>
-      <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
+      <div className="modal" role="dialog" aria-modal="true" aria-label={titulo} onMouseDown={(e) => e.stopPropagation()}>
         <h3>{titulo}</h3>
         {children}
       </div>

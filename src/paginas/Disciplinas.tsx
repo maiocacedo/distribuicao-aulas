@@ -811,6 +811,7 @@ function Editor({
           {valor.fatias.map((f, i) => (
             <div key={i} className="linha-fatia">
               <select
+                aria-label={`Professor da fatia ${i + 1}`}
                 value={f.professor_id}
                 onChange={(e) => {
                   const fatias = [...valor.fatias];
@@ -835,6 +836,7 @@ function Editor({
               <input
                 type="number"
                 className="curto"
+                aria-label={`Aulas da fatia ${i + 1}`}
                 min={1}
                 value={f.aulas}
                 onChange={(e) => {

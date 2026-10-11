@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures";
-import { celula, contar, irPara } from "./paginas";
+import { celula, contar, escolher, escolhida, irPara } from "./paginas";
 
 const BASE = `
   INSERT INTO periodos (curso_id, numero, turno) VALUES (1, 1, 'manha');
@@ -46,7 +46,7 @@ test.describe("sala", () => {
     await page.reload();
     await irPara(page, "Manual");
     await page.getByRole("button", { name: "Trocar sala de Cálculo" }).click();
-    await page.getByRole("combobox", { name: "Sala" }).selectOption({ label: "A01 (aceitável)" });
+    await escolher(page.getByRole("combobox", { name: "Sala" }), "A01 (aceitável)");
     await expect.poll(() => contar(banco, "SELECT sala_id FROM alocacoes WHERE disciplina_id = 1")).toBe(1);
     expect(contar(banco, "SELECT COUNT(*) FROM alocacoes")).toBe(1);
   });
@@ -66,8 +66,8 @@ test.describe("sala fora do requisito", () => {
     await irPara(page, "Manual");
     await page.getByRole("button", { name: "Trocar sala de Química" }).click();
     const sala = page.getByRole("combobox", { name: "Sala" });
-    await expect(sala.locator("option:checked")).toHaveText("A01 (atual, fora do requisito)");
-    await sala.selectOption({ label: "Lab 1" });
+    await expect.poll(() => escolhida(sala)).toBe("A01 (atual, fora do requisito)");
+    await escolher(sala, "Lab 1");
     await expect.poll(() => contar(banco, "SELECT sala_id FROM alocacoes WHERE disciplina_id = 1")).toBe(2);
   });
 });

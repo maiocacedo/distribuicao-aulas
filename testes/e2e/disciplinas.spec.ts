@@ -1,9 +1,9 @@
 import { expect, test } from "./fixtures";
-import { contar, irPara } from "./paginas";
+import { contar, escolher, irPara, linhaCom, responderConfirmacoes } from "./paginas";
 
 const editar = async (page: import("@playwright/test").Page, nome: string) => {
   await irPara(page, "Disciplinas");
-  await page.locator("tr", { has: page.getByText(nome, { exact: true }) }).getByRole("button", { name: "Editar" }).click();
+  await linhaCom(page, nome).getByRole("button", { name: "Editar" }).click();
 };
 
 test.describe("oferta", () => {
@@ -18,11 +18,7 @@ test.describe("oferta", () => {
   });
 
   test("desmarcar Ofertada confirma e apaga as aulas", async ({ page, banco }) => {
-    const mensagens: string[] = [];
-    page.on("dialog", (d) => {
-      mensagens.push(d.message());
-      d.accept();
-    });
+    const mensagens = await responderConfirmacoes(page);
     await editar(page, "Libras");
     await page.getByRole("checkbox", { name: /Ofertada/ }).uncheck();
     await page.getByRole("button", { name: "Salvar" }).click();
@@ -34,13 +30,12 @@ test.describe("oferta", () => {
   });
 
   test("cancelar a confirmação não muda nada", async ({ page, banco }) => {
-    page.on("dialog", (d) => d.dismiss());
+    const mensagens = await responderConfirmacoes(page, "recusar");
     await editar(page, "Libras");
     await page.getByRole("checkbox", { name: /Ofertada/ }).uncheck();
-    // Sem esperar o diálogo, as asserções do banco correriam antes do salvar.
-    const dialogo = page.waitForEvent("dialog");
     await page.getByRole("button", { name: "Salvar" }).click();
-    await dialogo;
+    // Sem esperar o diálogo, as asserções do banco correriam antes do salvar.
+    await expect.poll(() => mensagens.length).toBe(1);
     await expect(page.getByRole("button", { name: "Salvar" })).toBeVisible();
     expect(contar(banco, "SELECT ofertada FROM disciplinas WHERE id = 1")).toBe(1);
     expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE disciplina_id = 1")).toBe(2);
@@ -79,7 +74,7 @@ test.describe("preferência de sala", () => {
 
   test("marca uma sala como só aceitável", async ({ page, banco }) => {
     await editar(page, "Cálculo");
-    await page.getByLabel("Preferência por A02").selectOption("2");
+    await escolher(page.getByLabel("Preferência por A02"), "aceitável");
     await page.getByRole("button", { name: "Salvar" }).click();
     await expect
       .poll(() => contar(banco, "SELECT preferencia FROM disciplina_salas WHERE disciplina_id = 1 AND sala_id = 2"))
@@ -103,7 +98,7 @@ test.describe("B3 com choque", () => {
 
   test("mudar para um período com o horário ocupado é recusado", async ({ page, banco }) => {
     await editar(page, "Cálculo");
-    await page.locator(".modal select").first().selectOption("2");
+    await escolher(page.getByRole("dialog").getByRole("combobox", { name: "Período", exact: true }), /^2º/);
     await page.getByRole("button", { name: "Salvar" }).click();
     await expect(page.getByText(/2º período já tem aula em Segunda M1/)).toBeVisible();
     expect(contar(banco, "SELECT periodo FROM disciplinas WHERE id = 1")).toBe(1);
@@ -126,13 +121,9 @@ test.describe("sala inválida é reatribuída, não apagada", () => {
   });
 
   test("deixar de ocupar sala mantém as aulas, sem sala e sem diálogo", async ({ page, banco }) => {
-    const mensagens: string[] = [];
-    page.on("dialog", (d) => {
-      mensagens.push(d.message());
-      d.dismiss();
-    });
+    const mensagens = await responderConfirmacoes(page, "recusar");
     await editar(page, "Cálculo");
-    await page.getByLabel(/^Requisito/).selectOption("nenhuma");
+    await escolher(page.getByLabel(/^Requisito/), "Não ocupa sala");
     await page.getByRole("button", { name: "Salvar" }).click();
     await expect.poll(() => contar(banco, "SELECT exige_sala FROM disciplinas WHERE id = 1")).toBe(0);
     expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE disciplina_id = 1 AND sala_id IS NULL")).toBe(2);
@@ -140,14 +131,10 @@ test.describe("sala inválida é reatribuída, não apagada", () => {
   });
 
   test("passar a exigir laboratório leva as aulas para o laboratório livre", async ({ page, banco }) => {
-    const mensagens: string[] = [];
-    page.on("dialog", (d) => {
-      mensagens.push(d.message());
-      d.dismiss();
-    });
+    const mensagens = await responderConfirmacoes(page, "recusar");
     await editar(page, "Química");
-    await page.getByLabel(/^Requisito/).selectOption("tipo");
-    await page.getByLabel(/^Tipo exigido/).selectOption("Laboratório");
+    await escolher(page.getByLabel(/^Requisito/), "Qualquer sala de um tipo");
+    await escolher(page.getByLabel(/^Tipo exigido/), /^Laboratório/);
     await page.getByRole("button", { name: "Salvar" }).click();
     await expect
       .poll(() => contar(banco, "SELECT tipo_sala = 'Laboratório' FROM disciplinas WHERE id = 2"))
@@ -174,16 +161,12 @@ test.describe("sem sala válida livre", () => {
 
   const exigirLaboratorio = async (page: import("@playwright/test").Page) => {
     await editar(page, "Cálculo");
-    await page.getByLabel(/^Requisito/).selectOption("tipo");
-    await page.getByLabel(/^Tipo exigido/).selectOption("Laboratório");
+    await escolher(page.getByLabel(/^Requisito/), "Qualquer sala de um tipo");
+    await escolher(page.getByLabel(/^Tipo exigido/), /^Laboratório/);
   };
 
   test("exigir um tipo sem sala livre no horário lista a aula e, aceito, a apaga", async ({ page, banco }) => {
-    const mensagens: string[] = [];
-    page.on("dialog", (d) => {
-      mensagens.push(d.message());
-      d.accept();
-    });
+    const mensagens = await responderConfirmacoes(page);
     await exigirLaboratorio(page);
     await page.getByRole("button", { name: "Salvar" }).click();
     await expect
@@ -198,11 +181,10 @@ test.describe("sem sala válida livre", () => {
   });
 
   test("cancelar mantém a aula, a sala e o requisito", async ({ page, banco }) => {
-    page.on("dialog", (d) => d.dismiss());
+    const mensagens = await responderConfirmacoes(page, "recusar");
     await exigirLaboratorio(page);
-    const dialogo = page.waitForEvent("dialog");
     await page.getByRole("button", { name: "Salvar" }).click();
-    await dialogo;
+    await expect.poll(() => mensagens.length).toBe(1);
     await expect(page.getByRole("button", { name: "Salvar" })).toBeVisible();
     expect(contar(banco, "SELECT COUNT(*) FROM disciplinas WHERE id = 1 AND tipo_sala IS NULL")).toBe(1);
     expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE disciplina_id = 1 AND sala_id = 1")).toBe(1);
