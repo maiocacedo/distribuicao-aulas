@@ -1,8 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { consultar, executar, transacao } from "../db";
 import { TURNOS, type Horario, type PadraoBloco } from "../tipos";
-import { Erro, mensagemErro } from "../componentes/legado";
-import { useConfirmar } from "../componentes/confirmacao";
+import { Alerta } from "@/componentes/alerta";
+import { CabecalhoPagina } from "@/componentes/cabecalho-pagina";
+import { Campo } from "@/componentes/campo";
+import { useConfirmar } from "@/componentes/confirmacao";
+import { EstadoVazio } from "@/componentes/estado-vazio";
+import { Seletor } from "@/componentes/seletor";
+import { Button } from "@/componentes/ui/button";
+import { Input } from "@/componentes/ui/input";
+import { mensagemErro } from "@/lib/erros";
+import { cn } from "@/lib/utils";
 
 /**
  * Nome de cada nota. A escala é 0..6 porque é o que o solver usa como custo;
@@ -19,6 +27,40 @@ const NOTAS = [
   "evitar ao máximo",
 ];
 
+const OPCOES_DE_NOTA = NOTAS.map((nome, i) => ({ valor: i, rotulo: `${i} · ${nome}` }));
+
+const OPCOES_DE_SEMANA = [
+  { valor: 5, rotulo: "Segunda a sexta" },
+  { valor: 6, rotulo: "Segunda a sábado" },
+];
+
+/**
+ * A nota tem três faixas: 0 e 1 no acento, 2 a 4 neutros, 5 e 6 em negativo.
+ * A cor só reforça: o que diz o quanto o gerador evita o padrão é o número, e
+ * o filete que o separa da divisão. No pouso, tudo vira negativo: é o que o
+ * clique vai fazer (remover) antes de ele acontecer.
+ */
+function faixaDaNota(custo: number) {
+  if (custo <= 1) return { chip: "border-acc-line text-primary", filete: "border-acc-line" };
+  if (custo >= 5) return { chip: "border-destructive text-destructive", filete: "border-destructive" };
+  return { chip: "border-input", filete: "border-line" };
+}
+
+/** Painel de uma seção da página: o mesmo contorno de 1 px que não conta na largura. */
+function Secao({ titulo, children }: { titulo: string; children: ReactNode }) {
+  return (
+    <section className="mb-3 rounded-lg bg-panel px-4 pb-4 pt-3 shadow-[inset_0_0_0_1px_var(--line)]">
+      <h2 className="mb-2 text-[10px] font-bold uppercase tracking-[0.08em] text-tx3">{titulo}</h2>
+      {children}
+    </section>
+  );
+}
+
+/** Parágrafo de explicação: o texto vai até a borda do painel, justificado. */
+function Explica({ children }: { children: ReactNode }) {
+  return <p className="mb-3 text-justify text-xs leading-normal text-pretty text-tx2">{children}</p>;
+}
+
 /**
  * O que vale para todos os cursos: os dias letivos, os horários do dia e os
  * padrões de bloco. Professores e salas também são institucionais, mas têm
@@ -33,6 +75,10 @@ export default function Instituicao() {
   const [custoPadrao, setCustoPadrao] = useState(0);
   const [erro, setErro] = useState("");
   const [salvo, setSalvo] = useState(false);
+  // O sinal "salvo" some sozinho; guardar o relógio evita que o de uma
+  // gravação apague o da seguinte (e que um dispare depois de a tela sair).
+  const relogio = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(relogio.current), []);
 
   async function carregar() {
     const cfg = await consultar<{ chave: string; valor: string }>(
@@ -54,15 +100,23 @@ export default function Instituicao() {
     carregar().catch((e) => setErro(String(e)));
   }, []);
 
-  async function tentar(acao: () => Promise<unknown>, contexto: string) {
+  /**
+   * Grava e relê. A falha de consulta ou de gravação fica na própria página
+   * (não num aviso que some): a tela não tem formulário e o que está errado é
+   * o que ela mostra. Devolve se gravou, para quem precisa limpar o campo.
+   */
+  async function tentar(acao: () => Promise<unknown>, contexto: string): Promise<boolean> {
     setErro("");
     try {
       await acao();
       await carregar();
       setSalvo(true);
-      setTimeout(() => setSalvo(false), 1500);
+      clearTimeout(relogio.current);
+      relogio.current = setTimeout(() => setSalvo(false), 1500);
+      return true;
     } catch (e) {
       setErro(mensagemErro(e, contexto));
+      return false;
     }
   }
 
@@ -122,7 +176,6 @@ export default function Instituicao() {
     return gravarConfig("dias_letivos", String(novo));
   }
 
-  /** '2+2' → [2,2]; devolve null se a escrita não for válida. */
   /** Chamada de um `onClick`: `tentar` já trata os erros de gravação, e `confirmar` não rejeita. */
   async function removerPadrao(p: PadraoBloco, n: number) {
     if (
@@ -139,6 +192,7 @@ export default function Instituicao() {
     );
   }
 
+  /** '2+2' → [2,2]; devolve null se a escrita não for válida. */
   function partes(texto: string): number[] | null {
     const p = texto
       .split("+")
@@ -149,7 +203,7 @@ export default function Instituicao() {
     return p;
   }
 
-  function acrescentarPadrao() {
+  async function acrescentarPadrao() {
     const p = partes(novoPadrao);
     if (!p) {
       setErro('Escreva o padrão como "2+2" ou "3+1" — números somados.');
@@ -158,7 +212,7 @@ export default function Instituicao() {
     // Ordem decrescente é a forma canônica: '1+3' e '3+1' são o mesmo padrão.
     const canonico = [...p].sort((a, b) => b - a).join("+");
     const total = p.reduce((s, x) => s + x, 0);
-    tentar(
+    const gravou = await tentar(
       () =>
         executar(
           "INSERT INTO padroes_blocos (aulas, padrao, custo) VALUES (?, ?, ?)" +
@@ -166,148 +220,158 @@ export default function Instituicao() {
           [total, canonico, custoPadrao],
         ),
       "O padrão",
-    ).then(() => setNovoPadrao(""));
+    );
+    // Se falhou, o que foi digitado fica: a pessoa corrige em vez de reescrever.
+    if (gravou) setNovoPadrao("");
   }
 
+  const divisao = partes(novoPadrao);
+
   return (
-    <div className="coluna-estreita">
-      <header className="cabecalho-pagina">
-        <div>
-          <h1>Regras</h1>
-          <p className="sub">
-            Como a grade é montada: dias letivos, horários do dia e padrões de
-            bloco. Valem para todos os cursos.
-          </p>
-        </div>
-        {salvo && <span className="salvo">salvo</span>}
-      </header>
+    <div className="max-w-[780px]">
+      <CabecalhoPagina
+        titulo="Regras"
+        sub="Como a grade é montada: dias letivos, horários do dia e padrões de bloco. Valem para todos os cursos."
+      >
+        {salvo && <span className="text-xs text-primary">salvo</span>}
+      </CabecalhoPagina>
 
-      <Erro>{erro}</Erro>
+      <Alerta tom="erro">{erro}</Alerta>
 
-      <section>
-        <h2>Dias letivos</h2>
-        <div className="linha-campos">
-          <label className="campo estreito">
-            <span className="rotulo">Semana</span>
-            <select
-              value={dias}
-              onChange={(e) => mudarDias(Number(e.target.value))}
-            >
-              {[5, 6].map((d) => (
-                <option key={d} value={d}>
-                  {d === 5 ? "Segunda a sexta" : "Segunda a sábado"}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-      </section>
+      <Secao titulo="Dias letivos">
+        <Campo rotulo="Semana" className="w-[190px]">
+          {(a) => (
+            <Seletor
+              {...a}
+              className="w-full"
+              valor={dias}
+              opcoes={OPCOES_DE_SEMANA}
+              aoMudar={(d) => void mudarDias(d)}
+            />
+          )}
+        </Campo>
+      </Secao>
 
-      <section>
-        <h2>Horários do dia</h2>
-        <div className="horarios-fixos">
+      <Secao titulo="Horários do dia">
+        <div className="flex flex-col gap-1.5">
           {TURNOS.filter((t) => horarios.some((h) => h.turno === t.valor)).map((t) => (
-            <div key={t.valor} className="grupo">
-              <span className="turno">{t.rotulo}</span>
+            <div key={t.valor} className="flex flex-wrap items-center gap-1.5">
+              <span className="min-w-[54px] text-[10px] uppercase tracking-[0.08em] text-tx3">{t.rotulo}</span>
               {horarios
                 .filter((h) => h.turno === t.valor)
                 .map((h) => (
-                  <span key={h.indice} className="horario" title={`${h.duracao_min} min`}>
-                    <strong>{h.codigo}</strong>
-                    <em>{h.rotulo}</em>
+                  <span
+                    key={h.indice}
+                    className="inline-flex items-baseline gap-[5px] rounded-[4px] bg-poco px-[7px] py-[3px] font-mono"
+                    title={`${h.duracao_min} min`}
+                  >
+                    <strong className="text-[11px] font-semibold">{h.codigo}</strong>
+                    <em className="text-[10px] not-italic text-tx3">{h.rotulo}</em>
                   </span>
                 ))}
-              <span className="duracao">
+              <span className="text-[10.5px] text-tx3">
                 {horarios.find((h) => h.turno === t.valor)?.duracao_min} min
               </span>
             </div>
           ))}
         </div>
-      </section>
+      </Secao>
 
-      <section>
-        <h2>Padrões de bloco</h2>
-        <p className="explica">
-          Cada linha é um total de aulas semanais. Os botões ao lado são as
-          formas permitidas de dividir esse total em blocos de aulas seguidas:{" "}
-          <strong>2+2</strong> são dois dias com duas aulas emendadas,{" "}
-          <strong>3+1</strong> é um dia com três e outro com uma.
-        </p>
-        <p className="explica">
-          Para adicionar, escreva a divisão no campo abaixo, escolha a nota e
-          confirme. A nota ordena as opções: <strong>0</strong> é o que o gerador
-          usa primeiro, e quanto maior, mais ele evita. Clique num padrão
+      <Secao titulo="Padrões de bloco">
+        <Explica>
+          Cada linha é um total de aulas semanais. Os botões ao lado são as formas permitidas de dividir esse total em
+          blocos de aulas seguidas: <strong>2+2</strong> são dois dias com duas aulas emendadas, <strong>3+1</strong> é
+          um dia com três e outro com uma.
+        </Explica>
+        <Explica>
+          Para adicionar, escreva a divisão no campo abaixo, escolha a nota e confirme. A nota ordena as opções:{" "}
+          <strong>0</strong> é o que o gerador usa primeiro, e quanto maior, mais ele evita. Clique num padrão
           existente para removê-lo.
-        </p>
-        <p className="explica">
-          O gerador só usa o que está aqui. Um total sem nenhum padrão não tem
-          como ser distribuído — a disciplina fica de fora da geração.
-        </p>
+        </Explica>
+        <Explica>
+          O gerador só usa o que está aqui. Um total sem nenhum padrão não tem como ser distribuído — a disciplina fica
+          de fora da geração.
+        </Explica>
 
         {padroes.length === 0 ? (
-          <p className="vazio">Nenhum padrão cadastrado.</p>
+          <EstadoVazio>Nenhum padrão cadastrado.</EstadoVazio>
         ) : (
-          <div className="padroes">
+          <div className="flex flex-col gap-1.5">
             {[...new Set(padroes.map((p) => p.aulas))].map((n) => (
-              <div key={n} className="grupo">
-                <span className="ch">
+              <div key={n} className="flex flex-wrap items-center gap-1.5">
+                <span className="min-w-[62px] text-xs tabular-nums text-tx3">
                   {n} aula{n === 1 ? "" : "s"}
                 </span>
                 {padroes
                   .filter((p) => p.aulas === n)
-                  .map((p) => (
-                    <button
-                      key={p.padrao}
-                      className={`padrao ${
-                        p.custo <= 1 ? "ideal" : p.custo >= 5 ? "evitar" : ""
-                      }`}
-                      title={`Nota ${p.custo} · ${NOTAS[p.custo] ?? ""} — clique para remover este padrão`}
-                      onClick={() => removerPadrao(p, n)}
-                    >
-                      <b>{p.padrao}</b>
-                      <em title={NOTAS[p.custo] ?? ""}>{p.custo}</em>
-                      <i aria-hidden="true">×</i>
-                    </button>
-                  ))}
+                  .map((p) => {
+                    const faixa = faixaDaNota(p.custo);
+                    return (
+                      // O chip é um botão: remover é o clique. A divisão e a nota
+                      // são dois dados e ficam em campos separados por um filete.
+                      <button
+                        key={p.padrao}
+                        type="button"
+                        className={cn(
+                          "group inline-flex cursor-pointer items-baseline rounded-[4px] border bg-panel py-px pr-[3px] pl-1.5 font-mono text-[11.5px] transition-colors hover:border-destructive hover:bg-accent hover:text-destructive",
+                          faixa.chip,
+                        )}
+                        title={`Nota ${p.custo} · ${NOTAS[p.custo] ?? ""} — clique para remover este padrão`}
+                        onClick={() => void removerPadrao(p, n)}
+                      >
+                        <b className="font-semibold">{p.padrao}</b>
+                        <em
+                          className={cn(
+                            "ml-1.5 border-l px-[5px] text-[9.5px] not-italic text-tx3 group-hover:border-destructive group-hover:text-destructive",
+                            faixa.filete,
+                          )}
+                          title={NOTAS[p.custo] ?? ""}
+                        >
+                          {p.custo}
+                        </em>
+                        {/* O × só aparece no pouso (ou no foco do teclado), mas o
+                            espaço é reservado sempre: o chip não muda de largura. */}
+                        <i
+                          aria-hidden="true"
+                          className="w-[7px] text-[11px] not-italic text-destructive opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
+                        >
+                          ×
+                        </i>
+                      </button>
+                    );
+                  })}
               </div>
             ))}
           </div>
         )}
 
-        <div className="acoes-secao">
-          <input
-            className="curto-medio"
+        <div className="mt-3 flex items-center gap-2">
+          <Input
+            aria-label="Divisão do novo padrão"
+            className="w-32"
             placeholder="ex.: 2+2"
             value={novoPadrao}
             onChange={(e) => setNovoPadrao(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
-                acrescentarPadrao();
+                void acrescentarPadrao();
               }
             }}
           />
-          <select
-            className="seletor-nota"
-            value={custoPadrao}
-            onChange={(e) => setCustoPadrao(Number(e.target.value))}
-          >
-            {NOTAS.map((n, i) => (
-              <option key={i} value={i}>
-                {i} · {n}
-              </option>
-            ))}
-          </select>
-          <button onClick={acrescentarPadrao} disabled={!novoPadrao.trim()}>
+          <Seletor
+            rotulo="Nota do padrão"
+            className="w-[190px]"
+            valor={custoPadrao}
+            opcoes={OPCOES_DE_NOTA}
+            aoMudar={setCustoPadrao}
+          />
+          <Button variant="outline" onClick={() => void acrescentarPadrao()} disabled={!novoPadrao.trim()}>
             Adicionar padrão
-          </button>
-          {partes(novoPadrao) && (
-            <span className="fraco previa">
-              {partes(novoPadrao)!.reduce((s, x) => s + x, 0)} aulas
-            </span>
-          )}
+          </Button>
+          {divisao && <span className="self-center text-xs text-tx3">{divisao.reduce((s, x) => s + x, 0)} aulas</span>}
         </div>
-      </section>
+      </Secao>
     </div>
   );
 }

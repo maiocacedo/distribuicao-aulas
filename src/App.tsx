@@ -58,7 +58,7 @@ const GRUPOS: { titulo: string; paginas: Pagina[] }[] = [
         id: "periodos",
         rotulo: "Períodos",
         icone: Layers,
-        legado: true,
+        legado: false,
         componente: (p) => <Periodos cursoId={p.cursoId} />,
       },
       {
@@ -104,7 +104,7 @@ const GRUPOS: { titulo: string; paginas: Pagina[] }[] = [
         id: "regras",
         rotulo: "Regras",
         icone: CalendarCog,
-        legado: true,
+        legado: false,
         componente: () => <Instituicao />,
       },
     ],

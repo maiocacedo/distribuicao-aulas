@@ -119,11 +119,6 @@ section {
   max-width: 68ch;
 }
 
-.salvo {
-  color: var(--acc);
-  font-size: 11px;
-}
-
 /* ------------------------------------------------------------- listas */
 
 table.lista {
@@ -387,10 +382,6 @@ input[type="checkbox"] {
 .linha-campos .campo {
   flex: 1;
   margin-bottom: 0;
-}
-
-.campo.estreito {
-  flex: 0 0 190px;
 }
 
 .linha-inline {
@@ -817,58 +808,6 @@ table.grade-horarios tr.espacador td {
 table.lista tr.troca-turno td,
 table.lista tr.troca-turno th {
   border-top: 2px solid var(--bg);
-}
-
-/* ------------------------------------------------------------- padrões */
-
-.padroes {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.padroes .grupo {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.padroes .ch {
-  min-width: 62px;
-  color: var(--tx3);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-}
-
-button.padrao {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 5px;
-  padding: 2px 7px;
-  font-family: Consolas, monospace;
-  font-size: 11.5px;
-}
-
-button.padrao em {
-  font-style: normal;
-  font-size: 9.5px;
-  color: var(--tx3);
-}
-
-button.padrao.ideal {
-  box-shadow: inset 0 0 0 1px var(--accLine);
-  color: var(--acc);
-}
-
-button.padrao.evitar {
-  box-shadow: inset 0 0 0 1px var(--neg);
-  color: var(--neg);
-}
-
-.previa {
-  align-self: center;
-  font-size: 11px;
 }
 
 input.embutido.codigo {
@@ -1385,34 +1324,6 @@ select.embutido:focus-visible {
   box-shadow: inset 0 0 0 1px var(--lineC);
 }
 
-/* ------------------------------------------------- tabela de colunas iguais */
-
-/* `table-layout: fixed` com larguras iguais: sem isto uma coluna sem largura
-   declarada absorve toda a sobra e cresce sozinha quando a janela alarga,
-   enquanto as outras ficam paradas. Ou todas crescem juntas, ou nenhuma. */
-table.lista.uniforme {
-  table-layout: fixed;
-}
-
-table.lista.uniforme th,
-table.lista.uniforme td,
-table.lista.uniforme th.num,
-table.lista.uniforme td.num {
-  width: auto;
-  text-align: center;
-  padding-left: 10px;
-}
-
-table.lista.uniforme .embutido {
-  display: block;
-  margin: 0 auto;
-  text-align: center;
-}
-
-table.lista.uniforme input.embutido.curto {
-  text-align: center;
-}
-
 /* ------------------------------------------------- legenda de colunas */
 
 /* O que cada coluna significa, no rodapé da própria tabela: perto do que
@@ -1489,137 +1400,5 @@ th.centro button.ordenavel::before {
   background: var(--card);
   box-shadow: inset 0 0 0 1px var(--lineS);
   color: var(--tx3);
-}
-
-/* ------------------------------------------------- horários institucionais */
-
-.horarios-fixos {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.horarios-fixos .grupo {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.horarios-fixos .turno {
-  min-width: 54px;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--tx3);
-}
-
-.horarios-fixos .horario {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 5px;
-  padding: 3px 7px;
-  border-radius: var(--r);
-  background: var(--inset);
-  font-family: Consolas, monospace;
-}
-
-.horarios-fixos .horario strong {
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.horarios-fixos .horario em {
-  font-style: normal;
-  font-size: 10px;
-  color: var(--tx3);
-}
-
-.horarios-fixos .duracao {
-  font-size: 10.5px;
-  color: var(--tx3);
-}
-
-/* Páginas de conteúdo curto ficam numa coluna estreita: o painel esticado até
-   1180px com texto quebrando em 68ch cria um bloco vazio à direita, e o texto
-   parece flutuar dentro da caixa. */
-.coluna-estreita {
-  max-width: 780px;
-}
-
-/* O × só aparece no pouso do mouse, mas o espaço é reservado sempre para o
-   chip não mudar de largura — e o contorno vira negativo, dizendo o que o
-   clique vai fazer antes de ele acontecer. */
-button.padrao i {
-  font-style: normal;
-  font-size: 11px;
-  width: 7px;
-  opacity: 0;
-  color: var(--neg);
-}
-
-button.padrao:hover i {
-  opacity: 1;
-}
-
-button.padrao:hover,
-button.padrao.ideal:hover,
-button.padrao.evitar:hover {
-  color: var(--neg);
-  box-shadow: inset 0 0 0 1px var(--neg);
-}
-
-button.padrao:hover em {
-  color: var(--neg);
-}
-
-/* --------------------------------------------- chip de padrão de bloco */
-
-/* A divisão e a nota são dois dados diferentes e ganham campos separados por
-   um filete, em vez de dividirem o mesmo espaço apertado. */
-button.padrao {
-  gap: 0;
-  padding: 2px 4px 2px 7px;
-}
-
-button.padrao b {
-  font-weight: 600;
-}
-
-button.padrao em {
-  margin-left: 6px;
-  padding: 0 5px;
-  border-left: 1px solid var(--line);
-  color: var(--tx3);
-}
-
-/* A escala tem três faixas: 0 e 1 no acento, 2 a 4 neutros, 5 e 6 em
-   negativo. O que separa a nota da divisão é o filete, não a cor. */
-button.padrao.evitar {
-  color: var(--neg);
-  box-shadow: inset 0 0 0 1px var(--neg);
-}
-
-button.padrao.evitar em {
-  border-left-color: var(--neg);
-}
-
-button.padrao.ideal em {
-  border-left-color: var(--accLine);
-}
-
-button.padrao:hover em {
-  border-left-color: var(--neg);
-}
-
-.seletor-nota {
-  width: 190px;
-}
-
-/* Nesta página o texto vai até a borda do painel e é justificado. */
-.coluna-estreita .explica {
-  max-width: none;
-  text-align: justify;
-  text-wrap: pretty;
 }
 }
