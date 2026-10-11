@@ -91,7 +91,11 @@ export default function Professores() {
   }, []);
 
   async function salvar(p: Professor) {
+    // Cada tentativa começa limpa. O erro de campo também sai aqui, e não só ao
+    // mudar o campo: um controle que não limpa o próprio erro ao mudar deixaria
+    // a mensagem velha (e o `aria-invalid`) sobreviver a uma nova tentativa.
     setErroDoFormulario("");
+    setErrosDeCampo(SEM_ERROS);
     const nome = p.nome.trim();
     // Validação de campo: a mensagem vai para o campo e o diálogo leva o foco até ele.
     if (!nome) return setErrosDeCampo({ nome: "O nome é obrigatório." });

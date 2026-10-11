@@ -128,7 +128,9 @@ export function DialogoFormulario({
           </Alerta>
           {children}
           <DialogFooter className="mt-1">
-            <Button type="button" variant="outline" onClick={() => void fechar()}>
+            {/* Desabilitado junto com o "Salvando…": `fechar` já ignora o clique,
+                mas um botão que não responde sem sinal parece travado. */}
+            <Button type="button" variant="outline" disabled={salvando} onClick={() => void fechar()}>
               Cancelar
             </Button>
             <Button type="submit" disabled={salvando}>

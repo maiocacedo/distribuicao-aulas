@@ -41,6 +41,15 @@ export function compararValores(x: unknown, y: unknown): number {
   return String(x ?? "").localeCompare(String(y ?? ""), "pt-BR");
 }
 
+/**
+ * Cópia dos dados em ordem crescente do texto de desempate, em pt-BR. Não altera
+ * o array recebido. O `sort` do JavaScript é estável: itens com o mesmo texto
+ * mantêm a ordem em que vieram.
+ */
+export function ordenarPorDesempate<T>(dados: T[], desempate: (l: T) => string): T[] {
+  return [...dados].sort((a, b) => desempate(a).localeCompare(desempate(b), "pt-BR"));
+}
+
 /** `filterFn` de filtro facetado: a linha passa se o valor dela é um dos marcados. */
 export function pertence<T>(linha: Row<T>, coluna: string, valores: unknown[]): boolean {
   return valores.length === 0 || valores.includes(linha.getValue(coluna));
@@ -109,7 +118,7 @@ export function useTabela<T>({
   // A ordenação do TanStack é estável: com os dados já em ordem de desempate,
   // linhas iguais na coluna ordenada ficam nessa ordem, crescente ou não.
   const ordenados = useMemo(
-    () => [...dados].sort((a, b) => desempate(a).localeCompare(desempate(b), "pt-BR")),
+    () => ordenarPorDesempate(dados, desempate),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [dados],
   );

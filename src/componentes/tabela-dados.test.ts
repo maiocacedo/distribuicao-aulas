@@ -1,6 +1,30 @@
 import { describe, expect, it } from "vitest";
 import type { Row } from "@tanstack/react-table";
-import { compararValores, normalizar, pertence } from "./tabela-dados";
+import { compararValores, normalizar, ordenarPorDesempate, pertence } from "./tabela-dados";
+
+describe("ordenarPorDesempate", () => {
+  it("ordena em pt-BR, com acento no lugar", () => {
+    const nomes = ["Zoologia", "Álgebra", "Cálculo"].map((nome) => ({ nome }));
+    expect(ordenarPorDesempate(nomes, (l) => l.nome).map((l) => l.nome)).toEqual(["Álgebra", "Cálculo", "Zoologia"]);
+  });
+
+  it("não altera o array recebido", () => {
+    const entrada = [{ nome: "Zoologia" }, { nome: "Álgebra" }];
+    const copia = [...entrada];
+    const saida = ordenarPorDesempate(entrada, (l) => l.nome);
+    expect(entrada).toEqual(copia);
+    expect(saida).not.toBe(entrada);
+  });
+
+  it("mantém a ordem relativa de quem tem o mesmo texto de desempate", () => {
+    const entrada = [
+      { id: 1, nome: "Ana" },
+      { id: 2, nome: "Ana" },
+      { id: 3, nome: "Ana" },
+    ];
+    expect(ordenarPorDesempate(entrada, (l) => l.nome).map((l) => l.id)).toEqual([1, 2, 3]);
+  });
+});
 
 describe("normalizar", () => {
   it("ignora acento e caixa", () => {
