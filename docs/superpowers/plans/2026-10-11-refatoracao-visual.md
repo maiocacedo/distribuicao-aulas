@@ -2383,7 +2383,7 @@ Se a tela ainda não carrega os tipos de disciplina, acrescente a consulta (`SEL
 - `textoDeBusca: (l) => `${l.nome} ${l.abreviacao ?? ""} ${l.professores ?? ""}``.
 - "Nova disciplina" propõe o período do filtro quando há **exatamente um** período marcado; senão o primeiro período. Continua desabilitado sem professores, com a dica "Cadastre um professor antes".
 - O `<select>` de período do cabeçalho some: o filtro "Período" o substitui.
-- Vazio com filtro: `Nenhuma disciplina com esses filtros.` + "Limpar filtros".
+- Vazio com filtro: `Nenhuma disciplina encontrada.` + "Limpar busca e filtros".
 - Confirmações e recusas: a recusa de mudança de período ("2º período já tem aula em Segunda M1") e as falhas de gravação vão na prop `erro` do diálogo. A confirmação de aulas atingidas continua (tarefa 4).
 - **Motivo de sala redundante (pendência herdada):** ao montar os `itens` da confirmação, se uma aula tem outro motivo além de `sala-invalida`, o de sala é omitido. Fica numa função pura em `salvar.ts`, com teste em `src/paginas/disciplinas/salvar.test.ts`:
 
