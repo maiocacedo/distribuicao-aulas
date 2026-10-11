@@ -3,7 +3,11 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   timeout: 60_000,
   snapshotPathTemplate: "testes/visual/__capturas__/{arg}{ext}",
-  expect: { timeout: 10_000, toHaveScreenshot: { animations: "disabled", maxDiffPixels: 0, threshold: 0 } },
+  // `threshold` é a tolerância de cor por pixel (0 a 1). 0,01 absorve a variação
+  // de um ou dois níveis no antisserrilhamento de ícone entre execuções e ainda
+  // acusa qualquer troca de cor de verdade; `maxDiffPixels: 0` continua exigindo
+  // que nenhum pixel passe dessa tolerância.
+  expect: { timeout: 10_000, toHaveScreenshot: { animations: "disabled", maxDiffPixels: 0, threshold: 0.01 } },
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
   use: {

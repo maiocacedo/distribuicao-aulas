@@ -200,11 +200,7 @@ function App() {
   return (
     <TooltipProvider delayDuration={400}>
       <div className="grid min-h-screen grid-cols-[216px_1fr]">
-        {/* `backface-hidden` não esconde nada: só põe a barra numa camada de
-            composição própria, e o ícone de "Automática" deixa de sair com
-            suavização diferente a cada execução (a captura de Tipos de
-            disciplina oscilava, repintada junto com o conteúdo). */}
-        <nav className="flex flex-col gap-px border-r border-line bg-panel px-2.5 py-3 backface-hidden">
+        <nav className="flex flex-col gap-px border-r border-line bg-panel px-2.5 py-3">
           <strong className="px-2.5 pb-2.5 pt-0.5 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-tx3">
             Distribuição de Aulas
           </strong>
