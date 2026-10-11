@@ -80,7 +80,7 @@ const GRUPOS: { titulo: string; paginas: Pagina[] }[] = [
         legado: false,
         componente: () => <Professores />,
       },
-      { id: "salas", rotulo: "Salas", icone: DoorOpen, legado: true, componente: () => <Salas /> },
+      { id: "salas", rotulo: "Salas", icone: DoorOpen, legado: false, componente: () => <Salas /> },
     ],
   },
   {

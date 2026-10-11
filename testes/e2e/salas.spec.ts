@@ -36,6 +36,8 @@ test.describe("mudar o tipo da sala com outra sala do tipo livre", () => {
     // Quem não exige tipo continua onde estava.
     expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE disciplina_id = 3 AND sala_id = 1")).toBe(1);
     expect(mensagens).toEqual([]);
+    // Três aulas mudaram de sala: duas de uma disciplina e uma de outra.
+    await expect(page.getByText("3 aula(s) mudaram de sala")).toBeVisible();
   });
 
   test("mudar só o nome ou a capacidade não mexe nas aulas", async ({ page, banco }) => {
