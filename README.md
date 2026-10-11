@@ -53,10 +53,14 @@ Três camadas de teste, mais o benchmark, todas sobre a mesma massa anonimizada 
 npm run typecheck      # tipos do app e dos testes
 npm test               # Vitest: solver, auditor, ponte de IPC (segundos)
 npm run test:e2e       # Playwright: a interface no Chromium, sem compilar Rust
+npm run test:visual    # capturas de cada tela, claro e escuro (só local, Windows)
 npm run test:smoke     # binário real (Windows); exige build debug e drivers
 npm run bench:solver   # compara solvers em cenários × sementes
 ```
 
+- `npm run test:visual` — compara cada tela, no claro e no escuro, com as capturas de
+  `testes/visual/__capturas__/`. Só roda localmente, no Windows. Mudança visual de
+  propósito: `npm run test:visual -- -g "<tela>" --update-snapshots` e confira as imagens.
 - **Massa.** `testes/massa/engenharia_v9.sql` vem do banco real, com nomes de
   professores trocados por `Professor NN` e observações apagadas. Para
   regenerar: `python scripts/anonimizar_massa.py distribuicao.db`. O script

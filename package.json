@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p testes && tsc --noEmit -p testes/smoke",
     "test:smoke": "wdio run testes/smoke/wdio.conf.ts",
     "test": "vitest run",
-    "test:e2e": "playwright test",
+    "test:e2e": "playwright test --project=chromium",
+    "test:visual": "playwright test --project=visual",
     "bench:solver": "vite-node scripts/bench_solver.ts --"
   },
   "engines": {
