@@ -20,7 +20,7 @@
    do Tailwind e perde para os utilitários. */
 @layer theme, base, legado, components, utilities;
 
-@import "tailwindcss";
+@import "tailwindcss" source("../");
 @import "tw-animate-css";
 @import "./legado.css" layer(legado);
 
@@ -124,7 +124,7 @@
 
   /* Papéis sem par no shadcn. */
   --color-panel: var(--panel);
-  --color-inset: var(--inset);
+  --color-poco: var(--inset);
   --color-line: var(--line);
   --color-line-s: var(--lineS);
   --color-tx2: var(--tx2);

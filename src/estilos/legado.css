@@ -5,7 +5,20 @@
  * O reset do Tailwind é desfeito aqui dentro: estas regras foram escritas
  * contando com os padrões do navegador. `:where()` zera a especificidade, para
  * qualquer regra antiga vencer o `revert`.
+ *
+ * O isolamento é de mão única. Uma ilha `.legado` dentro de tela nova funciona;
+ * já um componente novo (Tailwind) desenhado DENTRO de `.legado`, sem portal,
+ * perde o reset e recebe as regras antigas de elemento (`button`, `input`,
+ * `table`) em tudo que os utilitários dele não definem.
+ *
+ * O `revert` também apaga atributo de apresentação fora de SVG (largura de
+ * imagem, alinhamento de célula): atributo conta como regra de autor.
+ *
+ * As regras de `revert` de pseudo-elemento não têm especificidade zero: o
+ * pseudo-elemento não cabe em `:where()`, então ficam em (0,0,1) — o que ainda
+ * perde para qualquer regra antiga.
  */
+
 /* O SVG fica de fora: `fill`, `stroke` e companhia chegam por atributo, e
    atributo de apresentação conta como regra de autor — o `revert` o apagaria
    e o ícone sumiria. */
@@ -38,8 +51,10 @@
   tab-size: 8;
   color: var(--tx);
   /* As telas antigas nunca declararam esquema: caixa de seleção e texto de
-     exemplo são os claros do navegador também no tema escuro. */
-  color-scheme: normal;
+     exemplo são os claros do navegador também no tema escuro. `light` diz isso
+     de forma explícita, sem depender de o `index.html` não ter
+     `<meta name="color-scheme">`. */
+  color-scheme: light;
 }
 
 /* Daqui até o fim, as regras antigas como eram, só aninhadas. Ficaram sem

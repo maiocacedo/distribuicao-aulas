@@ -3,7 +3,7 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   timeout: 60_000,
   snapshotPathTemplate: "testes/visual/__capturas__/{arg}{ext}",
-  expect: { timeout: 10_000, toHaveScreenshot: { animations: "disabled", maxDiffPixels: 0 } },
+  expect: { timeout: 10_000, toHaveScreenshot: { animations: "disabled", maxDiffPixels: 0, threshold: 0 } },
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
   use: {
