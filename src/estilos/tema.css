@@ -140,10 +140,15 @@
 
   /* A densidade do design: 13 px de base, controles com texto de 12,5 px. */
   --text-xs: 11px;
+  --text-xs--line-height: normal;
   --text-sm: 12.5px;
+  --text-sm--line-height: normal;
   --text-base: 13px;
+  --text-base--line-height: normal;
   --text-lg: 15px;
+  --text-lg--line-height: normal;
   --text-xl: 17px;
+  --text-xl--line-height: normal;
 
   --radius-sm: 4px;
   --radius-md: 4px;
@@ -156,6 +161,10 @@
     background: var(--bg);
     color: var(--tx);
     font-size: 13px;
+    /* A altura de linha do design é a natural da fonte; o padrão do Tailwind
+       (1,5) é mais folgado e deixaria toda tela convertida mais alta que a
+       referência. */
+    line-height: normal;
   }
 
   /* Anel de foco próprio, afastado da borda e só com teclado — nunca o mesmo

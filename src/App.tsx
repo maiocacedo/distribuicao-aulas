@@ -189,7 +189,7 @@ function App() {
         "flex h-7 w-full items-center gap-2 rounded-md px-2.5 text-left text-[12px] text-tx2 hover:bg-accent hover:text-foreground",
         extra,
         // Fundo e peso carregam o estado junto com a cor.
-        p.id === pagina && "bg-acc-bg font-semibold text-primary hover:text-primary",
+        p.id === pagina && "bg-acc-bg font-semibold text-primary hover:bg-acc-bg hover:text-primary",
       )}
     >
       <p.icone className="size-3.5 shrink-0" aria-hidden />
@@ -200,21 +200,26 @@ function App() {
   return (
     <TooltipProvider delayDuration={400}>
       <div className="grid min-h-screen grid-cols-[216px_1fr]">
-        <nav className="flex flex-col gap-px border-r border-line bg-panel px-2.5 py-3 leading-[normal]">
+        {/* `backface-hidden` não esconde nada: só põe a barra numa camada de
+            composição própria, e o ícone de "Automática" deixa de sair com
+            suavização diferente a cada execução (a captura de Tipos de
+            disciplina oscilava, repintada junto com o conteúdo). */}
+        <nav className="flex flex-col gap-px border-r border-line bg-panel px-2.5 py-3 backface-hidden">
           <strong className="px-2.5 pb-2.5 pt-0.5 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-tx3">
             Distribuição de Aulas
           </strong>
 
           {/* O escopo do que se edita fica visível o tempo todo, numa caixa
               rebaixada acima dos grupos: o curso vale para as páginas do
-              primeiro grupo e para as grades. */}
+              primeiro grupo e para as grades. A altura de linha do gatilho
+              (1,4286, a antiga do `text-sm`) é o que dá a altura da caixa. */}
           <div className="mx-0.5 mb-2.5 rounded-[5px] bg-poco px-[9px] pb-[5px] pt-1.5 shadow-[inset_0_0_0_1px_var(--lineC)]">
             <label htmlFor="curso-ativo" className="mb-0.5 block text-[10px] text-tx3">
               Curso
             </label>
             <Seletor
               id="curso-ativo"
-              className="h-auto w-full border-0 bg-transparent px-0 py-0 text-sm font-semibold hover:bg-transparent"
+              className="h-auto w-full border-0 bg-transparent px-0 py-0 text-sm font-semibold leading-[1.4286] hover:bg-transparent"
               valor={cursoId}
               opcoes={cursos.map((c) => ({ valor: c.id as number | null, rotulo: c.nome }))}
               exibir={cursos.length === 0 ? "nenhum curso" : undefined}
@@ -222,10 +227,12 @@ function App() {
               desabilitado={cursos.length === 0}
             />
           </div>
-          {/* Atalho discreto, como era: menor e em cinza, sem o fundo de item. */}
+          {/* Atalho discreto, como era: menor e em cinza, sem o fundo de item.
+              Com a altura de linha de 1,3333 (a antiga do `text-xs`) o texto
+              fica onde estava, no pixel. */}
           {item(
             PAGINA_CURSOS,
-            "mx-0.5 box-border h-auto w-[calc(100%-4px)] px-2 pb-[7px] pt-[5px] text-xs text-tx3",
+            "mx-0.5 h-auto w-[calc(100%-4px)] px-2 pb-[7px] pt-[5px] text-xs leading-[1.3333] text-tx3",
           )}
 
           {GRUPOS.map((g) => (

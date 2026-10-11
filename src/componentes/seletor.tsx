@@ -14,6 +14,10 @@ export interface Opcao<V> {
  * Se `exibir` for `undefined`, o `SelectValue` mostra o texto da opção
  * escolhida (comportamento do Radix quando não recebe filhos): passe `exibir`
  * só quando o gatilho deve mostrar outra coisa.
+ *
+ * Casos de borda: o valor é localizado pela posição da primeira opção igual
+ * (valores repetidos na lista não são suportados) e um valor fora da lista
+ * deixa o gatilho vazio.
  */
 export function Seletor<V extends string | number | null>({
   valor,

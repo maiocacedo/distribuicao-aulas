@@ -17,6 +17,19 @@ const TELAS: { id: string; rotulo: string; pronta: (p: Page) => Locator }[] = [
   { id: "cursos", rotulo: "Gerenciar cursos", pronta: (p) => p.getByRole("row").nth(1) },
 ];
 
+/**
+ * `irPara` clica no item da barra e o ponteiro fica ali; sem estacionar, toda
+ * captura sairia com aquele item em estado de pouso. O canto inferior direito
+ * da janela cai no `<main>` fora de qualquer conteúdo (nenhuma tela chega lá com
+ * tabela, botão ou célula) e é o mesmo ponto em todos os testes, com ou sem
+ * diálogo aberto (nele, cai sobre o fundo escurecido). Ficou local ao spec: os
+ * e2e não precisam disso.
+ */
+async function capturar(page: Page, nome: string, opcoes: { fullPage?: boolean } = {}) {
+  await page.mouse.move(1390, 890);
+  await expect(page).toHaveScreenshot(nome, opcoes);
+}
+
 for (const [esquema, sufixo] of [["light", "claro"], ["dark", "escuro"]] as const) {
   test.describe(sufixo, () => {
     test.use({ colorScheme: esquema });
@@ -25,7 +38,7 @@ for (const [esquema, sufixo] of [["light", "claro"], ["dark", "escuro"]] as cons
       test(tela.rotulo, async ({ page }) => {
         await irPara(page, tela.rotulo);
         await expect(tela.pronta(page)).toBeVisible();
-        await expect(page).toHaveScreenshot(`${tela.id}-${sufixo}.png`, { fullPage: true });
+        await capturar(page, `${tela.id}-${sufixo}.png`, { fullPage: true });
       });
     }
 
@@ -34,7 +47,7 @@ for (const [esquema, sufixo] of [["light", "claro"], ["dark", "escuro"]] as cons
       await page.getByRole("row").nth(1).getByRole("button", { name: "Editar" }).click();
       await expect(page.getByRole("dialog")).toBeVisible();
       // A captura inclui o anel de foco do campo Nome (autofoco do diálogo): quem regerar na tarefa que troca o diálogo deve esperar essa diferença.
-      await expect(page).toHaveScreenshot(`disciplinas-editor-${sufixo}.png`);
+      await capturar(page, `disciplinas-editor-${sufixo}.png`);
     });
 
     test("Confirmação", async ({ page }) => {
@@ -42,7 +55,7 @@ for (const [esquema, sufixo] of [["light", "claro"], ["dark", "escuro"]] as cons
       // Só quem não tem disciplina chega à confirmação (os outros recebem o aviso de uso); na massa, é o Professor 07.
       await linhaCom(page, "Professor 07").getByRole("button", { name: "Remover" }).click();
       await expect(page.getByRole("alertdialog")).toBeVisible();
-      await expect(page).toHaveScreenshot(`confirmacao-${sufixo}.png`);
+      await capturar(page, `confirmacao-${sufixo}.png`);
     });
 
     test("Manual, pendência escolhida", async ({ page, banco }) => {
@@ -71,7 +84,7 @@ for (const [esquema, sufixo] of [["light", "claro"], ["dark", "escuro"]] as cons
       const pendencia = itens.nth(indice).getByRole("button");
       await pendencia.click();
       await expect(pendencia).toHaveAttribute("aria-pressed", "true");
-      await expect(page).toHaveScreenshot(`grade-manual-escolhida-${sufixo}.png`, { fullPage: true });
+      await capturar(page, `grade-manual-escolhida-${sufixo}.png`, { fullPage: true });
     });
   });
 }
