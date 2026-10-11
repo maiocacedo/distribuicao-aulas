@@ -51,11 +51,9 @@ interface PlanoDeAulas {
   trocadas: number;
   /** Dessas, as que estavam fixadas. */
   fixadas: number;
-  /** Alguma aula foi apagada: a confirmação já contou tudo, o aviso depois repetiria. */
-  apagou: boolean;
 }
 
-const SEM_MUDANCA: PlanoDeAulas = { instrucoes: [], trocadas: 0, fixadas: 0, apagou: false };
+const SEM_MUDANCA: PlanoDeAulas = { instrucoes: [], trocadas: 0, fixadas: 0 };
 
 export default function Salas() {
   const confirmar = useConfirmar();
@@ -230,7 +228,6 @@ export default function Salas() {
       ],
       trocadas: trocas.length,
       fixadas: trocas.filter((t) => t.item.a.fixada).length,
-      apagou: semSala.length > 0,
     };
   }
 
@@ -276,9 +273,10 @@ export default function Salas() {
     // falhar, a sala está salva e o formulário já fechou; a falha é da lista e
     // aparece na página, não num diálogo que não existe mais.
     setEdicao(null);
-    // Aula que trocou de sala sem ninguém ter pedido: a tela conta. Se alguma
-    // foi apagada, a confirmação já disse tudo (inclusive as que trocam).
-    if (plano.trocadas > 0 && !plano.apagou)
+    // Aula que trocou de sala sem ninguém ter pedido: a tela conta, e conta
+    // também quando a mesma gravação apagou outras (o diálogo só avisou do que
+    // ia acontecer; o aviso diz o que aconteceu, com as fixadas).
+    if (plano.trocadas > 0)
       avisar.sucesso(
         `${plano.trocadas} aula(s) mudaram de sala`,
         plano.fixadas ? `${plano.fixadas} delas estavam fixadas.` : undefined,
@@ -397,7 +395,7 @@ export default function Salas() {
                 "Nenhuma sala cadastrada. Disciplinas que não ocupam sala não precisam de nenhuma aqui."
               ) : (
                 <>
-                  Nenhuma sala com esses filtros.{" "}
+                  Nenhuma sala encontrada.{" "}
                   <Button
                     variant="link"
                     onClick={() => {
@@ -405,7 +403,7 @@ export default function Salas() {
                       setBusca("");
                     }}
                   >
-                    Limpar filtros
+                    Limpar busca e filtros
                   </Button>
                 </>
               )}

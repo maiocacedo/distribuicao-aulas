@@ -33,8 +33,30 @@ test.describe("Salas", () => {
     await page.getByRole("button", { name: "Filtrar por Tipo" }).click();
     await page.getByRole("checkbox", { name: "Outro" }).check();
     await page.keyboard.press("Escape");
-    await expect(page.getByText("Nenhuma sala com esses filtros.")).toBeVisible();
-    await page.getByRole("button", { name: "Limpar filtros" }).first().click();
+    await expect(page.getByText("Nenhuma sala encontrada.")).toBeVisible();
+    await page.getByRole("button", { name: "Limpar busca e filtros" }).click();
     await expect(page.getByText("3 de 3")).toBeVisible();
+  });
+
+  test("busca sem resultado oferece limpar a busca", async ({ page }) => {
+    await irPara(page, "Salas");
+    const busca = page.getByLabel("Buscar");
+    await busca.fill("zzzz");
+    await expect(page.getByText("Nenhuma sala encontrada.")).toBeVisible();
+    await page.getByRole("button", { name: "Limpar busca e filtros" }).click();
+    await expect(busca).toHaveValue("");
+    await expect(page.getByText("3 de 3")).toBeVisible();
+  });
+
+  test("remover um chip pelo teclado devolve o foco ao botão do filtro", async ({ page }) => {
+    await irPara(page, "Salas");
+    await page.getByRole("button", { name: "Filtrar por Tipo" }).click();
+    await page.getByRole("checkbox", { name: "Laboratório" }).check();
+    await page.keyboard.press("Escape");
+    const chip = page.getByRole("button", { name: "Remover filtro Tipo: Laboratório" });
+    await chip.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByText("3 de 3")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Filtrar por Tipo" })).toBeFocused();
   });
 });

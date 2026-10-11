@@ -55,7 +55,12 @@ export function BotaoIcone({
               ? // O desenho do `disabled` do `Button`: texto e borda rebaixados,
                 // fundo do poço, sem `opacity`. O pouso não muda nada.
                 "cursor-default border-line bg-poco text-tx3 hover:bg-poco hover:text-tx3"
-              : ["text-tx2", perigo && "hover:text-destructive"],
+              : perigo
+                ? // Sempre da cor de negativo, como na interface antiga: a ação
+                  // destrutiva se distingue sem depender do pouso. O `hover` repete a
+                  // cor porque o `ghost` do `Button` a trocaria.
+                  "text-destructive hover:text-destructive"
+                : "text-tx2",
             className,
           )}
         >

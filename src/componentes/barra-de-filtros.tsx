@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import type { ColumnFiltersState } from "@tanstack/react-table";
 import { ListFilter, X } from "lucide-react";
 import { Badge } from "@/componentes/ui/badge";
@@ -31,11 +32,24 @@ export function BarraDeFiltros({
   valor: ColumnFiltersState;
   aoMudar: (v: ColumnFiltersState) => void;
 }) {
+  // Os botões de filtro, por `id`: o chip e o "Limpar filtros" somem ao serem
+  // acionados, e o foco deles não pode cair no `body`.
+  const botoes = useRef(new Map<string, HTMLButtonElement>());
   const marcados = (id: string) => (valor.find((f) => f.id === id)?.value as Valor[] | undefined) ?? [];
 
   function definir(id: string, valores: Valor[]) {
     const resto = valor.filter((f) => f.id !== id);
     aoMudar(valores.length ? [...resto, { id, value: valores }] : resto);
+  }
+
+  function remover(id: string, valores: Valor[]) {
+    definir(id, valores);
+    botoes.current.get(id)?.focus();
+  }
+
+  function limpar() {
+    aoMudar([]);
+    botoes.current.get(definicoes[0]?.id ?? "")?.focus();
   }
 
   const chips = definicoes.flatMap((d) =>
@@ -56,6 +70,10 @@ export function BarraDeFiltros({
                 variant="outline"
                 size="sm"
                 aria-label={`Filtrar por ${d.titulo}`}
+                ref={(el) => {
+                  if (el) botoes.current.set(d.id, el);
+                  else botoes.current.delete(d.id);
+                }}
                 className={cn(n > 0 && "border-acc-line bg-acc-bg")}
               >
                 <ListFilter className="size-3" aria-hidden />
@@ -104,7 +122,7 @@ export function BarraDeFiltros({
             aria-label={`Remover filtro ${d.titulo}: ${rotulo}`}
             className="cursor-pointer rounded-sm p-0.5 hover:bg-accent"
             onClick={() =>
-              definir(
+              remover(
                 d.id,
                 marcados(d.id).filter((x) => x !== v),
               )
@@ -116,7 +134,7 @@ export function BarraDeFiltros({
       ))}
 
       {chips.length > 0 && (
-        <Button variant="ghost" size="sm" onClick={() => aoMudar([])}>
+        <Button variant="ghost" size="sm" onClick={limpar}>
           Limpar filtros
         </Button>
       )}

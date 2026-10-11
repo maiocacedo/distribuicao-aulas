@@ -86,3 +86,62 @@ test.describe("mudar o tipo da sala sem outra sala do tipo", () => {
     expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE sala_id = 1")).toBe(1);
   });
 });
+
+test.describe("mudar o tipo da sala com aulas fixadas", () => {
+  // As duas aulas de Cálculo estão em A01; uma delas está fixada. A02 é do mesmo tipo e está livre.
+  test.use({
+    semMassa: true,
+    semente: `
+      UPDATE cursos SET nome = 'Alfa' WHERE id = 1;
+      INSERT INTO periodos (curso_id, numero, turno) VALUES (1, 1, 'manha');
+      INSERT INTO professores (id, nome) VALUES (1, 'Ana Souza');
+      INSERT INTO salas (id, nome, tipo, capacidade) VALUES (1, 'A01', 'Sala de Aula', 40), (2, 'A02', 'Sala de Aula', 40);
+      INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais, exige_sala, tipo_sala)
+        VALUES (1, 1, 'Cálculo', 1, 2, 1, 'Sala de Aula');
+      INSERT INTO disciplina_professores (disciplina_id, professor_id, aulas) VALUES (1, 1, 2);
+      INSERT INTO alocacoes (curso_id, periodo, dia, hora, disciplina_id, professor_id, sala_id, fixada) VALUES
+        (1, 1, 0, 0, 1, 1, 1, 1), (1, 1, 0, 1, 1, 1, 1, 0);`,
+  });
+
+  test("o aviso conta as aulas fixadas que mudaram de sala", async ({ page }) => {
+    await mudarTipo(page, "A01", "Laboratório");
+    await page.getByRole("button", { name: "Salvar" }).click();
+    await expect(page.getByText("2 aula(s) mudaram de sala")).toBeVisible();
+    await expect(page.getByText("1 delas estavam fixadas.")).toBeVisible();
+  });
+});
+
+test.describe("mudar o tipo da sala quando só algumas aulas acham outra sala", () => {
+  // A02 é do tipo antigo, mas está ocupada na terça M1 por uma aula de outro curso:
+  // a aula de segunda troca para A02, a de terça não tem para onde ir e é apagada.
+  test.use({
+    semMassa: true,
+    semente: `
+      UPDATE cursos SET nome = 'Alfa' WHERE id = 1;
+      INSERT INTO cursos (id, nome) VALUES (2, 'Beta');
+      INSERT INTO periodos (curso_id, numero, turno) VALUES (1, 1, 'manha'), (2, 1, 'manha');
+      INSERT INTO professores (id, nome) VALUES (1, 'Ana Souza'), (2, 'Bruno Lima');
+      INSERT INTO salas (id, nome, tipo, capacidade) VALUES (1, 'A01', 'Sala de Aula', 40), (2, 'A02', 'Sala de Aula', 40);
+      INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais, exige_sala, tipo_sala) VALUES
+        (1, 1, 'Cálculo', 1, 2, 1, 'Sala de Aula'), (2, 2, 'Física', 1, 1, 1, 'Sala de Aula');
+      INSERT INTO disciplina_professores (disciplina_id, professor_id, aulas) VALUES (1, 1, 2), (2, 2, 1);
+      INSERT INTO alocacoes (curso_id, periodo, dia, hora, disciplina_id, professor_id, sala_id) VALUES
+        (1, 1, 0, 0, 1, 1, 1), (1, 1, 1, 0, 1, 1, 1), (2, 1, 1, 0, 2, 2, 2);`,
+  });
+
+  test("a aula que acha sala é trocada, a que não acha é apagada, e o aviso da troca aparece", async ({
+    page,
+    banco,
+  }) => {
+    const mensagens = await responderConfirmacoes(page);
+    await mudarTipo(page, "A01", "Laboratório");
+    await page.getByRole("button", { name: "Salvar" }).click();
+    await expect.poll(() => contar(banco, "SELECT tipo = 'Laboratório' FROM salas WHERE id = 1")).toBe(1);
+    expect(mensagens).toHaveLength(1);
+    expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE dia = 0 AND sala_id = 2")).toBe(1);
+    expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE dia = 1 AND curso_id = 1")).toBe(0);
+    // A aula de outro curso na A02 não foi tocada.
+    expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE curso_id = 2 AND sala_id = 2")).toBe(1);
+    await expect(page.getByText("1 aula(s) mudaram de sala")).toBeVisible();
+  });
+});
