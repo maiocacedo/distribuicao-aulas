@@ -154,7 +154,7 @@ o usuário".
 5. **Altura de linha `normal` na base**, como nas telas antigas; o padrão do Tailwind
    (1,5) deixava toda tela convertida mais alta que a referência.
 6. **`color-scheme: light dark` na raiz**: no tema escuro a barra de rolagem da janela
-   passa a ser escura. As capturas não veem; conferir na janela real.
+   passa a ser escura. As capturas não veem. O usuário viu e aprovou.
 7. **`Seletor` no desenho do `Input`** (fundo de poço), como eram `input` e `select` nos
    formulários antigos. O da barra lateral sobrescreve no ponto de uso.
 8. **O foco volta ao elemento de origem** ao fechar diálogo de formulário e confirmação.
@@ -197,14 +197,14 @@ o usuário".
 - **Nunca `font-medium`** (nesta fonte sai como semi-negrito) **nem `leading-[razão]`**
   (1 ou 2 px de diferença se acertam no preenchimento).
 
-## Decisões de produto esperando o usuário
+## Decisões de produto do usuário (2026-10-11)
 
-Nenhuma bloqueia a execução.
+As duas que estavam em aberto foram respondidas. Entram no spec, na tabela "Decisões de
+produto", junto com as decisões da execução (tarefa 17).
 
-1. **"Remover" do último curso.** Hoje continua clicável e avisa por toast, como antes.
-   Opções: (1) manter; (2) desabilitar com o motivo na dica.
-2. **Barra de rolagem escura no tema escuro** (decisão 6 acima): conferir na janela real
-   se agrada.
+1. **"Remover" do último curso: manter por enquanto.** Continua clicável e avisa por
+   toast, como antes. Desabilitar com o motivo na dica fica para depois, se ele pedir.
+2. **Barra de rolagem escura no tema escuro: agrada.** Fica como está (decisão 6 acima).
 
 ## Restrições que continuam valendo
 
@@ -227,7 +227,7 @@ Cópia da lista de `.superpowers/sdd/progress.md` na data deste handoff.
 - T1 · testes/e2e/paginas.ts, ramo nativo de `escolher`: lê as opções uma vez, sem esperar (some na tarefa 17, quando o ramo nativo sai).
 - T1 · localizador do Período do diálogo repetido em bugs-conhecidos.spec.ts e disciplinas.spec.ts.
 - T2 · testes/visual/telas.spec.ts:30-31 e :53: comentários longos ou na mesma linha da entrada; :77-83 `allInnerTexts()` só é seguro por causa do gate anterior (falta comentário ligando os dois).
-- T3 · tema.css: `color-scheme: light dark` no :root escurece a barra de rolagem da janela no tema escuro (fora de .legado). Registrar no spec como decisão; conferir na janela real.
+- T3 · tema.css: `color-scheme: light dark` no :root escurece a barra de rolagem da janela no tema escuro (fora de .legado). Aprovado pelo usuário em 2026-10-11; só falta registrar no spec.
 - T3 · ilhas `.legado` dentro de diálogo novo (tarefa 8, RequisitoSala em Tipos) herdam text-align/font-weight/letter-spacing do ancestral Tailwind; avaliar `:where(.legado) { all: initial; display: block; }` no contêiner.
 - T3 · `npm run typecheck` não cobre vite.config.ts nem vitest.config.ts (lacuna anterior ao subprojeto).
 - T4 · src/paginas/Instituicao.tsx: `removerPadrao` ficou entre o JSDoc de `partes` e a função (corrigir na tarefa 9, que converte a tela).
@@ -254,5 +254,5 @@ Cópia da lista de `.superpowers/sdd/progress.md` na data deste handoff.
 - T7 · o teste das fixadas em salas.spec.ts já passava antes (só fixa o comportamento).
 - T8 · sem e2e para as validações novas de inteiro (máximo de dias em Professores, capacidade em Salas, conversão decimal em Cursos).
 - T8 · Cursos.tsx: `aoMudarLista()` não é aguardado nem tratado dentro de `carregar` (já era assim).
-- T8 · decisão de produto em aberto: "Remover" do último curso desabilitado com motivo, em vez de toast?
+- T8 · "Remover" do último curso: decidido pelo usuário em 2026-10-11, manter o toast por enquanto. Nada a fazer.
 - T9 · test:visual teve falhas de 1 pixel em telas não tocadas (Automática claro, Salas claro), em rodadas diferentes; passou ao repetir. Com maxDiffPixels 0 a rede fica sujeita a esse ruído: avaliar uma folga mínima de pixels.
