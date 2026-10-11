@@ -6,6 +6,11 @@ import { cn } from "@/lib/utils";
 /**
  * Ação como ícone. O rótulo vive na dica para quem passa o mouse e no
  * `aria-label` para quem não usa o mouse.
+ *
+ * Desabilitado é `aria-disabled`, não o atributo `disabled`: um botão
+ * `disabled` não recebe foco nem pouso, a dica não abre, e a regra do design
+ * é que o desabilitado explique por quê. Assim ele continua alcançável, a
+ * dica mostra o `motivo` e só o clique deixa de agir.
  */
 export function BotaoIcone({
   rotulo,
@@ -13,31 +18,51 @@ export function BotaoIcone({
   aoClicar,
   perigo,
   desabilitado,
+  motivo,
   className,
 }: {
+  /** Nome da ação. É sempre o nome acessível do botão, habilitado ou não. */
   rotulo: string;
   icone: LucideIcon;
   aoClicar: () => void;
   perigo?: boolean;
   desabilitado?: boolean;
+  /** Por que está desabilitado. Aparece na dica, no lugar do rótulo. */
+  motivo?: string;
   className?: string;
 }) {
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
+      <TooltipTrigger
+        asChild
+        // A dica abre com o foco do teclado, não com o foco que um diálogo
+        // devolve ao fechar: depois de um clique ela ficaria aberta sobre a
+        // linha, sem o mouse por perto, até o foco sair dali.
+        onFocus={(e) => {
+          if (!e.currentTarget.matches(":focus-visible")) e.preventDefault();
+        }}
+      >
         <Button
           type="button"
           variant="ghost"
           size="icon"
           aria-label={rotulo}
-          disabled={desabilitado}
-          onClick={aoClicar}
-          className={cn("size-6 text-tx2", perigo && "hover:text-destructive", className)}
+          aria-disabled={desabilitado || undefined}
+          onClick={desabilitado ? undefined : aoClicar}
+          className={cn(
+            "size-6",
+            desabilitado
+              ? // O desenho do `disabled` do `Button`: texto e borda rebaixados,
+                // fundo do poço, sem `opacity`. O pouso não muda nada.
+                "cursor-default border-line bg-poco text-tx3 hover:bg-poco hover:text-tx3"
+              : ["text-tx2", perigo && "hover:text-destructive"],
+            className,
+          )}
         >
           <Icone className="size-3.5" aria-hidden />
         </Button>
       </TooltipTrigger>
-      <TooltipContent>{rotulo}</TooltipContent>
+      <TooltipContent>{(desabilitado && motivo) || rotulo}</TooltipContent>
     </Tooltip>
   );
 }

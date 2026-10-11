@@ -19,7 +19,11 @@ import { cn } from "@/lib/utils";
 declare module "@tanstack/react-table" {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   interface ColumnMeta<TData extends RowData, TValue> {
-    /** Coluna numérica: alinha à direita e começa ordenando do maior para o menor. */
+    /**
+     * Coluna numérica: alinha à direita, em fonte de largura fixa. A marca é só
+     * desenho. Começar a ordenar do maior para o menor é outra opção, que quem
+     * define a coluna põe ao lado: `sortDescFirst: true`.
+     */
     numerico?: boolean;
     /** Coluna curta, que fica melhor centrada que encostada na borda. */
     centro?: boolean;
@@ -42,9 +46,20 @@ export function pertence<T>(linha: Row<T>, coluna: string, valores: unknown[]): 
   return valores.length === 0 || valores.includes(linha.getValue(coluna));
 }
 
-// Uma lista nova a cada desenho faria o TanStack refiltrar tudo sem nada ter mudado.
+// O TanStack compara os filtros por referência: uma lista nova a cada desenho
+// o faria refiltrar e reordenar a tabela inteira em todo desenho, sem nada ter
+// mudado. O mesmo vale para o que a tela passa (ver `useTabela`).
 const SEM_FILTROS: ColumnFiltersState = [];
 
+/**
+ * Ordenação, busca e filtros de uma lista.
+ *
+ * `dados`, `colunas` e `filtros` têm de ter referência estável: estado,
+ * `useMemo` ou constante de módulo, nunca uma lista montada no corpo do
+ * componente. O TanStack guarda o modelo filtrado e o ordenado e só os refaz
+ * quando a referência muda; com referência nova a cada desenho, filtra e
+ * ordena a lista inteira a cada desenho.
+ */
 export function useTabela<T>({
   dados,
   colunas,
@@ -54,20 +69,39 @@ export function useTabela<T>({
   textoDeBusca,
   filtros = SEM_FILTROS,
 }: {
+  /**
+   * Referência estável: o estado da tela, não uma lista filtrada ou mapeada no
+   * corpo do componente (se precisar derivar, `useMemo`).
+   *
+   * Registro com `id` é identificado por ele, e o `id` tem de ser único na
+   * lista; sem `id`, a linha é a posição.
+   */
   dados: T[];
   /**
-   * Definidas fora do componente ou com `useMemo`: o TanStack desenha cada
-   * célula como um componente, e uma coluna recriada a cada desenho remonta as
-   * células (o botão que tinha o foco deixa de existir).
+   * Referência estável: fora do componente ou com `useMemo`. O TanStack
+   * desenha cada célula como um componente, e uma coluna recriada a cada
+   * desenho remonta as células (o botão que tinha o foco deixa de existir).
+   *
+   * Ao menos uma coluna precisa de `accessorKey` ou `accessorFn`: numa tabela
+   * só de colunas de desenho (`id` e `cell`), o TanStack não aplica a busca.
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   colunas: ColumnDef<T, any>[];
   ordemInicial: SortingState;
-  /** Texto que desempata linhas iguais na coluna ordenada, sempre crescente. */
+  /**
+   * Texto que desempata linhas iguais na coluna ordenada, sempre crescente.
+   * Depende só da linha: o resultado é guardado enquanto `dados` não muda, e
+   * um estado da tela usado aqui ficaria com o valor antigo.
+   */
   desempate: (l: T) => string;
   busca?: string;
-  /** Tudo em que a busca procura, numa linha só de texto. */
+  /**
+   * Tudo em que a busca procura, numa linha só de texto. Depende só da linha,
+   * pelo mesmo motivo do `desempate`: a busca só é refeita quando mudam os
+   * dados, o texto buscado ou os filtros.
+   */
   textoDeBusca?: (l: T) => string;
+  /** Referência estável: estado ou `useMemo`, nunca uma lista montada na chamada. */
   filtros?: ColumnFiltersState;
 }): Tabela<T> {
   const [ordem, setOrdem] = useState<SortingState>(ordemInicial);
@@ -87,9 +121,25 @@ export function useTabela<T>({
     state: { sorting: ordem, globalFilter: busca.trim(), columnFilters: filtros },
     onSortingChange: setOrdem,
     enableSortingRemoval: false,
+    // Um critério por vez, como nas listas antigas (sem Shift + clique).
+    enableMultiSort: false,
+    // Sem isto o TanStack escolhe o primeiro sentido pelo valor da primeira
+    // linha: uma coluna de texto que começasse com um nulo abriria do fim para
+    // o começo. O `sortDescFirst: true` da coluna numérica continua valendo.
+    sortDescFirst: false,
+    // Não há paginação. Ligado (o padrão), todo recálculo do modelo filtrado
+    // ou ordenado agenda um `setState` para voltar à primeira página; com
+    // `dados` ou `filtros` de referência instável isso vira recálculo, novo
+    // desenho, recálculo, sem fim e sem erro na tela.
+    autoResetPageIndex: false,
     defaultColumn: {
       sortingFn: (a, b, id) => compararValores(a.getValue(id), b.getValue(id)),
     },
+    // A linha é o registro, não a posição dele na lista. Pela posição, depois
+    // de remover ou renomear, o React reaproveitaria a linha de um registro
+    // para desenhar outro, e o foco devolvido ao botão "Remover" de quem saiu
+    // ficaria no "Remover" de quem subiu para o lugar.
+    getRowId: (linha, indice) => String((linha as { id?: unknown }).id ?? indice),
     getColumnCanGlobalFilter: () => true,
     globalFilterFn: (linha, _coluna, valor: string) =>
       !textoDeBusca || normalizar(textoDeBusca(linha.original)).includes(normalizar(valor)),
@@ -98,10 +148,6 @@ export function useTabela<T>({
     getFilteredRowModel: getFilteredRowModel(),
   });
 }
-
-// Número em fonte de largura fixa, como nas listas antigas: os dígitos de uma
-// coluna caem um embaixo do outro.
-const FONTE_DE_NUMERO = "font-[family-name:Consolas,'Cascadia_Mono',monospace]";
 
 /**
  * A lista de uma tela: painel com cabeçalho ordenável e uma linha por registro.
@@ -130,13 +176,17 @@ export function TabelaDados<T>({ tabela, vazio }: { tabela: Tabela<T>; vazio: Re
                     key={h.id}
                     aria-sort={sentido === "asc" ? "ascending" : sentido === "desc" ? "descending" : undefined}
                     className={cn(
-                      meta?.numerico && ["w-[1%] pl-5 text-right", FONTE_DE_NUMERO],
+                      // Fonte de largura fixa (`--font-mono` do tema), como nas
+                      // listas antigas: os dígitos caem um embaixo do outro.
+                      meta?.numerico && "w-[1%] pl-5 text-right font-mono",
                       meta?.centro && "pl-2.5 text-center",
                       h.column.id === "acoes" && "w-[1%]",
                     )}
                   >
                     {h.column.getCanSort() ? (
                       <button
+                        // Sem isto, dentro de um `<form>` o clique o enviaria.
+                        type="button"
                         className={cn(
                           // O botão não herda a caixa alta do cabeçalho: repete.
                           // `align-top` tira o botão da linha de base: alinhado
@@ -181,7 +231,7 @@ export function TabelaDados<T>({ tabela, vazio }: { tabela: Tabela<T>; vazio: Re
                   <TableCell
                     key={c.id}
                     className={cn(
-                      meta?.numerico && ["w-[1%] pl-5 text-right text-[12px] whitespace-nowrap tabular-nums", FONTE_DE_NUMERO],
+                      meta?.numerico && "w-[1%] pl-5 text-right font-mono text-[12px] whitespace-nowrap tabular-nums",
                       meta?.centro && "pl-2.5 text-center",
                       c.column.id === "acoes" && "w-[1%] whitespace-nowrap",
                     )}

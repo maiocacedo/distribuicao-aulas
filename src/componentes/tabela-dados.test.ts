@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { compararValores, normalizar } from "./tabela-dados";
+import type { Row } from "@tanstack/react-table";
+import { compararValores, normalizar, pertence } from "./tabela-dados";
 
 describe("normalizar", () => {
   it("ignora acento e caixa", () => {
@@ -19,5 +20,25 @@ describe("compararValores", () => {
 
   it("trata nulo como texto vazio", () => {
     expect(compararValores(null, "a")).toBeLessThan(0);
+  });
+});
+
+describe("pertence", () => {
+  // Da linha do TanStack o filtro só usa `getValue`.
+  const linha = (valor: unknown) => ({ getValue: () => valor }) as unknown as Row<unknown>;
+
+  it("sem nada marcado, toda linha passa", () => {
+    expect(pertence(linha("manhã"), "turno", [])).toBe(true);
+    expect(pertence(linha(null), "turno", [])).toBe(true);
+  });
+
+  it("passa a linha cujo valor está entre os marcados", () => {
+    expect(pertence(linha("manhã"), "turno", ["tarde", "manhã"])).toBe(true);
+    expect(pertence(linha(2), "periodo", [1, 2])).toBe(true);
+  });
+
+  it("não passa a linha cujo valor não foi marcado", () => {
+    expect(pertence(linha("noite"), "turno", ["tarde", "manhã"])).toBe(false);
+    expect(pertence(linha(null), "turno", ["manhã"])).toBe(false);
   });
 });

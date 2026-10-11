@@ -38,10 +38,17 @@ export function useConfirmar(): Confirmar {
 export function ProvedorDeConfirmacao({ children }: { children: ReactNode }) {
   const [pedido, setPedido] = useState<OpcoesDeConfirmacao | null>(null);
   const resolver = useRef<((aceito: boolean) => void) | null>(null);
+  // Quem tinha o foco quando a confirmação foi pedida: o botão "Remover" da
+  // linha, um campo do formulário que o Esc quis fechar.
+  const origem = useRef<Element | null>(null);
 
   const confirmar = useCallback<Confirmar>(
     (o) =>
       new Promise((resolve) => {
+        // Só o primeiro pedido de uma sequência guarda a origem. Num pedido
+        // feito com outro ainda aberto, ou logo depois de outro ser aceito, o
+        // foco está no diálogo anterior ou já caiu no `body`.
+        origem.current ??= document.activeElement;
         // Um pedido novo por cima de outro ainda aberto recusa o anterior;
         // sem isso a promessa dele ficaria pendente para sempre.
         resolver.current?.(false);
@@ -70,6 +77,19 @@ export function ProvedorDeConfirmacao({ children }: { children: ReactNode }) {
             // O `Modal` antigo escuta Esc na janela; sem isto, cancelar a
             // confirmação com Esc fecharia também o formulário por baixo.
             onEscapeKeyDown={(e) => e.stopPropagation()}
+            // O Radix só devolve o foco a um `AlertDialogTrigger`, e este
+            // diálogo é aberto por promessa: sem isto o foco cairia no `body`,
+            // e recusar o descarte de um formulário tiraria o foco dele. Se a
+            // origem saiu do documento (a linha removida, o formulário
+            // descartado), o foco fica com quem o pegou.
+            onCloseAutoFocus={(e) => {
+              e.preventDefault();
+              // Outra confirmação já foi pedida: a origem vale até a última.
+              if (resolver.current) return;
+              const elemento = origem.current;
+              origem.current = null;
+              if (elemento instanceof HTMLElement && elemento.isConnected) elemento.focus();
+            }}
           >
             <AlertDialogHeader>
               <AlertDialogTitle>{pedido.titulo}</AlertDialogTitle>

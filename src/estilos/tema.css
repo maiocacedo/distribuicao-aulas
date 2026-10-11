@@ -137,6 +137,9 @@
   --color-sombra: var(--shadow);
 
   --font-sans: "Segoe UI", system-ui, sans-serif;
+  /* Largura fixa para número e código: os dígitos de uma coluna caem um
+     embaixo do outro. A mesma pilha do `.num` das telas antigas. */
+  --font-mono: Consolas, "Cascadia Mono", monospace;
 
   /* A densidade do design: 13 px de base, controles com texto de 12,5 px. */
   --text-xs: 11px;

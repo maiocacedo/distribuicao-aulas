@@ -23,8 +23,15 @@ function SelectValue({
 
 /*
  * Ajustes sobre o que o shadcn gera, pelas regras do design:
- * - densidade: 28 px de altura e texto de 12,5 px, como o botão;
- * - desabilitado rebaixa texto e borda, nunca `opacity`;
+ * - o gatilho tem o desenho do `Input` (28 px, texto de 12,5 px, fundo do
+ *   poço, contorno de controle, 8 px de preenchimento contando a borda, e o
+ *   pouso escurece o contorno): nas telas antigas `input`, `select` e
+ *   `textarea` eram uma regra só, e num formulário os três ficam lado a lado.
+ *   Quem quer outro desenho sobrescreve no ponto de uso, como o seletor de
+ *   curso da barra lateral;
+ * - desabilitado rebaixa texto e borda, nunca `opacity`. O `disabled:bg-poco`
+ *   repete o fundo padrão de propósito: mantém o poço no gatilho desabilitado
+ *   de quem trocou o fundo no ponto de uso;
  * - sem anel próprio de foco: vale o anel global do tema (`:focus-visible`);
  * - a seta usa o terciário em vez de `opacity-50`, pela mesma regra.
  */
@@ -37,7 +44,7 @@ function SelectTrigger({
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
       className={cn(
-        "flex h-7 w-fit items-center justify-between gap-2 rounded-md border border-input bg-panel px-2 text-sm whitespace-nowrap transition-colors hover:bg-accent disabled:pointer-events-none disabled:border-line disabled:bg-poco disabled:text-tx3 aria-invalid:border-destructive data-[placeholder]:text-tx3 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+        "flex h-7 w-fit items-center justify-between gap-2 rounded-md border border-input bg-poco px-[7px] text-sm whitespace-nowrap transition-colors hover:border-tx2 disabled:pointer-events-none disabled:border-line disabled:bg-poco disabled:text-tx3 aria-invalid:border-destructive data-[placeholder]:text-tx3 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2 [&_svg]:pointer-events-none [&_svg]:shrink-0",
         className
       )}
       {...props}

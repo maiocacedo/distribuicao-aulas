@@ -11,7 +11,9 @@ import { Button } from "@/componentes/ui/button"
  *   preenchimento do modal antigo (16 px em cima, 20 px dos lados e embaixo) e o
  *   fio como sombra interna: o conteúdo fica com os mesmos 500 px de largura;
  * - não passa de 85% da altura da janela: o que sobra rola dentro dele;
- * - o "×" rebaixa a cor em vez de usar `opacity`, e se chama "Fechar";
+ * - o "×" rebaixa a cor em vez de usar `opacity`, e se chama "Fechar". A área
+ *   de clique tem 24 px em volta do ícone de 16: o botão sai 4 px para cima e
+ *   para a direita e o ícone fica no mesmo lugar;
  * - sem anel próprio de foco: vale o anel global do tema (`:focus-visible`).
  */
 
@@ -78,7 +80,7 @@ function DialogContent({
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"
-            className="absolute top-[18px] right-5 rounded-sm text-tx3 transition-colors hover:text-foreground disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
+            className="absolute top-3.5 right-4 flex size-6 items-center justify-center rounded-sm text-tx3 transition-colors hover:text-foreground disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
           >
             <XIcon aria-hidden />
             <span className="sr-only">Fechar</span>

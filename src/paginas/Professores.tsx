@@ -39,6 +39,11 @@ const vazio = (): Professor => ({
   observacao: null,
 });
 
+/** Mensagem de validação por campo do formulário; fica junto do campo, não no alerta. */
+type ErrosDeCampo = Partial<Record<"nome", string>>;
+
+const SEM_ERROS: ErrosDeCampo = {};
+
 /** Zero vira travessão: numa coluna de contagens, o que salta é quem tem algo. */
 const contagem = (n: number) => n || "—";
 
@@ -48,6 +53,7 @@ export default function Professores() {
   const [edicao, setEdicao] = useState<Professor | null>(null);
   const [erro, setErro] = useState("");
   const [erroDoFormulario, setErroDoFormulario] = useState("");
+  const [errosDeCampo, setErrosDeCampo] = useState<ErrosDeCampo>(SEM_ERROS);
   const [salvando, setSalvando] = useState(false);
   const [carregando, setCarregando] = useState(true);
   const [busca, setBusca] = useState("");
@@ -67,21 +73,28 @@ export default function Professores() {
         ORDER BY p.nome COLLATE NOCASE`),
     );
     setCarregando(false);
+    setErro("");
   }, []);
 
+  // A falha de carga aparece na página, venha da abertura da tela ou da recarga
+  // depois de gravar: nos dois casos o que está errado é a lista.
+  const recarregar = useCallback(() => carregar().catch((e) => setErro(String(e))), [carregar]);
+
   useEffect(() => {
-    carregar().catch((e) => setErro(String(e)));
-  }, [carregar]);
+    void recarregar();
+  }, [recarregar]);
 
   const abrir = useCallback((p: Professor) => {
     setErroDoFormulario("");
+    setErrosDeCampo(SEM_ERROS);
     setEdicao(p);
   }, []);
 
   async function salvar(p: Professor) {
     setErroDoFormulario("");
     const nome = p.nome.trim();
-    if (!nome) return setErroDoFormulario("O nome é obrigatório.");
+    // Validação de campo: a mensagem vai para o campo e o diálogo leva o foco até ele.
+    if (!nome) return setErrosDeCampo({ nome: "O nome é obrigatório." });
     setSalvando(true);
     try {
       // D15 é regra dura: baixar o máximo abaixo do que a grade já usa deixaria
@@ -111,13 +124,16 @@ export default function Professores() {
           [nome, p.pref_dias, p.pref_dias_peso, p.max_dias_semana, p.observacao],
         );
       }
-      setEdicao(null);
-      await carregar();
     } catch (e) {
-      setErroDoFormulario(mensagemErro(e, "O professor"));
+      return setErroDoFormulario(mensagemErro(e, "O professor"));
     } finally {
       setSalvando(false);
     }
+    // Só chega aqui o que foi gravado. A recarga fica fora do `try`: se ela
+    // falhar, o professor está salvo e o formulário já fechou; a falha é da
+    // lista e aparece na página, não num diálogo que não existe mais.
+    setEdicao(null);
+    await recarregar();
   }
 
   const remover = useCallback(
@@ -132,12 +148,13 @@ export default function Professores() {
       if (!(await confirmar({ titulo: `Remover ${l.nome}?`, confirmar: "Remover professor", perigo: true }))) return;
       try {
         await executar("DELETE FROM professores WHERE id = ?", [l.id]);
-        await carregar();
       } catch (e) {
-        avisar.erro(mensagemErro(e, "O professor"));
+        return avisar.erro(mensagemErro(e, "O professor"));
       }
+      // Fora do `try`, como em `salvar`: falha da recarga não é falha da remoção.
+      await recarregar();
     },
-    [confirmar, carregar],
+    [confirmar, recarregar],
   );
 
   // As colunas não podem ser recriadas a cada desenho: ver `useTabela`.
@@ -253,9 +270,18 @@ export default function Professores() {
           aoFechar={() => setEdicao(null)}
           aoSalvar={() => void salvar(edicao)}
         >
-          <Campo rotulo="Nome">
+          <Campo rotulo="Nome" erro={errosDeCampo.nome}>
             {(a) => (
-              <Input {...a} autoFocus value={edicao.nome} onChange={(e) => setEdicao({ ...edicao, nome: e.target.value })} />
+              <Input
+                {...a}
+                autoFocus
+                value={edicao.nome}
+                onChange={(e) => {
+                  setEdicao({ ...edicao, nome: e.target.value });
+                  // Quem voltou a digitar no campo já leu a mensagem dele.
+                  setErrosDeCampo((erros) => ({ ...erros, nome: undefined }));
+                }}
+              />
             )}
           </Campo>
 
