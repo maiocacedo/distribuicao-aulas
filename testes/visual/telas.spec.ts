@@ -35,9 +35,21 @@ for (const [esquema, sufixo] of [["light", "claro"], ["dark", "escuro"]] as cons
       await expect(page).toHaveScreenshot(`disciplinas-editor-${sufixo}.png`);
     });
 
-    test("Manual, pendência escolhida", async ({ page }) => {
+    test("Manual, pendência escolhida", async ({ page, banco }) => {
+      // A massa tem o 1º período fechado. Tirar as aulas da segunda-feira abre
+      // pendências (células aptas e impedidas) e fixar uma aula mostra o cadeado.
+      banco.exec(`
+        DELETE FROM alocacoes WHERE curso_id = 1 AND periodo = 1 AND dia = 0;
+        UPDATE alocacoes SET fixada = 1
+         WHERE rowid = (SELECT rowid FROM alocacoes WHERE curso_id = 1 AND periodo = 1 ORDER BY dia, hora LIMIT 1);
+      `);
+      await page.reload();
       await irPara(page, "Manual");
-      await page.getByRole("main").getByRole("listitem").first().getByRole("button").click();
+      await expect(celula(page, "Segunda", "M1")).toBeVisible();
+      // Primeira pendência incompleta, na ordem da lista (a mesma toda vez).
+      const pendencia = page.getByRole("main").getByRole("listitem").filter({ has: page.locator("button:not(.completa)") }).first().getByRole("button");
+      await pendencia.click();
+      await expect(pendencia).toHaveAttribute("aria-pressed", "true");
       await expect(page).toHaveScreenshot(`grade-manual-escolhida-${sufixo}.png`, { fullPage: true });
     });
   });
