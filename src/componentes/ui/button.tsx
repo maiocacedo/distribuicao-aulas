@@ -12,19 +12,25 @@ import { cn } from "@/lib/utils"
  * - sem anel próprio de foco: vale o anel global do tema (`:focus-visible` em
  *   tema.css), o mesmo desenho em todo controle.
  * A borda transparente existe para o `disabled:border-line` ter onde pintar em
- * toda variante, sem mudar a altura entre habilitado e desabilitado.
+ * toda variante, sem mudar a altura entre habilitado e desabilitado. Ela conta
+ * na largura: o preenchimento é de 11 px para a soma dar os 12 px do botão das
+ * telas antigas, e o botão convertido não empurra o que está ao lado.
+ * Peso: os botões cheios (primário e destrutivo) são semi-negrito e os demais,
+ * normais, como nas telas antigas. O `font-medium` que o shadcn põe em todos
+ * não serve: a fonte do sistema não tem o peso 500 e o navegador o desenha
+ * como semi-negrito, o que deixava "Cancelar" com o peso de "Salvar".
  */
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 rounded-md border border-transparent text-sm font-medium whitespace-nowrap transition-colors disabled:pointer-events-none disabled:border-line disabled:bg-poco disabled:text-tx3 aria-invalid:border-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex shrink-0 items-center justify-center gap-2 rounded-md border border-transparent text-sm font-normal whitespace-nowrap transition-colors disabled:pointer-events-none disabled:border-line disabled:bg-poco disabled:text-tx3 aria-invalid:border-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        default: "bg-primary font-semibold text-primary-foreground hover:bg-primary/90",
         // O texto usa `primary-foreground` (branco no claro, azul-noite no
         // escuro): o `--neg` do escuro é um salmão claro, onde `text-white`
         // daria 2,4:1.
         destructive:
-          "bg-destructive text-primary-foreground hover:bg-destructive/90",
+          "bg-destructive font-semibold text-primary-foreground hover:bg-destructive/90",
         outline: "border-input bg-panel hover:bg-accent hover:text-accent-foreground",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
@@ -32,7 +38,7 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-7 px-3 has-[>svg]:px-2.5",
+        default: "h-7 px-[11px] has-[>svg]:px-[9px]",
         sm: "h-6 gap-1.5 px-2 has-[>svg]:px-1.5",
         icon: "size-7",
       },

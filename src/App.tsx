@@ -77,7 +77,7 @@ const GRUPOS: { titulo: string; paginas: Pagina[] }[] = [
         id: "professores",
         rotulo: "Professores",
         icone: Users,
-        legado: true,
+        legado: false,
         componente: () => <Professores />,
       },
       { id: "salas", rotulo: "Salas", icone: DoorOpen, legado: true, componente: () => <Salas /> },

@@ -203,17 +203,6 @@ table.lista tr:last-child td {
   color: var(--tx3);
 }
 
-.peso {
-  display: inline-block;
-  margin-left: 6px;
-  padding: 0 5px;
-  border-radius: 3px;
-  background: var(--inset);
-  font-size: 10px;
-  color: var(--tx2);
-  font-variant-numeric: tabular-nums;
-}
-
 /* Ações aparecem no pouso do mouse; a coluna reserva o espaço para nada
    saltar quando aparecem. */
 .acoes {
