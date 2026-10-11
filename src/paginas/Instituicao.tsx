@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { consultar, executar, transacao } from "../db";
 import { TURNOS, type Horario, type PadraoBloco } from "../tipos";
 import { Erro, mensagemErro } from "../componentes/legado";
+import { useConfirmar } from "../componentes/confirmacao";
 
 /**
  * Nome de cada nota. A escala é 0..6 porque é o que o solver usa como custo;
@@ -24,6 +25,7 @@ const NOTAS = [
  * páginas próprias por serem cadastros grandes.
  */
 export default function Instituicao() {
+  const confirmar = useConfirmar();
   const [dias, setDias] = useState(6);
   const [horarios, setHorarios] = useState<Horario[]>([]);
   const [padroes, setPadroes] = useState<PadraoBloco[]>([]);
@@ -93,7 +95,14 @@ export default function Instituicao() {
         return setErro(mensagemErro(e, "A configuração"));
       }
       if (n > 0) {
-        if (!confirm(`${n} ${n === 1 ? "aula" : "aulas"} no sábado, somando todos os cursos, serão apagadas. Continuar?`))
+        if (
+          !(await confirmar({
+            titulo: "Tirar o sábado da semana?",
+            descricao: `${n} ${n === 1 ? "aula" : "aulas"} no sábado, somando todos os cursos, serão apagadas.`,
+            confirmar: "Apagar e tirar o sábado",
+            perigo: true,
+          }))
+        )
           return;
         return tentar(
           () =>
@@ -114,6 +123,22 @@ export default function Instituicao() {
   }
 
   /** '2+2' → [2,2]; devolve null se a escrita não for válida. */
+  /** Chamada de um `onClick`: `tentar` já trata os erros de gravação, e `confirmar` não rejeita. */
+  async function removerPadrao(p: PadraoBloco, n: number) {
+    if (
+      !(await confirmar({
+        titulo: `Remover o padrão ${p.padrao} de ${n} aula(s)?`,
+        confirmar: "Remover padrão",
+        perigo: true,
+      }))
+    )
+      return;
+    await tentar(
+      () => executar("DELETE FROM padroes_blocos WHERE aulas = ? AND padrao = ?", [p.aulas, p.padrao]),
+      "O padrão",
+    );
+  }
+
   function partes(texto: string): number[] | null {
     const p = texto
       .split("+")
@@ -237,17 +262,7 @@ export default function Instituicao() {
                         p.custo <= 1 ? "ideal" : p.custo >= 5 ? "evitar" : ""
                       }`}
                       title={`Nota ${p.custo} · ${NOTAS[p.custo] ?? ""} — clique para remover este padrão`}
-                      onClick={() =>
-                        confirm(`Remover o padrão ${p.padrao} de ${n} aula(s)?`) &&
-                        tentar(
-                          () =>
-                            executar(
-                              "DELETE FROM padroes_blocos WHERE aulas = ? AND padrao = ?",
-                              [p.aulas, p.padrao],
-                            ),
-                          "O padrão",
-                        )
-                      }
+                      onClick={() => removerPadrao(p, n)}
                     >
                       <b>{p.padrao}</b>
                       <em title={NOTAS[p.custo] ?? ""}>{p.custo}</em>

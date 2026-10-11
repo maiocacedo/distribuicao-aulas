@@ -2,6 +2,7 @@ import "./estilos/tema.css";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
+import { ProvedorDeConfirmacao } from "./componentes/confirmacao";
 
 /**
  * Uma exceção durante o render derruba a árvore inteira e deixa a janela em
@@ -56,7 +57,9 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <div className="legado">
       <Barreira>
-        <App />
+        <ProvedorDeConfirmacao>
+          <App />
+        </ProvedorDeConfirmacao>
       </Barreira>
     </div>
   </React.StrictMode>,

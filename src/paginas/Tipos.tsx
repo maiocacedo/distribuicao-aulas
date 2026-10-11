@@ -13,6 +13,7 @@ import {
   Vazio,
   mensagemErro,
 } from "../componentes/legado";
+import { useConfirmar } from "../componentes/confirmacao";
 
 interface Linha extends TipoDisciplina {
   n_disciplinas: number;
@@ -30,6 +31,7 @@ const vazio = (): TipoDisciplina => ({
 });
 
 export default function Tipos() {
+  const confirmar = useConfirmar();
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [edicao, setEdicao] = useState<TipoDisciplina | null>(null);
   const [salas, setSalas] = useState<Sala[]>([]);
@@ -90,7 +92,7 @@ export default function Tipos() {
   }
 
   async function remover(l: Linha) {
-    if (!confirm(`Remover o tipo "${l.nome}"?`)) return;
+    if (!(await confirmar({ titulo: `Remover o tipo "${l.nome}"?`, confirmar: "Remover tipo", perigo: true }))) return;
     setErro("");
     try {
       // A FK é ON DELETE SET NULL: as disciplinas ficam sem tipo, mas

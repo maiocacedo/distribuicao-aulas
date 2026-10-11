@@ -21,6 +21,7 @@ import {
   mensagemErro,
   type Ordem,
 } from "../componentes/legado";
+import { useConfirmar } from "../componentes/confirmacao";
 import { RequisitoSala, modoDe, type Modo } from "../componentes/RequisitoSala";
 import { PropriedadesDisciplina } from "./Tipos";
 
@@ -98,6 +99,7 @@ const novo = (cursoId: number, periodo: number): Rascunho => ({
 });
 
 export default function Disciplinas({ cursoId }: { cursoId: number }) {
+  const confirmar = useConfirmar();
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [periodos, setPeriodos] = useState<Periodo[]>([]);
   const [professores, setProfessores] = useState<Professor[]>([]);
@@ -323,16 +325,20 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
       const MAXIMO = 10;
       const quais = apagar
         .slice(0, MAXIMO)
-        .map((x) => `- ${DIAS[x.a.dia]} ${codigos.get(x.a.hora) ?? x.a.hora} — ${x.razao}`);
+        .map((x) => `${DIAS[x.a.dia]} ${codigos.get(x.a.hora) ?? x.a.hora} — ${x.razao}`);
       if (apagar.length > MAXIMO) quais.push(`… e mais ${apagar.length - MAXIMO}`);
       if (
-        !confirm(
-          `${apagar.length} aula(s) desta disciplina serão apagadas, porque deixam de valer com a mudança` +
+        !(await confirmar({
+          titulo: "Apagar aulas desta disciplina?",
+          descricao:
+            `${apagar.length} aula(s) desta disciplina serão apagadas, porque deixam de valer com a mudança` +
             (fixadas ? ` (${fixadas} fixada(s))` : "") +
-            `:\n\n${quais.join("\n")}` +
-            (trocar.length ? `\n\nOutras ${trocar.length} aula(s) trocam de sala.` : "") +
-            "\n\nContinuar?",
-        )
+            "." +
+            (trocar.length ? ` Outras ${trocar.length} aula(s) trocam de sala.` : ""),
+          itens: quais,
+          confirmar: `Salvar e apagar ${apagar.length} aula(s)`,
+          perigo: true,
+        }))
       )
         return null;
     }
@@ -468,7 +474,14 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
   }
 
   async function remover(l: Linha) {
-    if (!confirm(`Remover ${l.nome}? As ${l.n_aulas} aula(s) dela na grade saem junto.`))
+    if (
+      !(await confirmar({
+        titulo: `Remover ${l.nome}?`,
+        descricao: `As ${l.n_aulas} aula(s) dela na grade saem junto.`,
+        confirmar: "Remover disciplina",
+        perigo: true,
+      }))
+    )
       return;
     setErro("");
     try {

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { consultar, executar, transacao, type Instrucao } from "../db";
+import { useConfirmar } from "../componentes/confirmacao";
 import { Ocupacao } from "../regras/ocupacao";
 import { reatribuirSalas } from "../regras/reatribuir";
 import type { AulaOcupada, FatiaRegras } from "../regras/tipos";
@@ -32,6 +33,7 @@ const vazio = (): Sala => ({ id: 0, nome: "", tipo: "Sala de Aula", capacidade: 
 const NENHUM_CURSO = 0;
 
 export default function Salas() {
+  const confirmar = useConfirmar();
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [edicao, setEdicao] = useState<Sala | null>(null);
   const [erro, setErro] = useState("");
@@ -163,16 +165,20 @@ export default function Salas() {
       const MAXIMO = 10;
       const quais = semSala
         .slice(0, MAXIMO)
-        .map((x) => `- ${x.a.curso}, ${x.a.periodo}º período, ${DIAS[x.a.dia]} ${x.a.codigo} — ${x.a.disciplina}`);
+        .map((x) => `${x.a.curso}, ${x.a.periodo}º período, ${DIAS[x.a.dia]} ${x.a.codigo} — ${x.a.disciplina}`);
       if (semSala.length > MAXIMO) quais.push(`… e mais ${semSala.length - MAXIMO}`);
       if (
-        !confirm(
-          `${semSala.length} aula(s) serão apagadas, porque não há outra sala do tipo exigido livre no horário` +
+        !(await confirmar({
+          titulo: "Apagar aulas sem sala?",
+          descricao:
+            `${semSala.length} aula(s) serão apagadas, porque não há outra sala do tipo exigido livre no horário` +
             (fixadas ? ` (${fixadas} fixada(s))` : "") +
-            `:\n\n${quais.join("\n")}` +
-            (trocas.length ? `\n\nOutras ${trocas.length} aula(s) trocam de sala.` : "") +
-            "\n\nContinuar?",
-        )
+            "." +
+            (trocas.length ? ` Outras ${trocas.length} aula(s) trocam de sala.` : ""),
+          itens: quais,
+          confirmar: `Salvar e apagar ${semSala.length} aula(s)`,
+          perigo: true,
+        }))
       )
         return null;
     }
@@ -233,7 +239,7 @@ export default function Salas() {
       );
       return;
     }
-    if (!confirm(`Remover a sala ${l.nome}?`)) return;
+    if (!(await confirmar({ titulo: `Remover a sala ${l.nome}?`, confirmar: "Remover sala", perigo: true }))) return;
     setErro("");
     try {
       await executar("DELETE FROM salas WHERE id = ?", [l.id]);

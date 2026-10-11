@@ -1,6 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "../e2e/fixtures";
-import { celula, contar, irPara } from "../e2e/paginas";
+import { celula, contar, irPara, linhaCom } from "../e2e/paginas";
 
 /** Cada tela, com o que precisa estar visível para ela estar pronta. */
 const TELAS: { id: string; rotulo: string; pronta: (p: Page) => Locator }[] = [
@@ -35,6 +35,14 @@ for (const [esquema, sufixo] of [["light", "claro"], ["dark", "escuro"]] as cons
       await expect(page.getByRole("dialog")).toBeVisible();
       // A captura inclui o anel de foco do campo Nome (autofoco do diálogo): quem regerar na tarefa que troca o diálogo deve esperar essa diferença.
       await expect(page).toHaveScreenshot(`disciplinas-editor-${sufixo}.png`);
+    });
+
+    test("Confirmação", async ({ page }) => {
+      await irPara(page, "Professores");
+      // Só quem não tem disciplina chega à confirmação (os outros recebem o aviso de uso); na massa, é o Professor 07.
+      await linhaCom(page, "Professor 07").getByRole("button", { name: "Remover" }).click();
+      await expect(page.getByRole("alertdialog")).toBeVisible();
+      await expect(page).toHaveScreenshot(`confirmacao-${sufixo}.png`);
     });
 
     test("Manual, pendência escolhida", async ({ page, banco }) => {

@@ -12,6 +12,7 @@ import {
   Vazio,
   mensagemErro,
 } from "../componentes/legado";
+import { useConfirmar } from "../componentes/confirmacao";
 
 interface Linha extends Curso {
   n_periodos: number;
@@ -28,6 +29,7 @@ const vazio = (): Curso => ({
 });
 
 export default function Cursos({ aoMudarLista }: { aoMudarLista: () => void }) {
+  const confirmar = useConfirmar();
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [edicao, setEdicao] = useState<Curso | null>(null);
   const [erro, setErro] = useState("");
@@ -88,7 +90,15 @@ export default function Cursos({ aoMudarLista }: { aoMudarLista: () => void }) {
           );
           // Sem isto as aulas sumiriam da tela e continuariam no banco (D13).
           if (n > 0) {
-            if (!confirm(`${n} ${n === 1 ? "aula" : "aulas"} no turno da ${rotulos} serão apagadas. Continuar?`)) return;
+            if (
+              !(await confirmar({
+                titulo: "Tirar o turno do curso?",
+                descricao: `${n} ${n === 1 ? "aula" : "aulas"} no turno da ${rotulos} serão apagadas.`,
+                confirmar: "Salvar e apagar",
+                perigo: true,
+              }))
+            )
+              return;
             instrucoes.push({
               sql: `DELETE FROM alocacoes WHERE curso_id = ?
                       AND hora IN (SELECT indice FROM horarios WHERE turno IN (${marc}))`,
@@ -121,11 +131,15 @@ export default function Cursos({ aoMudarLista }: { aoMudarLista: () => void }) {
       return;
     }
     if (
-      !confirm(
-        `Remover ${l.nome}?\n\nSaem junto ${l.n_periodos} período(s), ` +
-          `${l.n_disciplinas} disciplina(s) e ${l.n_aulas} aula(s) da grade.\n\n` +
+      !(await confirmar({
+        titulo: `Remover ${l.nome}?`,
+        descricao:
+          `Saem junto ${l.n_periodos} período(s), ` +
+          `${l.n_disciplinas} disciplina(s) e ${l.n_aulas} aula(s) da grade. ` +
           "Professores e salas não são afetados: pertencem à instituição.",
-      )
+        confirmar: "Remover curso",
+        perigo: true,
+      }))
     )
       return;
     setErro("");

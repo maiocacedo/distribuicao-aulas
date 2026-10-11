@@ -5,6 +5,7 @@ import { resolver } from "../solver/solver";
 import { buracos } from "../solver/custo";
 import type { Alocacao, Problema, Resultado } from "../solver/tipos";
 import { Erro, Vazio, mensagemErro } from "../componentes/legado";
+import { useConfirmar } from "../componentes/confirmacao";
 
 interface Medidas {
   aulas: number;
@@ -33,6 +34,7 @@ function medir(problema: Problema, alocacoes: Alocacao[]): Medidas {
 }
 
 export default function GradeAutomatica({ cursoId }: { cursoId: number }) {
+  const confirmar = useConfirmar();
   const [problema, setProblema] = useState<Problema | null>(null);
   const [atual, setAtual] = useState<Alocacao[]>([]);
   const [resultado, setResultado] = useState<Resultado | null>(null);
@@ -90,11 +92,13 @@ export default function GradeAutomatica({ cursoId }: { cursoId: number }) {
     if (!resultado || !problema) return;
     const fixadas = problema.fixadas.length;
     if (
-      !confirm(
-        `Substituir a grade atual pela gerada?\n\n` +
-          `${atual.length} aula(s) hoje → ${resultado.alocacoes.length} aula(s).\n` +
-          (fixadas ? `As ${fixadas} aula(s) fixadas são preservadas.` : ""),
-      )
+      !(await confirmar({
+        titulo: "Substituir a grade atual pela gerada?",
+        descricao:
+          `${atual.length} aula(s) hoje → ${resultado.alocacoes.length} aula(s).` +
+          (fixadas ? ` As ${fixadas} aula(s) fixadas são preservadas.` : ""),
+        confirmar: "Aplicar a grade",
+      }))
     )
       return;
     setErro("");

@@ -13,17 +13,33 @@ export function celula(page: Page, dia: string, codigo: string) {
 
 /**
  * Responde a toda confirmação que aparecer daqui em diante e devolve os textos,
- * na ordem. O array é preenchido conforme as confirmações acontecem.
+ * na ordem. Um observador na própria página clica no botão assim que o diálogo
+ * aparece: funciona mesmo quando o teste está parado num `expect.poll` sobre o
+ * banco, sem tocar na página.
  */
 export async function responderConfirmacoes(
   page: Page,
   resposta: "aceitar" | "recusar" = "aceitar",
 ): Promise<string[]> {
   const mensagens: string[] = [];
-  page.on("dialog", (d) => {
-    mensagens.push(d.message());
-    void (resposta === "aceitar" ? d.accept() : d.dismiss());
+  await page.exposeFunction("__confirmacao", (texto: string) => {
+    mensagens.push(texto);
   });
+  const instalar = (resposta: string) => {
+    const responder = () => {
+      const abertos = document.querySelectorAll<HTMLElement>('[role="alertdialog"]:not([data-respondido])');
+      for (const dialogo of abertos) {
+        dialogo.dataset.respondido = "1";
+        void (window as unknown as { __confirmacao: (t: string) => void }).__confirmacao(dialogo.innerText);
+        const slot = resposta === "aceitar" ? "alert-dialog-action" : "alert-dialog-cancel";
+        dialogo.querySelector<HTMLElement>(`[data-slot="${slot}"]`)?.click();
+      }
+    };
+    new MutationObserver(responder).observe(document, { childList: true, subtree: true });
+    responder();
+  };
+  await page.addInitScript(instalar, resposta); // sobrevive a `page.reload()`
+  await page.evaluate(instalar, resposta);
   return mensagens;
 }
 

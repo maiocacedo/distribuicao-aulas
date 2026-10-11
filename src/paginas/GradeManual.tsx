@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { consultar, transacao, type Instrucao } from "../db";
 import { DIAS, type Horario, type Periodo } from "../tipos";
 import { Erro, Vazio, mensagemErro } from "../componentes/legado";
+import { useConfirmar } from "../componentes/confirmacao";
 import { avisosDaFatia } from "../regras/avisos";
 import { carregarContexto } from "../regras/carregar";
 import { curto, descrever, type Nomes } from "../regras/descrever";
@@ -38,6 +39,7 @@ interface Aula extends AulaOcupada {
 }
 
 export default function GradeManual({ cursoId }: { cursoId: number }) {
+  const confirmar = useConfirmar();
   const [periodos, setPeriodos] = useState<Periodo[]>([]);
   const [periodo, setPeriodo] = useState<number | null>(null);
   const [horarios, setHorarios] = useState<Horario[]>([]);
@@ -342,10 +344,12 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
     const fixadas = [...daGrade.values()].filter((a) => a.fixada).length;
     // Fixar protege a aula do gerador; limpar à mão também não a leva (B8).
     if (
-      !confirm(
-        `Apagar as aulas do ${periodo}º período?` +
-          (fixadas ? `\n\nAs ${fixadas} aula(s) fixadas ficam.` : ""),
-      )
+      !(await confirmar({
+        titulo: `Apagar as aulas do ${periodo}º período?`,
+        descricao: fixadas ? `As ${fixadas} aula(s) fixadas ficam.` : undefined,
+        confirmar: "Limpar período",
+        perigo: true,
+      }))
     )
       return;
     const instrucoes: Instrucao[] = [

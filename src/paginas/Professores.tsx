@@ -15,6 +15,7 @@ import {
   mensagemErro,
   type Ordem,
 } from "../componentes/legado";
+import { useConfirmar } from "../componentes/confirmacao";
 
 interface Linha extends Professor {
   n_disciplinas: number;
@@ -40,6 +41,7 @@ const vazio = (): Professor => ({
 });
 
 export default function Professores() {
+  const confirmar = useConfirmar();
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [edicao, setEdicao] = useState<Professor | null>(null);
   const [erro, setErro] = useState("");
@@ -122,7 +124,7 @@ export default function Professores() {
       );
       return;
     }
-    if (!confirm(`Remover ${l.nome}?`)) return;
+    if (!(await confirmar({ titulo: `Remover ${l.nome}?`, confirmar: "Remover professor", perigo: true }))) return;
     setErro("");
     try {
       await executar("DELETE FROM professores WHERE id = ?", [l.id]);
