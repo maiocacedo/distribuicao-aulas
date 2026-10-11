@@ -1,23 +1,29 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { Pencil, Trash2 } from "lucide-react";
 import { consultar, executar, transacao, type Instrucao } from "../db";
 import { TURNOS, type Curso } from "../tipos";
-import {
-  BotaoIcone,
-  CabecalhoLista,
-  Campo,
-  Erro,
-  Lapis,
-  Lixeira,
-  Modal,
-  Vazio,
-  mensagemErro,
-} from "../componentes/legado";
-import { useConfirmar } from "../componentes/confirmacao";
+import { Alerta } from "@/componentes/alerta";
+import { BotaoIcone } from "@/componentes/botao-icone";
+import { CabecalhoPagina } from "@/componentes/cabecalho-pagina";
+import { Campo } from "@/componentes/campo";
+import { useConfirmar } from "@/componentes/confirmacao";
+import { DialogoFormulario, useAlterado } from "@/componentes/dialogo-formulario";
+import { EstadoVazio } from "@/componentes/estado-vazio";
+import { TabelaDados, useTabela } from "@/componentes/tabela-dados";
+import { avisar } from "@/componentes/toasts";
+import { Button } from "@/componentes/ui/button";
+import { Checkbox } from "@/componentes/ui/checkbox";
+import { Input } from "@/componentes/ui/input";
+import { Textarea } from "@/componentes/ui/textarea";
+import { mensagemErro } from "@/lib/erros";
 
 interface Linha extends Curso {
   n_periodos: number;
   n_disciplinas: number;
   n_aulas: number;
+  /** Quantos cursos existem: a linha leva a conta para o "Remover" não depender de `linhas`. */
+  n_cursos: number;
 }
 
 const vazio = (): Curso => ({
@@ -28,34 +34,75 @@ const vazio = (): Curso => ({
   observacao: null,
 });
 
+/** Mensagem de validação por campo do formulário; fica junto do campo, não no alerta. */
+type ErrosDeCampo = Partial<Record<"nome" | "turnos" | "horas", string>>;
+
+const SEM_ERROS: ErrosDeCampo = {};
+
+/** Zero vira travessão: numa coluna de contagens, o que salta é quem tem algo. */
+const contagem = (n: number) => n || "—";
+
+/** Os turnos do curso como o usuário os lê: "Manhã · Tarde". */
+const rotuloDosTurnos = (turnos: string) =>
+  turnos
+    .split(",")
+    .map((t) => TURNOS.find((x) => x.valor === t)?.rotulo ?? t)
+    .join(" · ");
+
 export default function Cursos({ aoMudarLista }: { aoMudarLista: () => void }) {
   const confirmar = useConfirmar();
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [edicao, setEdicao] = useState<Curso | null>(null);
   const [erro, setErro] = useState("");
+  const [erroDoFormulario, setErroDoFormulario] = useState("");
+  const [errosDeCampo, setErrosDeCampo] = useState<ErrosDeCampo>(SEM_ERROS);
+  const [salvando, setSalvando] = useState(false);
+  const [carregando, setCarregando] = useState(true);
+  const alterado = useAlterado(edicao);
+  const idDosTurnos = useId();
 
-  async function carregar() {
+  const carregar = useCallback(async () => {
     setLinhas(
       await consultar<Linha>(`
         SELECT c.*,
                (SELECT COUNT(*) FROM periodos p WHERE p.curso_id = c.id) AS n_periodos,
                (SELECT COUNT(*) FROM disciplinas d WHERE d.curso_id = c.id) AS n_disciplinas,
-               (SELECT COUNT(*) FROM alocacoes a WHERE a.curso_id = c.id) AS n_aulas
+               (SELECT COUNT(*) FROM alocacoes a WHERE a.curso_id = c.id) AS n_aulas,
+               (SELECT COUNT(*) FROM cursos) AS n_cursos
         FROM cursos c ORDER BY c.nome COLLATE NOCASE`),
     );
+    setCarregando(false);
+    setErro("");
+    // O seletor de curso da barra lateral acompanha a lista: criar, renomear ou
+    // remover um curso muda o que ele mostra.
     aoMudarLista();
-  }
+  }, [aoMudarLista]);
+
+  // A falha de carga aparece na página, venha da abertura da tela ou da recarga
+  // depois de gravar: nos dois casos o que está errado é a lista.
+  const recarregar = useCallback(() => carregar().catch((e) => setErro(String(e))), [carregar]);
 
   useEffect(() => {
-    carregar().catch((e) => setErro(String(e)));
+    void recarregar();
+  }, [recarregar]);
+
+  const abrir = useCallback((c: Curso) => {
+    setErroDoFormulario("");
+    setErrosDeCampo(SEM_ERROS);
+    setEdicao(c);
   }, []);
 
   async function salvar(c: Curso) {
-    setErro("");
+    // Cada tentativa começa limpa: ver o mesmo trecho em `Salas`.
+    setErroDoFormulario("");
+    setErrosDeCampo(SEM_ERROS);
     const nome = c.nome.trim();
-    if (!nome) return setErro("O nome é obrigatório.");
-    if (c.horas_por_aula_semanal < 1) return setErro("A conversão tem de ser ao menos 1h.");
-    if (!c.turnos) return setErro("Escolha ao menos um turno.");
+    const erros: ErrosDeCampo = {};
+    if (!nome) erros.nome = "O nome é obrigatório.";
+    if (!c.turnos) erros.turnos = "Escolha ao menos um turno.";
+    if (!(c.horas_por_aula_semanal >= 1)) erros.horas = "A conversão tem de ser ao menos 1h.";
+    if (Object.keys(erros).length > 0) return setErrosDeCampo(erros);
+    setSalvando(true);
     try {
       if (c.id) {
         const original = linhas.find((l) => l.id === c.id);
@@ -70,7 +117,7 @@ export default function Cursos({ aoMudarLista }: { aoMudarLista: () => void }) {
             [c.id, ...retirados],
           );
           if (periodos.length > 0)
-            return setErro(
+            return setErroDoFormulario(
               `O turno da ${rotulos} ainda é o do(s) período(s) ${periodos.map((p) => `${p.numero}º`).join(", ")}. ` +
                 "Mude o turno deles em Períodos antes.",
             );
@@ -79,7 +126,7 @@ export default function Cursos({ aoMudarLista }: { aoMudarLista: () => void }) {
             [c.id, ...retirados],
           );
           if (forcadas.length > 0)
-            return setErro(
+            return setErroDoFormulario(
               `As disciplinas ${forcadas.map((d) => d.nome).join(", ")} têm o turno da ${rotulos} forçado. ` +
                 "Mude o turno delas em Disciplinas antes.",
             );
@@ -118,185 +165,224 @@ export default function Cursos({ aoMudarLista }: { aoMudarLista: () => void }) {
           [nome, c.turnos, c.horas_por_aula_semanal, c.observacao],
         );
       }
-      setEdicao(null);
-      await carregar();
     } catch (e) {
-      setErro(mensagemErro(e, "O curso"));
+      return setErroDoFormulario(mensagemErro(e, "O curso"));
+    } finally {
+      setSalvando(false);
     }
+    // Só chega aqui o que foi gravado; a falha da recarga é da lista (ver `Salas`).
+    setEdicao(null);
+    await recarregar();
   }
 
-  async function remover(l: Linha) {
-    if (linhas.length === 1) {
-      setErro("Este é o único curso; o sistema precisa de pelo menos um.");
-      return;
-    }
-    if (
-      !(await confirmar({
-        titulo: `Remover ${l.nome}?`,
-        descricao:
-          `Saem junto ${l.n_periodos} período(s), ` +
-          `${l.n_disciplinas} disciplina(s) e ${l.n_aulas} aula(s) da grade. ` +
-          "Professores e salas não são afetados: pertencem à instituição.",
-        confirmar: "Remover curso",
-        perigo: true,
-      }))
-    )
-      return;
-    setErro("");
-    try {
-      await executar("DELETE FROM cursos WHERE id = ?", [l.id]);
-      await carregar();
-    } catch (e) {
-      setErro(mensagemErro(e, "O curso"));
-    }
+  const remover = useCallback(
+    async (l: Linha) => {
+      if (l.n_cursos === 1) {
+        avisar.erro("Este é o único curso; o sistema precisa de pelo menos um.");
+        return;
+      }
+      if (
+        !(await confirmar({
+          titulo: `Remover ${l.nome}?`,
+          descricao:
+            `Saem junto ${l.n_periodos} período(s), ` +
+            `${l.n_disciplinas} disciplina(s) e ${l.n_aulas} aula(s) da grade. ` +
+            "Professores e salas não são afetados: pertencem à instituição.",
+          confirmar: "Remover curso",
+          perigo: true,
+        }))
+      )
+        return;
+      try {
+        await executar("DELETE FROM cursos WHERE id = ?", [l.id]);
+      } catch (e) {
+        return avisar.erro(mensagemErro(e, "O curso"));
+      }
+      await recarregar();
+    },
+    [confirmar, recarregar],
+  );
+
+  // As colunas não podem ser recriadas a cada desenho: ver `useTabela`.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const colunas = useMemo<ColumnDef<Linha, any>[]>(
+    () => [
+      {
+        accessorKey: "nome",
+        header: "Nome",
+        cell: ({ row }) => <span className="font-semibold">{row.original.nome}</span>,
+      },
+      // Ordena pelo texto que a célula mostra, não pela lista gravada.
+      { id: "turnos", header: "Turnos", accessorFn: (l) => rotuloDosTurnos(l.turnos) },
+      {
+        accessorKey: "n_periodos",
+        header: "Períodos",
+        meta: { numerico: true },
+        sortDescFirst: true,
+        cell: ({ row }) => contagem(row.original.n_periodos),
+      },
+      {
+        accessorKey: "n_disciplinas",
+        header: "Disciplinas",
+        meta: { numerico: true },
+        sortDescFirst: true,
+        cell: ({ row }) => contagem(row.original.n_disciplinas),
+      },
+      {
+        accessorKey: "n_aulas",
+        header: "Aulas na grade",
+        meta: { numerico: true },
+        sortDescFirst: true,
+        cell: ({ row }) => contagem(row.original.n_aulas),
+      },
+      {
+        accessorKey: "horas_por_aula_semanal",
+        header: "Conversão",
+        meta: { numerico: true },
+        sortDescFirst: true,
+        cell: ({ row }) => <span className="text-tx3">{row.original.horas_por_aula_semanal}h / aula</span>,
+      },
+      {
+        id: "acoes",
+        enableSorting: false,
+        header: () => <span className="sr-only">Ações</span>,
+        cell: ({ row }) => (
+          <>
+            <BotaoIcone rotulo="Editar" icone={Pencil} aoClicar={() => abrir(row.original)} />
+            <BotaoIcone rotulo="Remover" icone={Trash2} perigo aoClicar={() => void remover(row.original)} />
+          </>
+        ),
+      },
+    ],
+    [abrir, remover],
+  );
+
+  const tabela = useTabela({
+    dados: linhas,
+    colunas,
+    ordemInicial: [{ id: "nome", desc: false }],
+    desempate: (l) => l.nome,
+  });
+
+  const marcados = edicao ? edicao.turnos.split(",").filter(Boolean) : [];
+
+  // Os turnos ficam na ordem de `TURNOS`, não na ordem em que foram marcados.
+  function alternar(valor: string, marcar: boolean) {
+    if (!edicao) return;
+    const novos = TURNOS.filter((x) => (x.valor === valor ? marcar : marcados.includes(x.valor))).map((x) => x.valor);
+    setEdicao({ ...edicao, turnos: novos.join(",") });
+    setErrosDeCampo((erros) => ({ ...erros, turnos: undefined }));
   }
+
+  const dicaDosTurnos = "Define quais horários aparecem na grade e que turnos os períodos podem ter.";
 
   return (
     <>
-      <CabecalhoLista
+      <CabecalhoPagina
         titulo="Cursos"
         escopo="Cada curso tem os próprios períodos, disciplinas e grade"
         contagem={`${linhas.length} curso(s)`}
       >
-        <button className="primario" onClick={() => setEdicao(vazio())}>
-          Novo curso
-        </button>
-      </CabecalhoLista>
+        <Button onClick={() => abrir(vazio())}>Novo curso</Button>
+      </CabecalhoPagina>
 
-      <Erro>{erro}</Erro>
+      <Alerta tom="erro">{erro}</Alerta>
 
-      <p className="explica">
-        Professores, salas, horários do dia, padrões de bloco e tipos de
-        disciplina são da <strong>instituição</strong> e valem para todos os
-        cursos — cadastrados uma vez só. As indisponibilidades também: um
-        professor declara os horários dele uma vez, e todo curso as respeita.
+      <p className="mb-3 max-w-[68ch] text-xs leading-normal text-tx2">
+        Professores, salas, horários do dia, padrões de bloco e tipos de disciplina são da <strong>instituição</strong> e
+        valem para todos os cursos — cadastrados uma vez só. As indisponibilidades também: um professor declara os
+        horários dele uma vez, e todo curso as respeita.
       </p>
 
-      {linhas.length === 0 ? (
-        <Vazio>Nenhum curso cadastrado.</Vazio>
-      ) : (
-        <table className="lista">
-          <thead>
-            <tr>
-              <th>Nome</th>
-              <th>Turnos</th>
-              <th className="num">Períodos</th>
-              <th className="num">Disciplinas</th>
-              <th className="num">Aulas na grade</th>
-              <th className="num">Conversão</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {linhas.map((l) => (
-              <tr key={l.id}>
-                <td className="forte">{l.nome}</td>
-                <td>
-                  {l.turnos
-                    .split(",")
-                    .map((t) => TURNOS.find((x) => x.valor === t)?.rotulo ?? t)
-                    .join(" · ")}
-                </td>
-                <td className="num">{l.n_periodos || "—"}</td>
-                <td className="num">{l.n_disciplinas || "—"}</td>
-                <td className="num">{l.n_aulas || "—"}</td>
-                <td className="num fraco">{l.horas_por_aula_semanal}h / aula</td>
-                <td className="acoes">
-                  <BotaoIcone rotulo="Editar" aoClicar={() => setEdicao(l)}>
-                    <Lapis />
-                  </BotaoIcone>
-                  <BotaoIcone rotulo="Remover" perigo aoClicar={() => remover(l)}>
-                    <Lixeira />
-                  </BotaoIcone>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      {carregando ? null : <TabelaDados tabela={tabela} vazio={<EstadoVazio>Nenhum curso cadastrado.</EstadoVazio>} />}
 
       {edicao && (
-        <Modal
+        <DialogoFormulario
           titulo={edicao.id ? "Editar curso" : "Novo curso"}
+          alterado={alterado}
+          salvando={salvando}
+          erro={erroDoFormulario}
           aoFechar={() => setEdicao(null)}
+          aoSalvar={() => void salvar(edicao)}
         >
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              salvar(edicao);
-            }}
-          >
-            <Campo rotulo="Nome">
-              <input
+          <Campo rotulo="Nome" erro={errosDeCampo.nome}>
+            {(a) => (
+              <Input
+                {...a}
                 autoFocus
                 value={edicao.nome}
-                onChange={(e) => setEdicao({ ...edicao, nome: e.target.value })}
+                onChange={(e) => {
+                  setEdicao({ ...edicao, nome: e.target.value });
+                  // Quem voltou a digitar no campo já leu a mensagem dele.
+                  setErrosDeCampo((erros) => ({ ...erros, nome: undefined }));
+                }}
               />
-            </Campo>
-            <Campo
-              rotulo="Turnos que o curso ocupa"
-              dica="Define quais horários aparecem na grade e que turnos os períodos podem ter."
-            >
-              <div className="marcadores em-linha">
-                {TURNOS.map((t) => {
-                  const marcados = edicao.turnos.split(",").filter(Boolean);
-                  const tem = marcados.includes(t.valor);
-                  return (
-                    <label key={t.valor}>
-                      <input
-                        type="checkbox"
-                        checked={tem}
-                        onChange={() => {
-                          const novos = TURNOS.filter((x) =>
-                            x.valor === t.valor ? !tem : marcados.includes(x.valor),
-                          ).map((x) => x.valor);
-                          setEdicao({ ...edicao, turnos: novos.join(",") });
-                        }}
-                      />
-                      <span>{t.rotulo}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </Campo>
+            )}
+          </Campo>
 
-            <Campo
-              rotulo="Horas de currículo por aula semanal"
-              dica={`Com ${edicao.horas_por_aula_semanal}h, uma disciplina de ${
-                edicao.horas_por_aula_semanal * 4
-              }h no currículo são 4 aulas por semana. Só apoia o cadastro; a grade conta aulas.`}
-            >
-              <input
+          {/* As caixas de turno são um grupo: o leitor de tela anuncia "Turnos…"
+              antes de cada uma. Não cabe num `Campo`, que liga um rótulo a um
+              controle só; a dica e o erro ficam ligados ao grupo. */}
+          <fieldset
+            className="flex min-w-0 flex-col gap-1"
+            aria-describedby={errosDeCampo.turnos ? `${idDosTurnos}-erro` : `${idDosTurnos}-dica`}
+          >
+            <legend className="mb-1 text-xs font-semibold text-tx2">Turnos que o curso ocupa</legend>
+            <div className="mb-3 flex gap-4">
+              {TURNOS.map((t) => (
+                <label key={t.valor} className="flex cursor-pointer items-center gap-2 text-base">
+                  <Checkbox
+                    checked={marcados.includes(t.valor)}
+                    aria-invalid={errosDeCampo.turnos ? true : undefined}
+                    onCheckedChange={(v) => alternar(t.valor, v === true)}
+                  />
+                  {t.rotulo}
+                </label>
+              ))}
+            </div>
+            {errosDeCampo.turnos ? (
+              <span id={`${idDosTurnos}-erro`} className="text-xs leading-4 text-destructive">
+                {errosDeCampo.turnos}
+              </span>
+            ) : (
+              <span id={`${idDosTurnos}-dica`} className="text-xs leading-4 text-tx3">
+                {dicaDosTurnos}
+              </span>
+            )}
+          </fieldset>
+
+          <Campo
+            rotulo="Horas de currículo por aula semanal"
+            dica={`Com ${edicao.horas_por_aula_semanal}h, uma disciplina de ${
+              edicao.horas_por_aula_semanal * 4
+            }h no currículo são 4 aulas por semana. Só apoia o cadastro; a grade conta aulas.`}
+            erro={errosDeCampo.horas}
+          >
+            {(a) => (
+              <Input
+                {...a}
                 type="number"
                 min={1}
                 value={edicao.horas_por_aula_semanal}
-                onChange={(e) =>
-                  setEdicao({
-                    ...edicao,
-                    horas_por_aula_semanal: Number(e.target.value),
-                  })
-                }
+                onChange={(e) => {
+                  setEdicao({ ...edicao, horas_por_aula_semanal: Number(e.target.value) });
+                  setErrosDeCampo((erros) => ({ ...erros, horas: undefined }));
+                }}
               />
-            </Campo>
-            <Campo rotulo="Observação">
-              <textarea
+            )}
+          </Campo>
+
+          <Campo rotulo="Observação">
+            {(a) => (
+              <Textarea
+                {...a}
                 rows={2}
                 value={edicao.observacao ?? ""}
-                onChange={(e) =>
-                  setEdicao({ ...edicao, observacao: e.target.value || null })
-                }
+                onChange={(e) => setEdicao({ ...edicao, observacao: e.target.value || null })}
               />
-            </Campo>
-            <div className="rodape-modal">
-              <button type="button" onClick={() => setEdicao(null)}>
-                Cancelar
-              </button>
-              <button type="submit" className="primario">
-                Salvar
-              </button>
-            </div>
-          </form>
-        </Modal>
+            )}
+          </Campo>
+        </DialogoFormulario>
       )}
     </>
   );

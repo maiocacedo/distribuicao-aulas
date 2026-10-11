@@ -22,6 +22,26 @@ test.describe("turnos do curso", () => {
     await expect.poll(() => contar(banco, "SELECT COUNT(*) FROM alocacoes")).toBe(0);
     expect(mensagens.join("\n")).toMatch(/1 aula no turno da tarde/);
   });
+
+  test("cancelar a remoção do turno não muda nada", async ({ page, banco }) => {
+    const mensagens = await responderConfirmacoes(page, "recusar");
+    await irPara(page, "Gerenciar cursos");
+    await page.getByRole("row", { name: /Engenharia/ }).getByRole("button", { name: "Editar" }).click();
+    await page.getByRole("checkbox", { name: "Tarde", exact: true }).uncheck();
+    await page.getByRole("button", { name: "Salvar" }).click();
+    await expect.poll(() => mensagens.length).toBe(1);
+    await expect(page.getByRole("button", { name: "Salvar" })).toBeVisible();
+    expect(contar(banco, "SELECT COUNT(*) FROM alocacoes")).toBe(1);
+    expect(contar(banco, "SELECT COUNT(*) FROM cursos WHERE turnos = 'manha,tarde'")).toBe(1);
+  });
+
+  test("as caixas de turno formam um grupo rotulado", async ({ page }) => {
+    await irPara(page, "Gerenciar cursos");
+    await page.getByRole("row", { name: /Engenharia/ }).getByRole("button", { name: "Editar" }).click();
+    const grupo = page.getByRole("group", { name: "Turnos" });
+    await expect(grupo.getByRole("checkbox", { name: "Manhã", exact: true })).toBeChecked();
+    await expect(grupo.getByRole("checkbox", { name: "Tarde", exact: true })).toBeChecked();
+  });
 });
 
 test.describe("turno do curso em uso", () => {
@@ -168,5 +188,24 @@ test.describe("dias letivos sem aula no sábado", () => {
     await escolher(semana, "Segunda a sábado");
     await expect.poll(() => contar(banco, "SELECT valor FROM configuracao WHERE chave = 'dias_letivos'")).toBe(6);
     await expect.poll(() => escolhida(semana)).toBe("Segunda a sábado");
+  });
+});
+
+test.describe("turno do curso usado por disciplina com turno forçado", () => {
+  test.use({
+    semMassa: true,
+    semente: `
+      UPDATE cursos SET nome = 'Engenharia' WHERE id = 1;
+      INSERT INTO periodos (curso_id, numero, turno) VALUES (1, 1, 'manha');
+      INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais, exige_sala, turno) VALUES (1, 1, 'Cálculo', 1, 2, 0, 'tarde');`,
+  });
+
+  test("tirar o turno é recusado e diz qual disciplina o usa", async ({ page, banco }) => {
+    await irPara(page, "Gerenciar cursos");
+    await page.getByRole("row", { name: /Engenharia/ }).getByRole("button", { name: "Editar" }).click();
+    await page.getByRole("checkbox", { name: "Tarde", exact: true }).uncheck();
+    await page.getByRole("button", { name: "Salvar" }).click();
+    await expect(page.getByRole("dialog").getByRole("alert")).toContainText(/Cálculo|disciplina/);
+    expect(contar(banco, "SELECT COUNT(*) FROM cursos WHERE turnos = 'manha,tarde'")).toBe(1);
   });
 });

@@ -1540,15 +1540,6 @@ th.centro button.ordenavel::before {
   color: var(--tx3);
 }
 
-.marcadores.em-linha {
-  flex-direction: row;
-  gap: 16px;
-}
-
-.marcadores.em-linha label {
-  align-items: center;
-}
-
 /* Páginas de conteúdo curto ficam numa coluna estreita: o painel esticado até
    1180px com texto quebrando em 68ch cria um bloco vazio à direita, e o texto
    parece flutuar dentro da caixa. */

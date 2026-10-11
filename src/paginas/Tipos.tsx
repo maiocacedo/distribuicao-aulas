@@ -1,19 +1,22 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { Pencil, Trash2 } from "lucide-react";
 import { RequisitoSala, modoDe, type Modo } from "../componentes/RequisitoSala";
 import { consultar, executar } from "../db";
 import type { Sala, TipoDisciplina } from "../tipos";
-import {
-  BotaoIcone,
-  CabecalhoLista,
-  Campo,
-  Erro,
-  Lapis,
-  Lixeira,
-  Modal,
-  Vazio,
-  mensagemErro,
-} from "../componentes/legado";
-import { useConfirmar } from "../componentes/confirmacao";
+import { Campo as CampoAntigo } from "../componentes/legado";
+import { Alerta } from "@/componentes/alerta";
+import { BotaoIcone } from "@/componentes/botao-icone";
+import { CabecalhoPagina } from "@/componentes/cabecalho-pagina";
+import { Campo } from "@/componentes/campo";
+import { useConfirmar } from "@/componentes/confirmacao";
+import { DialogoFormulario, useAlterado } from "@/componentes/dialogo-formulario";
+import { EstadoVazio } from "@/componentes/estado-vazio";
+import { TabelaDados, useTabela } from "@/componentes/tabela-dados";
+import { avisar } from "@/componentes/toasts";
+import { Button } from "@/componentes/ui/button";
+import { Input } from "@/componentes/ui/input";
+import { mensagemErro } from "@/lib/erros";
 
 interface Linha extends TipoDisciplina {
   n_disciplinas: number;
@@ -30,6 +33,25 @@ const vazio = (): TipoDisciplina => ({
   optativa: 0,
 });
 
+/** Mensagem de validação por campo do formulário; fica junto do campo, não no alerta. */
+type ErrosDeCampo = Partial<Record<"nome", string>>;
+
+const SEM_ERROS: ErrosDeCampo = {};
+
+/** Zero vira travessão: numa coluna de contagens, o que salta é quem tem algo. */
+const contagem = (n: number) => n || "—";
+
+/** O que o tipo tem de diferente do padrão, em palavras curtas; vazio = é o padrão. */
+const marcas = (t: TipoDisciplina) =>
+  [
+    t.optativa ? "optativa" : null,
+    !t.exige_sala ? "sem sala" : null,
+    t.tipo_sala ? `só ${t.tipo_sala}` : null,
+    t.blocos_livres ? "blocos livres" : null,
+    t.permite_sabado ? "sábado" : null,
+    t.prioridade === 1 ? "prioridade alta" : t.prioridade === 3 ? "prioridade baixa" : null,
+  ].filter(Boolean) as string[];
+
 export default function Tipos() {
   const confirmar = useConfirmar();
   const [linhas, setLinhas] = useState<Linha[]>([]);
@@ -37,36 +59,49 @@ export default function Tipos() {
   const [salas, setSalas] = useState<Sala[]>([]);
   const [modoSala, setModoSala] = useState<Modo>("qualquer");
   const [erro, setErro] = useState("");
+  const [erroDoFormulario, setErroDoFormulario] = useState("");
+  const [errosDeCampo, setErrosDeCampo] = useState<ErrosDeCampo>(SEM_ERROS);
+  const [salvando, setSalvando] = useState(false);
+  const [carregando, setCarregando] = useState(true);
+  const alterado = useAlterado(edicao);
 
-  async function carregar() {
-    setSalas(
-      await consultar<Sala>("SELECT * FROM salas ORDER BY nome COLLATE NOCASE"),
-    );
+  const carregar = useCallback(async () => {
+    setSalas(await consultar<Sala>("SELECT * FROM salas ORDER BY nome COLLATE NOCASE"));
     setLinhas(
       await consultar<Linha>(`
         SELECT t.*, (SELECT COUNT(*) FROM disciplinas d WHERE d.tipo_id = t.id)
                       AS n_disciplinas
         FROM tipos_disciplina t ORDER BY t.nome COLLATE NOCASE`),
     );
-  }
+    setCarregando(false);
+    setErro("");
+  }, []);
+
+  // A falha de carga aparece na página, venha da abertura da tela ou da recarga
+  // depois de gravar: nos dois casos o que está errado é a lista.
+  const recarregar = useCallback(() => carregar().catch((e) => setErro(String(e))), [carregar]);
 
   useEffect(() => {
-    carregar().catch((e) => setErro(String(e)));
+    void recarregar();
+  }, [recarregar]);
+
+  // O modo do requisito de sala é estado à parte (ver `RequisitoSala`): ao abrir
+  // ele sai do que está gravado, e daí em diante quem muda é o próprio formulário.
+  const abrir = useCallback((t: TipoDisciplina) => {
+    setErroDoFormulario("");
+    setErrosDeCampo(SEM_ERROS);
+    setModoSala(modoDe(t));
+    setEdicao(t);
   }, []);
 
   async function salvar(t: TipoDisciplina) {
-    setErro("");
+    // Cada tentativa começa limpa: ver o mesmo trecho em `Salas`.
+    setErroDoFormulario("");
+    setErrosDeCampo(SEM_ERROS);
     const nome = t.nome.trim();
-    if (!nome) return setErro("O nome é obrigatório.");
-    const campos = [
-      nome,
-      t.exige_sala,
-      t.tipo_sala,
-      t.blocos_livres,
-      t.prioridade,
-      t.permite_sabado,
-      t.optativa,
-    ];
+    if (!nome) return setErrosDeCampo({ nome: "O nome é obrigatório." });
+    const campos = [nome, t.exige_sala, t.tipo_sala, t.blocos_livres, t.prioridade, t.permite_sabado, t.optativa];
+    setSalvando(true);
     try {
       if (t.id) {
         await executar(
@@ -84,156 +119,165 @@ export default function Tipos() {
           campos,
         );
       }
-      setEdicao(null);
-      await carregar();
     } catch (e) {
-      setErro(mensagemErro(e, "O tipo"));
+      return setErroDoFormulario(mensagemErro(e, "O tipo"));
+    } finally {
+      setSalvando(false);
     }
+    // Só chega aqui o que foi gravado; a falha da recarga é da lista (ver `Salas`).
+    setEdicao(null);
+    await recarregar();
   }
 
-  async function remover(l: Linha) {
-    if (!(await confirmar({ titulo: `Remover o tipo "${l.nome}"?`, confirmar: "Remover tipo", perigo: true }))) return;
-    setErro("");
-    try {
-      // A FK é ON DELETE SET NULL: as disciplinas ficam sem tipo, mas
-      // conservam as propriedades que já tinham. O tipo é molde, não dono.
-      await executar("DELETE FROM tipos_disciplina WHERE id = ?", [l.id]);
-      await carregar();
-    } catch (e) {
-      setErro(mensagemErro(e, "O tipo"));
-    }
-  }
+  const remover = useCallback(
+    async (l: Linha) => {
+      if (!(await confirmar({ titulo: `Remover o tipo "${l.nome}"?`, confirmar: "Remover tipo", perigo: true }))) return;
+      try {
+        // A FK é ON DELETE SET NULL: as disciplinas ficam sem tipo, mas
+        // conservam as propriedades que já tinham. O tipo é molde, não dono.
+        await executar("DELETE FROM tipos_disciplina WHERE id = ?", [l.id]);
+      } catch (e) {
+        return avisar.erro(mensagemErro(e, "O tipo"));
+      }
+      await recarregar();
+    },
+    [confirmar, recarregar],
+  );
 
-  const marcas = (t: TipoDisciplina) =>
-    [
-      t.optativa ? "optativa" : null,
-      !t.exige_sala ? "sem sala" : null,
-      t.tipo_sala ? `só ${t.tipo_sala}` : null,
-      t.blocos_livres ? "blocos livres" : null,
-      t.permite_sabado ? "sábado" : null,
-      t.prioridade === 1 ? "prioridade alta" : t.prioridade === 3 ? "prioridade baixa" : null,
-    ].filter(Boolean) as string[];
+  // As colunas não podem ser recriadas a cada desenho: ver `useTabela`.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const colunas = useMemo<ColumnDef<Linha, any>[]>(
+    () => [
+      {
+        accessorKey: "nome",
+        header: "Nome",
+        cell: ({ row }) => <span className="font-semibold">{row.original.nome}</span>,
+      },
+      {
+        id: "propriedades",
+        header: "Propriedades",
+        // Ordena pelo texto que a célula mostra: "padrão" para quem não tem marca.
+        accessorFn: (l) => (marcas(l).length === 0 ? "padrão" : marcas(l).join(", ")),
+        cell: ({ row }) =>
+          marcas(row.original).length === 0 ? (
+            <span className="text-tx3">padrão</span>
+          ) : (
+            marcas(row.original).map((m) => (
+              <span key={m} className="mr-1 inline-block rounded-[3px] bg-poco px-1.5 py-px text-[10.5px] whitespace-nowrap text-tx2">
+                {m}
+              </span>
+            ))
+          ),
+      },
+      {
+        accessorKey: "n_disciplinas",
+        header: "Disciplinas",
+        meta: { numerico: true },
+        sortDescFirst: true,
+        cell: ({ row }) => contagem(row.original.n_disciplinas),
+      },
+      {
+        id: "acoes",
+        enableSorting: false,
+        header: () => <span className="sr-only">Ações</span>,
+        cell: ({ row }) => (
+          <>
+            <BotaoIcone rotulo="Editar" icone={Pencil} aoClicar={() => abrir(row.original)} />
+            <BotaoIcone rotulo="Remover" icone={Trash2} perigo aoClicar={() => void remover(row.original)} />
+          </>
+        ),
+      },
+    ],
+    [abrir, remover],
+  );
+
+  const tabela = useTabela({
+    dados: linhas,
+    colunas,
+    ordemInicial: [{ id: "nome", desc: false }],
+    desempate: (l) => l.nome,
+  });
 
   return (
     <>
-      <CabecalhoLista
-        titulo="Tipos de disciplina"
-        escopo="Instituição · moldes de cadastro"
-        contagem={`${linhas.length} tipo(s)`}
-      >
-        <button
-          className="primario"
-          onClick={() => {
-            setModoSala("qualquer");
-            setEdicao(vazio());
-          }}
-        >
-          Novo tipo
-        </button>
-      </CabecalhoLista>
+      <CabecalhoPagina titulo="Tipos de disciplina" escopo="Instituição · moldes de cadastro" contagem={`${linhas.length} tipo(s)`}>
+        <Button onClick={() => abrir(vazio())}>Novo tipo</Button>
+      </CabecalhoPagina>
 
-      <Erro>{erro}</Erro>
+      <Alerta tom="erro">{erro}</Alerta>
 
-      <p className="explica">
+      <p className="mb-3 max-w-[68ch] text-xs leading-normal text-tx2">
         Cadastre tipos de disciplinas com características específicas.
       </p>
 
-      {linhas.length === 0 ? (
-        <Vazio>
-          Nenhum tipo cadastrado. Eles são opcionais — servem para não marcar os
-          mesmos campos repetidamente.
-        </Vazio>
-      ) : (
-        <table className="lista">
-          <thead>
-            <tr>
-              <th>Nome</th>
-              <th>Propriedades</th>
-              <th className="num">Disciplinas</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {linhas.map((l) => (
-              <tr key={l.id}>
-                <td className="forte">{l.nome}</td>
-                <td>
-                  {marcas(l).length === 0 ? (
-                    <span className="fraco">padrão</span>
-                  ) : (
-                    marcas(l).map((m) => (
-                      <span key={m} className="marca-prop">
-                        {m}
-                      </span>
-                    ))
-                  )}
-                </td>
-                <td className="num">{l.n_disciplinas || "—"}</td>
-                <td className="acoes">
-                  <BotaoIcone
-                    rotulo="Editar"
-                    aoClicar={() => {
-                      setModoSala(modoDe(l));
-                      setEdicao(l);
-                    }}
-                  >
-                    <Lapis />
-                  </BotaoIcone>
-                  <BotaoIcone rotulo="Remover" perigo aoClicar={() => remover(l)}>
-                    <Lixeira />
-                  </BotaoIcone>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {carregando ? null : (
+        <TabelaDados
+          tabela={tabela}
+          vazio={
+            <EstadoVazio>
+              Nenhum tipo cadastrado. Eles são opcionais — servem para não marcar os mesmos campos repetidamente.
+            </EstadoVazio>
+          }
+        />
       )}
 
       {edicao && (
-        <Modal
+        <DialogoFormulario
           titulo={edicao.id ? "Editar tipo" : "Novo tipo"}
+          alterado={alterado}
+          salvando={salvando}
+          erro={erroDoFormulario}
           aoFechar={() => setEdicao(null)}
+          aoSalvar={() => void salvar(edicao)}
         >
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              salvar(edicao);
-            }}
-          >
-            <Campo rotulo="Nome">
-              <input
+          <Campo rotulo="Nome" erro={errosDeCampo.nome}>
+            {(a) => (
+              <Input
+                {...a}
                 autoFocus
                 value={edicao.nome}
-                onChange={(e) => setEdicao({ ...edicao, nome: e.target.value })}
+                onChange={(e) => {
+                  setEdicao({ ...edicao, nome: e.target.value });
+                  // Quem voltou a digitar no campo já leu a mensagem dele.
+                  setErrosDeCampo((erros) => ({ ...erros, nome: undefined }));
+                }}
               />
-            </Campo>
+            )}
+          </Campo>
+
+          {/* Ilha antiga: o requisito de sala e as propriedades ainda são os
+              componentes das telas não convertidas (os mesmos de Disciplinas).
+              Esta marca sai junto com eles, na conversão de Disciplinas
+              (tarefa 11). O `-mb-3` desfaz a margem de 12 px que o último bloco
+              antigo deixa dentro da ilha: item de flex não a colapsa, e o
+              diálogo já dá o espaço até o rodapé. Medido contra a tela antiga,
+              nada que desce do diálogo (alinhamento, peso, espaçamento de
+              letras, quebra de linha) vaza para dentro; se o diálogo passar a
+              pôr alguma dessas propriedades no contêiner, reponha-a aqui. */}
+          <div className="legado -mb-3">
             <RequisitoSala
               valor={edicao}
               modo={modoSala}
               salas={salas}
-                  permitirEspecificas={false}
+              permitirEspecificas={false}
               aoMudar={(v, m) => {
                 setEdicao({ ...edicao, ...v });
                 setModoSala(m);
               }}
             />
             <PropriedadesDisciplina valor={edicao} aoMudar={setEdicao} />
-            <div className="rodape-modal">
-              <button type="button" onClick={() => setEdicao(null)}>
-                Cancelar
-              </button>
-              <button type="submit" className="primario">
-                Salvar
-              </button>
-            </div>
-          </form>
-        </Modal>
+          </div>
+        </DialogoFormulario>
       )}
     </>
   );
 }
 
-/** Reaproveitado pelo cadastro de disciplinas — são os mesmos campos. */
+/**
+ * Reaproveitado pelo cadastro de disciplinas — são os mesmos campos. Continua
+ * com os componentes antigos enquanto Disciplinas não for convertida: ela os
+ * desenha dentro de `.legado`, onde um componente novo perderia o estilo.
+ */
 export function PropriedadesDisciplina<
   T extends {
     blocos_livres: number;
@@ -247,7 +291,7 @@ export function PropriedadesDisciplina<
 
   return (
     <>
-      <Campo
+      <CampoAntigo
         rotulo="Prioridade na distribuição"
         dica="Prioridade baixa é alocada por último, no que sobrar, e com as preferências atenuadas."
       >
@@ -259,7 +303,7 @@ export function PropriedadesDisciplina<
           <option value={2}>Normal</option>
           <option value={3}>Baixa — encaixa nas folgas</option>
         </select>
-      </Campo>
+      </CampoAntigo>
 
       <div className="marcadores">
         <label>

@@ -97,7 +97,7 @@ const GRUPOS: { titulo: string; paginas: Pagina[] }[] = [
         id: "tipos",
         rotulo: "Tipos de disciplina",
         icone: Tags,
-        legado: true,
+        legado: false,
         componente: () => <Tipos />,
       },
       {
@@ -134,7 +134,7 @@ const PAGINA_CURSOS: Pagina = {
   id: "cursos",
   rotulo: "Gerenciar cursos",
   icone: GraduationCap,
-  legado: true,
+  legado: false,
   componente: (p) => <Cursos aoMudarLista={p.aoMudarCursos} />,
 };
 
