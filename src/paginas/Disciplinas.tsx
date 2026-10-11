@@ -20,7 +20,7 @@ import {
   comparar,
   mensagemErro,
   type Ordem,
-} from "../componentes/ui";
+} from "../componentes/legado";
 import { RequisitoSala, modoDe, type Modo } from "../componentes/RequisitoSala";
 import { PropriedadesDisciplina } from "./Tipos";
 

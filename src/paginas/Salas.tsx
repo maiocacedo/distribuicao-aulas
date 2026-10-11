@@ -17,7 +17,7 @@ import {
   comparar,
   mensagemErro,
   type Ordem,
-} from "../componentes/ui";
+} from "../componentes/legado";
 
 interface Linha extends Sala {
   n_disciplinas: number;

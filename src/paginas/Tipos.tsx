@@ -12,7 +12,7 @@ import {
   Modal,
   Vazio,
   mensagemErro,
-} from "../componentes/ui";
+} from "../componentes/legado";
 
 interface Linha extends TipoDisciplina {
   n_disciplinas: number;

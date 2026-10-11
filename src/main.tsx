@@ -1,3 +1,4 @@
+import "./estilos/tema.css";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
@@ -42,8 +43,8 @@ function mostrarFalhaGlobal(o: unknown) {
   if (!raiz || raiz.dataset.falhou) return;
   raiz.dataset.falhou = "1";
   raiz.innerHTML =
-    '<main class="falha"><h1>Distribuição de Aulas</h1>' +
-    '<div class="alerta"><strong>Erro fora da tela</strong><pre></pre></div></main>';
+    '<div class="legado"><main class="falha"><h1>Distribuição de Aulas</h1>' +
+    '<div class="alerta"><strong>Erro fora da tela</strong><pre></pre></div></main></div>';
   raiz.querySelector("pre")!.textContent =
     o instanceof Error ? `${o.message}\n\n${o.stack}` : String(o);
 }
@@ -53,8 +54,10 @@ window.addEventListener("unhandledrejection", (e) => mostrarFalhaGlobal(e.reason
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <Barreira>
-      <App />
-    </Barreira>
+    <div className="legado">
+      <Barreira>
+        <App />
+      </Barreira>
+    </div>
   </React.StrictMode>,
 );

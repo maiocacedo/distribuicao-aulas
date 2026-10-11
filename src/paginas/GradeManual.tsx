@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { consultar, transacao, type Instrucao } from "../db";
 import { DIAS, type Horario, type Periodo } from "../tipos";
-import { Erro, Vazio, mensagemErro } from "../componentes/ui";
+import { Erro, Vazio, mensagemErro } from "../componentes/legado";
 import { avisosDaFatia } from "../regras/avisos";
 import { carregarContexto } from "../regras/carregar";
 import { curto, descrever, type Nomes } from "../regras/descrever";

@@ -14,7 +14,7 @@ import {
   comparar,
   mensagemErro,
   type Ordem,
-} from "../componentes/ui";
+} from "../componentes/legado";
 
 interface Linha extends Professor {
   n_disciplinas: number;

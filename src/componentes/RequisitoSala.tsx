@@ -1,5 +1,5 @@
 import { TIPOS_SALA, type Sala } from "../tipos";
-import { Campo } from "./ui";
+import { Campo } from "./legado";
 
 /**
  * O requisito de sala de uma disciplina, como uma escolha de quatro modos

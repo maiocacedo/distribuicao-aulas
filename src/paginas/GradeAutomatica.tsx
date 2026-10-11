@@ -4,7 +4,7 @@ import { carregarProblema } from "../solver/carregar";
 import { resolver } from "../solver/solver";
 import { buracos } from "../solver/custo";
 import type { Alocacao, Problema, Resultado } from "../solver/tipos";
-import { Erro, Vazio, mensagemErro } from "../componentes/ui";
+import { Erro, Vazio, mensagemErro } from "../componentes/legado";
 
 interface Medidas {
   aulas: number;

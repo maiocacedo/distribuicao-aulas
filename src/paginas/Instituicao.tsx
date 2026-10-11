@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { consultar, executar, transacao } from "../db";
 import { TURNOS, type Horario, type PadraoBloco } from "../tipos";
-import { Erro, mensagemErro } from "../componentes/ui";
+import { Erro, mensagemErro } from "../componentes/legado";
 
 /**
  * Nome de cada nota. A escala é 0..6 porque é o que o solver usa como custo;

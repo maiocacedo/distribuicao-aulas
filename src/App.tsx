@@ -11,7 +11,6 @@ import Periodos from "./paginas/Periodos";
 import Professores from "./paginas/Professores";
 import Salas from "./paginas/Salas";
 import Tipos from "./paginas/Tipos";
-import "./App.css";
 
 type Props = { cursoId: number; aoMudarCursos: () => void };
 

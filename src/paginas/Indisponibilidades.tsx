@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { config, consultar, transacao, type Instrucao } from "../db";
 import { DIAS, type Horario, type Professor } from "../tipos";
-import { Erro, Vazio, mensagemErro } from "../componentes/ui";
+import { Erro, Vazio, mensagemErro } from "../componentes/legado";
 
 const chave = (dia: number, hora: number) => `${dia}-${hora}`;
 

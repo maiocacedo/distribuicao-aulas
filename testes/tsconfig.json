@@ -10,7 +10,9 @@
     "skipLibCheck": true,
     "isolatedModules": true,
     "allowImportingTsExtensions": true,
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": { "@/*": ["../src/*"] }
   },
   "include": ["**/*.ts", "../scripts/*.ts"],
   "exclude": ["smoke"]

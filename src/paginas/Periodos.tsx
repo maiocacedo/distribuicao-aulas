@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { consultar, executar } from "../db";
 import { TURNOS, type Periodo } from "../tipos";
-import { Erro, Vazio, mensagemErro } from "../componentes/ui";
+import { Erro, Vazio, mensagemErro } from "../componentes/legado";
 
 interface Linha extends Periodo {
   n_disciplinas: number;

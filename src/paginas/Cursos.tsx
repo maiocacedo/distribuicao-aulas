@@ -11,7 +11,7 @@ import {
   Modal,
   Vazio,
   mensagemErro,
-} from "../componentes/ui";
+} from "../componentes/legado";
 
 interface Linha extends Curso {
   n_periodos: number;
