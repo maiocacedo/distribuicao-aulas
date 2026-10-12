@@ -244,3 +244,60 @@ test.describe("aula de contraturno", () => {
     await expect.poll(() => contar(banco, "SELECT fixada FROM alocacoes")).toBe(1);
   });
 });
+
+test.describe("disciplina que não exige sala", () => {
+  test.use({
+    semMassa: true,
+    semente: `${BASE}
+      INSERT INTO salas (id, nome, tipo, capacidade) VALUES (1, 'A01', 'Sala de Aula', 40);
+      INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais, exige_sala) VALUES (1, 1, 'Cálculo', 1, 2, 0);
+      INSERT INTO disciplina_professores (disciplina_id, professor_id, aulas) VALUES (1, 1, 2);
+      INSERT INTO alocacoes (curso_id, periodo, dia, hora, disciplina_id, professor_id, sala_id) VALUES (1, 1, 0, 0, 1, 1, 1);`,
+  });
+
+  test("a troca de sala oferece 'Sem sala'", async ({ page, banco }) => {
+    await irPara(page, "Manual");
+    await escolher(page.getByRole("combobox", { name: "Trocar sala de Cálculo" }), "Sem sala");
+    await expect.poll(() => contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE sala_id IS NULL")).toBe(1);
+  });
+});
+
+test.describe("sala vizinha", () => {
+  // A02 é só aceitável, mas a aula ao lado já está nela: o bloco não troca de sala.
+  test.use({
+    semMassa: true,
+    semente: `${BASE}
+      INSERT INTO salas (id, nome, tipo, capacidade) VALUES (1, 'A01', 'Sala de Aula', 40), (2, 'A02', 'Sala de Aula', 40);
+      INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais) VALUES (1, 1, 'Cálculo', 1, 2);
+      INSERT INTO disciplina_professores (disciplina_id, professor_id, aulas) VALUES (1, 1, 2);
+      INSERT INTO disciplina_salas (disciplina_id, sala_id, preferencia) VALUES (1, 1, 1), (1, 2, 2);
+      INSERT INTO alocacoes (curso_id, periodo, dia, hora, disciplina_id, professor_id, sala_id) VALUES (1, 1, 0, 0, 1, 1, 2);`,
+  });
+
+  test("a aula ao lado vai para a mesma sala, mesmo havendo uma ideal livre", async ({ page, banco }) => {
+    await irPara(page, "Manual");
+    await page.getByRole("button", { name: /Cálculo/ }).click();
+    await celula(page, "Segunda", "M2").click();
+    await expect.poll(() => contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE sala_id = 2")).toBe(2);
+  });
+});
+
+test.describe("limpar período", () => {
+  // O motivo em texto e o botão habilitado ao soltar já têm teste em desfazer.spec.ts;
+  // aqui fica o que lá não se afirma: o botão é `disabled` de verdade.
+  test.use({
+    semMassa: true,
+    semente: `${BASE}
+      INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais, exige_sala) VALUES (1, 1, 'Cálculo', 1, 2, 0);
+      INSERT INTO disciplina_professores (disciplina_id, professor_id, aulas) VALUES (1, 1, 2);
+      INSERT INTO alocacoes (curso_id, periodo, dia, hora, disciplina_id, professor_id, fixada) VALUES (1, 1, 0, 0, 1, 1, 1);`,
+  });
+
+  test("fica desabilitado quando só há aula fixada, e habilita ao soltar", async ({ page }) => {
+    await irPara(page, "Manual");
+    const limpar = page.getByRole("button", { name: "Limpar período" });
+    await expect(limpar).toBeDisabled();
+    await celula(page, "Segunda", "M1").getByRole("button", { name: "Soltar" }).click();
+    await expect(limpar).toBeEnabled();
+  });
+});
