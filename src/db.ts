@@ -38,9 +38,25 @@ export interface ResultadoEscrita {
   lastInsertId: number;
 }
 
+/** De onde vem uma escrita: a grade tem desfazer; cadastro invalida o histórico. */
+export type Origem = "grade" | "cadastro";
+
+const ouvintes = new Set<(origem: Origem) => void>();
+
+/** Avisa a cada escrita concluída. Devolve a função que cancela a assinatura. */
+export function aoEscrever(ouvinte: (origem: Origem) => void): () => void {
+  ouvintes.add(ouvinte);
+  return () => ouvintes.delete(ouvinte);
+}
+
 /** Tudo ou nada: uma falha no meio desfaz as instruções anteriores. */
-export async function transacao(instrucoes: Instrucao[]): Promise<ResultadoEscrita> {
-  return invoke<ResultadoEscrita>("transacao", { banco: await banco(), instrucoes });
+export async function transacao(
+  instrucoes: Instrucao[],
+  opcoes: { origem?: Origem } = {},
+): Promise<ResultadoEscrita> {
+  const resultado = await invoke<ResultadoEscrita>("transacao", { banco: await banco(), instrucoes });
+  ouvintes.forEach((o) => o(opcoes.origem ?? "cadastro"));
+  return resultado;
 }
 
 export function executar(sql: string, params: unknown[] = []): Promise<ResultadoEscrita> {
