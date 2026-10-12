@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 import { consultar } from "./db";
 import type { Curso } from "./tipos";
 import Cursos from "./paginas/Cursos";
-import Disciplinas from "./paginas/Disciplinas";
+import Disciplinas from "./paginas/disciplinas";
 import GradeAutomatica from "./paginas/GradeAutomatica";
 import GradeManual from "./paginas/GradeManual";
 import Indisponibilidades from "./paginas/Indisponibilidades";
