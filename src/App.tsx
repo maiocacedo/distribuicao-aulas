@@ -22,7 +22,7 @@ import type { Curso } from "./tipos";
 import Cursos from "./paginas/Cursos";
 import Disciplinas from "./paginas/disciplinas";
 import GradeAutomatica from "./paginas/GradeAutomatica";
-import GradeManual from "./paginas/GradeManual";
+import GradeManual from "./paginas/grade-manual";
 import Indisponibilidades from "./paginas/Indisponibilidades";
 import Instituicao from "./paginas/Instituicao";
 import Periodos from "./paginas/Periodos";
