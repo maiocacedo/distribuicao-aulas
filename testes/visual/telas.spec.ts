@@ -50,6 +50,32 @@ for (const [esquema, sufixo] of [["light", "claro"], ["dark", "escuro"]] as cons
       await capturar(page, `disciplinas-editor-${sufixo}.png`);
     });
 
+    test("Indisponibilidades, professor escolhido", async ({ page, banco }) => {
+      // A captura da tela sozinha não mostra a malha. Escolhe o professor com mais
+      // aulas (células ocupadas) e marca três horários livres dele (células
+      // indisponíveis); o resto fica livre, os três estados à vista.
+      const { id, nome } = banco
+        .prepare(
+          `SELECT p.id, p.nome FROM professores p JOIN alocacoes a ON a.professor_id = p.id
+            GROUP BY p.id ORDER BY COUNT(*) DESC, p.nome LIMIT 1`,
+        )
+        .get() as { id: number; nome: string };
+      const ocupadas = new Set(
+        (banco.prepare("SELECT dia, hora FROM alocacoes WHERE professor_id = ?").all(id) as { dia: number; hora: number }[]).map(
+          (a) => `${a.dia}-${a.hora}`,
+        ),
+      );
+      const livres = [[4, 0], [4, 1], [3, 3], [1, 4], [2, 6]].filter(([d, h]) => !ocupadas.has(`${d}-${h}`)).slice(0, 3);
+      for (const [dia, hora] of livres) {
+        banco.prepare("INSERT INTO indisponibilidades (professor_id, dia, hora) VALUES (?, ?, ?)").run(id, dia, hora);
+      }
+      await page.reload();
+      await irPara(page, "Indisponibilidades");
+      await page.getByRole("button", { name: nome }).click();
+      await expect(celula(page, "Segunda", "M1")).toBeVisible();
+      await capturar(page, `indisponibilidades-escolhido-${sufixo}.png`, { fullPage: true });
+    });
+
     test("Confirmação", async ({ page }) => {
       await irPara(page, "Professores");
       // Só quem não tem disciplina chega à confirmação (os outros recebem o aviso de uso); na massa, é o Professor 07.

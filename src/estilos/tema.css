@@ -23,6 +23,7 @@
 @import "tailwindcss" source("../");
 @import "tw-animate-css";
 @import "./legado.css" layer(legado);
+@import "./grade.css" layer(components);
 
 :root {
   color-scheme: light dark;

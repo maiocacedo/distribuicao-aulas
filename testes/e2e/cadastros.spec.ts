@@ -116,6 +116,68 @@ test.describe("B10", () => {
   });
 });
 
+test.describe("Indisponibilidades", () => {
+  test.use({
+    semMassa: true,
+    semente: "INSERT INTO professores (id, nome) VALUES (1, 'Ana Souza'), (2, 'Bruno Lima');",
+  });
+
+  test("o professor escolhido fica marcado com aria-pressed", async ({ page }) => {
+    await irPara(page, "Indisponibilidades");
+    const ana = page.getByRole("button", { name: "Ana Souza" });
+    const bruno = page.getByRole("button", { name: "Bruno Lima" });
+    await expect(ana).toHaveAttribute("aria-pressed", "false");
+    await expect(bruno).toHaveAttribute("aria-pressed", "false");
+    await ana.click();
+    await expect(ana).toHaveAttribute("aria-pressed", "true");
+    await expect(bruno).toHaveAttribute("aria-pressed", "false");
+    await bruno.click();
+    await expect(bruno).toHaveAttribute("aria-pressed", "true");
+    await expect(ana).toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("a contagem concorda com o número e Limpar tudo apaga as marcas", async ({ page, banco }) => {
+    await irPara(page, "Indisponibilidades");
+    await page.getByRole("button", { name: "Ana Souza" }).click();
+    const limpar = page.getByRole("button", { name: "Limpar tudo" });
+    await expect(page.getByText("0 horários indisponíveis")).toBeVisible();
+    await expect(limpar).toBeDisabled();
+
+    await celula(page, "Segunda", "M1").click();
+    await expect(page.getByText("1 horário indisponível", { exact: true })).toBeVisible();
+    await celula(page, "Terça", "M1").click();
+    await expect(page.getByText("2 horários indisponíveis")).toBeVisible();
+    await expect.poll(() => contar(banco, "SELECT COUNT(*) FROM indisponibilidades")).toBe(2);
+
+    await limpar.click();
+    await expect(page.getByText("0 horários indisponíveis")).toBeVisible();
+    await expect.poll(() => contar(banco, "SELECT COUNT(*) FROM indisponibilidades")).toBe(0);
+  });
+
+  test.describe("com a gravação falhando", () => {
+    test.use({ opcoesPonte: { falharQuando: /^INSERT OR IGNORE INTO indisponibilidades/ } });
+
+    test("avisa por toast e a célula volta a livre", async ({ page, banco }) => {
+      await irPara(page, "Indisponibilidades");
+      await page.getByRole("button", { name: "Ana Souza" }).click();
+      await celula(page, "Segunda", "M1").click();
+      await expect(page.getByText(/falha simulada/)).toBeVisible();
+      await expect(celula(page, "Segunda", "M1")).toHaveText("");
+      await expect(page.getByText("0 horários indisponíveis")).toBeVisible();
+      expect(contar(banco, "SELECT COUNT(*) FROM indisponibilidades")).toBe(0);
+    });
+  });
+
+  test.describe("com a carga falhando", () => {
+    test.use({ opcoesPonte: { falharQuando: /FROM professores ORDER BY nome/ } });
+
+    test("mostra o erro na página", async ({ page }) => {
+      await irPara(page, "Indisponibilidades");
+      await expect(page.getByRole("alert").filter({ hasText: /falha simulada/ })).toBeVisible();
+    });
+  });
+});
+
 test.describe("grade automática", () => {
   test.use({
     semMassa: true,

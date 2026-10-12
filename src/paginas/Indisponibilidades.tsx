@@ -1,7 +1,14 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { config, consultar, transacao, type Instrucao } from "../db";
 import { DIAS, type Horario, type Professor } from "../tipos";
-import { Erro, Vazio, mensagemErro } from "../componentes/legado";
+import { Alerta } from "@/componentes/alerta";
+import { CabecalhoPagina } from "@/componentes/cabecalho-pagina";
+import { EstadoVazio } from "@/componentes/estado-vazio";
+import { Secao } from "@/componentes/secao";
+import { avisar } from "@/componentes/toasts";
+import { Button } from "@/componentes/ui/button";
+import { mensagemErro } from "@/lib/erros";
+import { cn } from "@/lib/utils";
 
 const chave = (dia: number, hora: number) => `${dia}-${hora}`;
 
@@ -20,7 +27,9 @@ export default function Indisponibilidades() {
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
   const [ocupadas, setOcupadas] = useState<Map<string, Ocupada>>(new Map());
   const [contagens, setContagens] = useState<Record<number, number>>({});
+  // Falha de carga: a tela não tem como seguir. Falha de gravação é toast.
   const [erro, setErro] = useState("");
+  const [carregando, setCarregando] = useState(true);
 
   // O que está gravado no banco. O arrastar mexe só em `marcados`; ao soltar,
   // a diferença entre os dois vira INSERT/DELETE.
@@ -41,6 +50,8 @@ export default function Indisponibilidades() {
     setHorarios(await consultar<Horario>("SELECT * FROM horarios ORDER BY indice"));
     setDias(Number((await config("dias_letivos")) ?? 6));
     await recontar();
+    setCarregando(false);
+    setErro("");
   }
 
   async function recontar() {
@@ -66,6 +77,7 @@ export default function Indisponibilidades() {
       [id],
     );
     setOcupadas(new Map(aulas.map((a) => [chave(a.dia, a.hora), a])));
+    setErro("");
   }, []);
 
   useEffect(() => {
@@ -83,7 +95,6 @@ export default function Indisponibilidades() {
     const remover = [...salvos.current].filter((k) => !conjunto.has(k));
     if (inserir.length === 0 && remover.length === 0) return;
 
-    setErro("");
     // Um arrasto vira uma transação só: ou a faixa inteira entra, ou nenhuma.
     const instrucoes: Instrucao[] = [
       ...inserir.map((k) => {
@@ -107,12 +118,15 @@ export default function Indisponibilidades() {
     ];
     try {
       await transacao(instrucoes);
-      salvos.current = new Set(conjunto);
-      await recontar();
     } catch (e) {
-      setErro(mensagemErro(e, "A indisponibilidade"));
-      await carregarProfessor(atual);
+      // Sem formulário onde a recusa caiba: aviso, e a malha volta ao que o banco guarda.
+      avisar.erro(mensagemErro(e, "A indisponibilidade"));
+      await carregarProfessor(atual).catch((e) => setErro(String(e)));
+      return;
     }
+    salvos.current = new Set(conjunto);
+    // Fora do `try`: o que já foi gravado não é falha de gravação.
+    await recontar().catch((e) => setErro(String(e)));
   }
 
   function pintar(dia: number, hora: number, modo: "marcar" | "desmarcar") {
@@ -133,7 +147,7 @@ export default function Indisponibilidades() {
       arrastando.current = null;
       // Gravar fora do updater do estado: no StrictMode o React chama o
       // updater duas vezes, e cada chamada abria uma transação (B10).
-      persistir(marcadosRef.current);
+      void persistir(marcadosRef.current);
     };
     window.addEventListener("mouseup", soltar);
     return () => window.removeEventListener("mouseup", soltar);
@@ -149,43 +163,43 @@ export default function Indisponibilidades() {
     const novo = new Set(marcados);
     alvos.forEach((k) => (todosMarcados ? novo.delete(k) : novo.add(k)));
     definirMarcados(novo);
-    persistir(novo);
+    void persistir(novo);
   }
 
   if (professores.length === 0) {
     return (
       <>
-        <header className="cabecalho-pagina">
-          <h1>Indisponibilidades</h1>
-        </header>
-        <Vazio>Cadastre os professores primeiro.</Vazio>
+        <CabecalhoPagina titulo="Indisponibilidades" />
+        <Alerta tom="erro">{erro}</Alerta>
+        {carregando ? null : <EstadoVazio>Cadastre os professores primeiro.</EstadoVazio>}
       </>
     );
   }
 
   const professor = professores.find((p) => p.id === atual);
+  const n = marcados.size;
 
   return (
     <>
-      <header className="cabecalho-pagina">
-        <div>
-          <h1>Indisponibilidades</h1>
-          <p className="sub">Horários em que o professor não pode dar aula.</p>
-        </div>
-      </header>
+      <CabecalhoPagina titulo="Indisponibilidades" sub="Horários em que o professor não pode dar aula." />
 
-      <Erro>{erro}</Erro>
+      <Alerta tom="erro">{erro}</Alerta>
 
-      <div className="painel-duplo">
-        <ul className="lista-lateral">
+      <div className="grid grid-cols-[200px_1fr] items-start gap-[14px]">
+        <ul className="rounded-lg bg-panel p-1.5 shadow-[inset_0_0_0_1px_var(--line)]">
           {professores.map((p) => (
             <li key={p.id}>
+              {/* O ativo tem fundo, cor E peso: o estado não depende só de cor. */}
               <button
-                className={p.id === atual ? "ativo" : ""}
+                aria-pressed={p.id === atual}
+                className={cn(
+                  "flex w-full cursor-pointer items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-[12px]",
+                  p.id === atual ? "bg-acc-bg font-semibold text-primary" : "hover:bg-hover",
+                )}
                 onClick={() => setAtual(p.id)}
               >
                 <span>{p.nome}</span>
-                {contagens[p.id] ? <em>{contagens[p.id]}</em> : null}
+                {contagens[p.id] ? <span className="text-[10px] text-tx3 tabular-nums">{contagens[p.id]}</span> : null}
               </button>
             </li>
           ))}
@@ -193,20 +207,16 @@ export default function Indisponibilidades() {
 
         <div>
           {professor == null ? (
-            <Vazio>Escolha um professor para marcar os horários dele.</Vazio>
+            <EstadoVazio>Escolha um professor para marcar os horários dele.</EstadoVazio>
           ) : (
-            <section>
-              <h2>{professor.nome}</h2>
+            <Secao titulo={professor.nome}>
               <table className="grade-horarios" onDragStart={(e) => e.preventDefault()}>
                 <thead>
                   <tr>
                     <th />
                     {Array.from({ length: dias }, (_, d) => (
                       <th key={d}>
-                        <button
-                          className="cabecalho-clicavel"
-                          onClick={() => alternarBloco((dia) => dia === d)}
-                        >
+                        <button className="cabecalho-clicavel" onClick={() => alternarBloco((dia) => dia === d)}>
                           {DIAS[d].slice(0, 3)}
                         </button>
                       </th>
@@ -223,80 +233,74 @@ export default function Indisponibilidades() {
                           <td colSpan={dias + 1} />
                         </tr>
                       )}
-                    <tr>
-                      <th>
-                        <button
-                          className="cabecalho-clicavel horario"
-                          onClick={() => alternarBloco((_d, hora) => hora === h.indice)}
-                        >
-                          <strong>{h.codigo}</strong>
-                          <em>{h.rotulo}</em>
-                        </button>
-                      </th>
-                      {Array.from({ length: dias }, (_, d) => {
-                        const k = chave(d, h.indice);
-                        const aula = ocupadas.get(k);
-                        const marcado = marcados.has(k);
-                        return (
-                          <td
-                            key={d}
-                            aria-label={`${DIAS[d]}, ${h.codigo}`}
-                            className={
-                              aula ? "ocupada" : marcado ? "indisponivel" : "livre"
-                            }
-                            title={
-                              aula
-                                ? `${aula.disciplina} — ${aula.periodo}º período`
-                                : undefined
-                            }
-                            onMouseDown={(e) => {
-                              if (e.button !== 0 || aula) return;
-                              e.preventDefault();
-                              arrastando.current = marcado ? "desmarcar" : "marcar";
-                              pintar(d, h.indice, arrastando.current);
-                            }}
-                            onMouseEnter={() => {
-                              if (arrastando.current) pintar(d, h.indice, arrastando.current);
-                            }}
+                      <tr>
+                        <th>
+                          <button
+                            className="cabecalho-clicavel horario"
+                            onClick={() => alternarBloco((_d, hora) => hora === h.indice)}
                           >
-                            {aula ? "•" : marcado ? "×" : ""}
-                          </td>
-                        );
-                      })}
-                    </tr>
+                            <strong>{h.codigo}</strong>
+                            <em>{h.rotulo}</em>
+                          </button>
+                        </th>
+                        {Array.from({ length: dias }, (_, d) => {
+                          const k = chave(d, h.indice);
+                          const aula = ocupadas.get(k);
+                          const marcado = marcados.has(k);
+                          return (
+                            <td
+                              key={d}
+                              aria-label={`${DIAS[d]}, ${h.codigo}`}
+                              className={aula ? "ocupada" : marcado ? "indisponivel" : "livre"}
+                              title={aula ? `${aula.disciplina} — ${aula.periodo}º período` : undefined}
+                              onMouseDown={(e) => {
+                                if (e.button !== 0 || aula) return;
+                                e.preventDefault();
+                                arrastando.current = marcado ? "desmarcar" : "marcar";
+                                pintar(d, h.indice, arrastando.current);
+                              }}
+                              onMouseEnter={() => {
+                                if (arrastando.current) pintar(d, h.indice, arrastando.current);
+                              }}
+                            >
+                              {aula ? "•" : marcado ? "×" : ""}
+                            </td>
+                          );
+                        })}
+                      </tr>
                     </Fragment>
                   ))}
                 </tbody>
               </table>
 
-              <dl className="legenda-colunas">
-                <dt>
-                  <span className="simbolo indisponivel">×</span>
+              <dl className="mt-3.5 grid grid-cols-[max-content_1fr] gap-x-3 gap-y-0.5 border-t border-line pt-3 text-xs">
+                <dt className="font-semibold whitespace-nowrap text-tx2">
+                  <span className="simbolo-celula indisponivel">×</span>
                 </dt>
-                <dd>Horário em que este professor não pode dar aula.</dd>
-                <dt>
-                  <span className="simbolo ocupada">•</span>
+                <dd className="text-tx3">Horário em que este professor não pode dar aula.</dd>
+                <dt className="font-semibold whitespace-nowrap text-tx2">
+                  <span className="simbolo-celula ocupada">•</span>
                 </dt>
-                <dd>Aula já alocada na grade; não pode ser marcada como indisponível.</dd>
+                <dd className="text-tx3">Aula já alocada na grade; não pode ser marcada como indisponível.</dd>
               </dl>
 
-              <div className="acoes-secao">
-                <span className="fraco">
-                  {marcados.size} horário{marcados.size === 1 ? "" : "s"} indisponível
-                  {marcados.size === 1 ? "" : "eis"}
+              <div className="mt-3 flex items-center gap-2">
+                <span className="text-tx3">
+                  {n} {n === 1 ? "horário indisponível" : "horários indisponíveis"}
                   {ocupadas.size > 0 && ` · ${ocupadas.size} com aula alocada`}
                 </span>
-                <button
-                  disabled={marcados.size === 0}
+                <Button
+                  variant="outline"
+                  disabled={n === 0}
                   onClick={() => {
                     definirMarcados(new Set());
-                    persistir(new Set());
+                    void persistir(new Set());
                   }}
                 >
                   Limpar tudo
-                </button>
+                </Button>
               </div>
-            </section>
+            </Secao>
           )}
         </div>
       </div>

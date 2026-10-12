@@ -90,7 +90,7 @@ const GRUPOS: { titulo: string; paginas: Pagina[] }[] = [
         id: "indisponibilidades",
         rotulo: "Indisponibilidades",
         icone: CalendarX,
-        legado: true,
+        legado: false,
         componente: () => <Indisponibilidades />,
       },
       {

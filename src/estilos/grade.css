@@ -1,0 +1,138 @@
+/*
+ * As malhas: Indisponibilidades e grade manual. Desenho próprio, sobre os
+ * tokens do tema — os estados de célula usam listras, tracejado e cadeado, que
+ * nenhum componente pronto cobre. Valem as três regras do `tema.css`.
+ *
+ * Estas regras nasceram dentro de `.legado`, que devolvia à tabela o que o
+ * navegador dá e o reset do Tailwind tira. Fora dele, o que o desenho espera e
+ * o reset desfaz é declarado aqui: `border-collapse` e `border-spacing` da
+ * tabela, o peso de `th` (o navegador dá negrito), o `font-style` do `em`, o
+ * `cursor` e o `border-radius` dos botões. O resto que o `.legado` repunha
+ * (borda e fundo de botão, `padding` de célula, centro de `th`, herança de
+ * fonte e cor) o reset já deixa como o desenho quer: não declare de novo.
+ */
+
+.grade-horarios {
+  /* Bordas separadas de propósito: com `collapse` as células vizinhas
+     compartilham a borda e, no empate, quem vence é a de cima — a margem
+     superior de uma célula marcada ficaria cinza. O reset do Tailwind põe
+     `collapse` em toda tabela. */
+  border-collapse: separate;
+  border-spacing: 3px;
+  table-layout: fixed;
+  user-select: none;
+  width: 100%;
+}
+
+.grade-horarios th:first-child,
+.grade-horarios td:first-child {
+  width: 62px;
+}
+
+.grade-horarios th {
+  /* O navegador dá negrito a `th`; o reset não o tira. */
+  font-weight: 500;
+  color: var(--tx2);
+  font-size: 11.5px;
+}
+
+.grade-horarios tbody th {
+  text-align: right;
+  padding-right: 6px;
+}
+
+.grade-horarios .cabecalho-clicavel {
+  padding: 3px 5px;
+  width: 100%;
+  border-radius: var(--r);
+  /* O reset do Tailwind deixa o cursor de botão em `default`, e o raio em 0. */
+  cursor: pointer;
+}
+
+.grade-horarios .cabecalho-clicavel:hover {
+  background: var(--hover);
+  color: var(--tx);
+}
+
+.grade-horarios .cabecalho-clicavel.horario {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
+.grade-horarios .cabecalho-clicavel.horario strong {
+  font-weight: 600;
+  color: var(--tx);
+  font-family: Consolas, monospace;
+  font-size: 11px;
+}
+
+.grade-horarios .cabecalho-clicavel.horario em {
+  /* `em` sai itálico do navegador; o reset não o tira. */
+  font-style: normal;
+  font-family: Consolas, monospace;
+  font-size: 10px;
+  color: var(--tx3);
+}
+
+/* O desenho de cada estado de célula. O símbolo da legenda usa o mesmo, para o
+   que se explica ter exatamente a aparência do que está na malha. */
+.grade-horarios td,
+.simbolo-celula {
+  background: var(--inset);
+  box-shadow: inset 0 0 0 1px var(--line);
+  border-radius: var(--r);
+  text-align: center;
+  color: var(--tx3);
+}
+
+.grade-horarios td {
+  height: 26px;
+  cursor: pointer;
+}
+
+.grade-horarios td.livre:hover {
+  background: var(--hover);
+}
+
+.grade-horarios td.indisponivel,
+.simbolo-celula.indisponivel {
+  color: var(--neg);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: inset 0 0 0 1px var(--neg);
+}
+
+.grade-horarios td.ocupada,
+.simbolo-celula.ocupada {
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--lineS);
+}
+
+.grade-horarios td.ocupada {
+  cursor: not-allowed;
+}
+
+.grade-horarios tr.espacador td {
+  height: 8px;
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+  cursor: default;
+}
+
+/* Símbolo da legenda: a caixa da célula, em miniatura. */
+.simbolo-celula {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 20px;
+  line-height: 1;
+}
+
+.simbolo-celula.indisponivel {
+  font-size: 13px;
+}
