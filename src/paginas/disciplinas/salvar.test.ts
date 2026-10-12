@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Motivo } from "../../regras/tipos";
-import { motivosParaMostrar, novo, validarRascunho, type Rascunho } from "./salvar";
+import { fraseDasSalas, motivosParaMostrar, novo, validarRascunho, type Rascunho } from "./salvar";
 
 it("omite o motivo de sala quando a aula tem outro", () => {
   const sala = { regra: "sala-invalida" } as Motivo;
@@ -80,5 +80,23 @@ describe("validarRascunho", () => {
   it("devolve juntas as recusas de campos diferentes", () => {
     const erros = validarRascunho(rascunho({ nome: "", aulas_semanais: 0, fatias: [] }));
     expect(Object.keys(erros ?? {}).sort()).toEqual(["aulas", "fatias", "nome"]);
+  });
+});
+
+describe("fraseDasSalas", () => {
+  it("não diz nada quando nenhuma aula mexe com a sala", () => {
+    expect(fraseDasSalas(0, 0)).toBe("");
+  });
+
+  it("diz que as aulas trocam de sala", () => {
+    expect(fraseDasSalas(2, 0)).toBe("Outras 2 aula(s) trocam de sala.");
+  });
+
+  it("diz que as aulas ficam sem sala quando só perdem a sala", () => {
+    expect(fraseDasSalas(0, 3)).toBe("Outras 3 aula(s) ficam sem sala.");
+  });
+
+  it("com as duas coisas, uma frase para cada", () => {
+    expect(fraseDasSalas(2, 3)).toBe("Outras 2 aula(s) trocam de sala. Outras 3 aula(s) ficam sem sala.");
   });
 });

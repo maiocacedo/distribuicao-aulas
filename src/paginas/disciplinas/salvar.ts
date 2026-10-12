@@ -75,8 +75,24 @@ export interface AulasAApagar {
   total: number;
   /** Das apagadas, as que estavam fixadas. */
   fixadasApagadas: number;
-  /** Aulas que, além das apagadas, mudam de sala ou só perdem a sala. */
-  mudamOuPerdemSala: number;
+  /** Aulas que, além das apagadas, passam para outra sala. */
+  mudamDeSala: number;
+  /** Aulas que, além das apagadas, só perdem a sala: a disciplina deixou de ocupar sala. */
+  perdemSala: number;
+}
+
+/**
+ * O que a confirmação diz das aulas que ficam e mexem com a sala; vazio quando
+ * nenhuma. Troca de sala e perda de sala são notícias diferentes: quem lê
+ * "trocam de sala" espera encontrar sala na aula depois.
+ */
+export function fraseDasSalas(mudamDeSala: number, perdemSala: number): string {
+  return [
+    mudamDeSala > 0 ? `Outras ${mudamDeSala} aula(s) trocam de sala.` : "",
+    perdemSala > 0 ? `Outras ${perdemSala} aula(s) ficam sem sala.` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 /** O que a gravação faz com as aulas: o que pôr na transação e o que contar ao usuário. */
@@ -258,7 +274,13 @@ export async function prepararAulas(d: Rascunho, entrada: EntradaDasAulas): Prom
       .slice(0, MAXIMO)
       .map((x) => `${DIAS[x.a.dia]} ${codigos.get(x.a.hora) ?? x.a.hora} — ${x.razao}`);
     if (apagar.length > MAXIMO) quais.push(`… e mais ${apagar.length - MAXIMO}`);
-    apagadas = { itens: quais, total: apagar.length, fixadasApagadas, mudamOuPerdemSala: trocar.length };
+    apagadas = {
+      itens: quais,
+      total: apagar.length,
+      fixadasApagadas,
+      mudamDeSala: mudamDeSala.length,
+      perdemSala: trocar.length - mudamDeSala.length,
+    };
   }
 
   // Pela chave com o período antigo: o UPDATE de período vem depois.

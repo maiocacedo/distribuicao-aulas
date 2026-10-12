@@ -231,6 +231,59 @@ test.describe("uma aula troca de sala e outra é apagada", () => {
   });
 });
 
+test.describe("aula perde a sala e outra é apagada", () => {
+  // O Cálculo ocupa a A01 na M1 e na T1. Deixar de ocupar sala e forçar a manhã:
+  // a aula da T1 deixa de valer e é apagada; a da M1 continua, mas sem sala.
+  test.use({
+    semMassa: true,
+    semente: `
+      INSERT INTO periodos (curso_id, numero, turno) VALUES (1, 1, 'manha');
+      INSERT INTO professores (id, nome) VALUES (1, 'Ana Souza');
+      INSERT INTO salas (id, nome, tipo, capacidade) VALUES (1, 'A01', 'Sala de Aula', 40);
+      INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais, exige_sala)
+        VALUES (1, 1, 'Cálculo', 1, 2, 1);
+      INSERT INTO disciplina_professores (disciplina_id, professor_id, aulas) VALUES (1, 1, 2);
+      INSERT INTO alocacoes (curso_id, periodo, dia, hora, disciplina_id, professor_id, sala_id)
+        VALUES (1, 1, 0, 0, 1, 1, 1), (1, 1, 0, 6, 1, 1, 1);`,
+  });
+
+  test("a confirmação diz que a outra aula fica sem sala, não que troca de sala", async ({ page, banco }) => {
+    const mensagens = await responderConfirmacoes(page);
+    await editar(page, "Cálculo");
+    await escolher(page.getByLabel(/^Requisito/), "Não ocupa sala");
+    await escolher(page.getByLabel("Turno", { exact: true }), "Manhã");
+    await page.getByRole("button", { name: "Salvar" }).click();
+    await expect.poll(() => contar(banco, "SELECT exige_sala FROM disciplinas WHERE id = 1")).toBe(0);
+    expect(mensagens).toHaveLength(1);
+    expect(mensagens[0]).toMatch(/1 aula\(s\) desta disciplina serão apagadas/);
+    expect(mensagens[0]).toMatch(/Outras 1 aula\(s\) ficam sem sala\./);
+    expect(mensagens[0]).not.toMatch(/trocam de sala/);
+    expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE disciplina_id = 1")).toBe(1);
+    expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE disciplina_id = 1 AND hora = 0 AND sala_id IS NULL")).toBe(1);
+    // Perder a sala foi o que se pediu: o aviso de "mudaram de sala" não sai.
+    await expect(linhaCom(page, "Cálculo")).toContainText("sem sala");
+    expect(await page.getByText(/mudaram de sala/).count()).toBe(0);
+  });
+});
+
+test.describe("marcas na lista", () => {
+  test.use({
+    semMassa: true,
+    semente: `
+      INSERT INTO periodos (curso_id, numero, turno) VALUES (1, 1, 'manha');
+      INSERT INTO professores (id, nome) VALUES (1, 'Ana Souza');
+      INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais, exige_sala, tipo_sala) VALUES
+        (1, 1, 'Cálculo', 1, 2, 1, NULL), (2, 1, 'Química', 1, 2, 1, 'Laboratório');
+      INSERT INTO disciplina_professores (disciplina_id, professor_id, aulas) VALUES (1, 1, 2), (2, 1, 2);`,
+  });
+
+  test("a disciplina que exige um tipo de sala mostra a etiqueta com o tipo", async ({ page }) => {
+    await irPara(page, "Disciplinas");
+    await expect(linhaCom(page, "Química").getByText("só Laboratório", { exact: true })).toBeVisible();
+    await expect(linhaCom(page, "Cálculo").getByText(/^só /)).toHaveCount(0);
+  });
+});
+
 test.describe("validação do formulário", () => {
   test.use({
     semMassa: true,

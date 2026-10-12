@@ -6,12 +6,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/componentes/ui/toolti
 import type { Linha } from "./salvar";
 
 /** O que a disciplina tem de diferente do comum, em palavras curtas. */
-function marcas(l: Linha): { texto: string; foraDaCelula?: boolean }[] {
+function marcas(l: Linha): { texto: string }[] {
   return [
     { texto: !l.ofertada ? "não ofertada" : "" },
     { texto: !l.exige_sala ? "sem sala" : "" },
-    // A lista nunca desenhou esta marca: ela só entra no texto de ordenação.
-    { texto: l.tipo_sala ? `só ${l.tipo_sala}` : "", foraDaCelula: true },
+    { texto: l.tipo_sala ? `só ${l.tipo_sala}` : "" },
     { texto: l.n_salas > 0 ? `${l.n_salas} sala(s)` : "" },
     { texto: l.blocos_livres ? "livre" : "" },
     { texto: l.permite_sabado ? "sábado" : "" },
@@ -35,6 +34,15 @@ export function marcasDe(l: Linha): string {
  * (`ocultas` do `useTabela`). Constante de módulo, pela referência estável.
  */
 export const COLUNAS_OCULTAS = ["tipo_id", "optativa", "ofertada", "turno"];
+
+/**
+ * Valores das colunas ocultas para "nenhum": `pertence` compara valores e
+ * `null` não se marca num filtro, então quem não tem tipo (ou segue o turno do
+ * período) ganha um valor que as opções "Sem tipo" e "Segue o período" usam.
+ * Strings, que nenhum id de tipo nem turno cadastrado pode ser.
+ */
+export const SEM_TIPO = "sem-tipo";
+export const SEGUE_O_PERIODO = "segue-o-periodo";
 
 const FATIAS_NAO_FECHAM = "fatias não fecham com a CH";
 
@@ -110,21 +118,19 @@ export function criarColunas({
       header: "Marcas",
       accessorFn: marcasDe,
       cell: ({ row }) =>
-        marcas(row.original)
-          .filter((m) => !m.foraDaCelula)
-          .map((m) => (
-            <span
-              key={m.texto}
-              className="mr-1 inline-block rounded-[3px] bg-poco px-1.5 py-px text-[10.5px] whitespace-nowrap text-tx2"
-            >
-              {m.texto}
-            </span>
-          )),
+        marcas(row.original).map((m) => (
+          <span
+            key={m.texto}
+            className="mr-1 inline-block rounded-[3px] bg-poco px-1.5 py-px text-[10.5px] whitespace-nowrap text-tx2"
+          >
+            {m.texto}
+          </span>
+        )),
     },
-    { accessorKey: "tipo_id", filterFn: pertence, enableSorting: false },
+    { id: "tipo_id", accessorFn: (l) => l.tipo_id ?? SEM_TIPO, filterFn: pertence, enableSorting: false },
     { accessorKey: "optativa", filterFn: pertence, enableSorting: false },
     { accessorKey: "ofertada", filterFn: pertence, enableSorting: false },
-    { accessorKey: "turno", filterFn: pertence, enableSorting: false },
+    { id: "turno", accessorFn: (l) => l.turno ?? SEGUE_O_PERIODO, filterFn: pertence, enableSorting: false },
     {
       id: "acoes",
       enableSorting: false,

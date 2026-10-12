@@ -115,6 +115,38 @@ test.describe("Disciplinas", () => {
     await expect(page.getByRole("row", { name: /Física/ })).toBeVisible();
   });
 
+  test("a opção Segue o período vem por último e lista as disciplinas sem turno forçado", async ({ page }) => {
+    await irPara(page, "Disciplinas");
+    await page.getByRole("button", { name: "Filtrar por Turno forçado" }).click();
+    await expect(page.locator("label").filter({ has: page.getByRole("checkbox") })).toHaveText(["Manhã", "Tarde", "Segue o período"]);
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("checkbox")).toHaveCount(0);
+    await marcar(page, "Turno forçado", "Segue o período");
+    await expect(page.getByText("2 de 3")).toBeVisible();
+    await expect(page.getByRole("row", { name: /Cálculo/ })).toBeVisible();
+    await expect(page.getByRole("row", { name: /Libras/ })).toBeVisible();
+    await expect(page.getByRole("row", { name: /Física/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Remover filtro Turno forçado: Segue o período" })).toBeVisible();
+  });
+
+  test("sem tipo cadastrado, o filtro Tipo não aparece, mesmo com a opção Sem tipo", async ({ page }) => {
+    await irPara(page, "Disciplinas");
+    await expect(page.getByRole("button", { name: "Filtrar por Turno forçado" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Filtrar por Tipo" })).toHaveCount(0);
+  });
+
+  test("Segue o período combina com outro filtro e com um turno da mesma lista", async ({ page }) => {
+    await irPara(page, "Disciplinas");
+    await marcar(page, "Turno forçado", "Segue o período");
+    await marcar(page, "Optativa", "Sim");
+    await expect(page.getByText("1 de 3")).toBeVisible();
+    await expect(page.getByRole("row", { name: /Libras/ })).toBeVisible();
+    await page.getByRole("button", { name: "Remover filtro Optativa: Sim" }).click();
+    // Dentro de um mesmo filtro as opções se somam: Tarde mais Segue o período.
+    await marcar(page, "Turno forçado", "Tarde");
+    await expect(page.getByText("3 de 3")).toBeVisible();
+  });
+
   test("filtro sem resultado oferece limpar a busca e os filtros", async ({ page }) => {
     await irPara(page, "Disciplinas");
     await marcar(page, "Turno forçado", "Manhã");
@@ -169,5 +201,48 @@ test.describe("Disciplinas, troca de curso", () => {
     await expect(page.getByText("1 de 1")).toBeVisible();
     await expect(page.getByRole("button", { name: /^Remover filtro/ })).toHaveCount(0);
     await expect(page.getByLabel("Buscar")).toHaveValue("");
+  });
+});
+
+test.describe("Disciplinas, filtro de tipo", () => {
+  test.use({
+    semMassa: true,
+    semente: `
+      INSERT INTO periodos (curso_id, numero, turno) VALUES (1, 1, 'manha');
+      INSERT INTO professores (id, nome) VALUES (1, 'Ana Souza');
+      INSERT INTO tipos_disciplina (id, nome, exige_sala, tipo_sala) VALUES (1, 'Tipo Alfa', 1, NULL);
+      INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais, exige_sala, tipo_id) VALUES
+        (1, 1, 'Cálculo', 1, 4, 0, 1),
+        (2, 1, 'Física', 1, 4, 0, NULL),
+        (3, 1, 'Libras', 1, 2, 0, NULL);
+      INSERT INTO disciplina_professores (disciplina_id, professor_id, aulas) VALUES (1, 1, 4), (2, 1, 4), (3, 1, 2);`,
+  });
+
+  const marcar = async (page: import("@playwright/test").Page, filtro: string, opcao: string) => {
+    await page.getByRole("button", { name: `Filtrar por ${filtro}` }).click();
+    await page.getByRole("checkbox", { name: opcao, exact: true }).check();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("checkbox", { name: opcao, exact: true })).toHaveCount(0);
+  };
+
+  test("Sem tipo vem por último e lista as disciplinas sem tipo", async ({ page }) => {
+    await irPara(page, "Disciplinas");
+    await page.getByRole("button", { name: "Filtrar por Tipo" }).click();
+    await expect(page.locator("label").filter({ has: page.getByRole("checkbox") })).toHaveText(["Tipo Alfa", "Sem tipo"]);
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("checkbox")).toHaveCount(0);
+    await marcar(page, "Tipo", "Sem tipo");
+    await expect(page.getByText("2 de 3")).toBeVisible();
+    await expect(page.getByRole("row", { name: /Física/ })).toBeVisible();
+    await expect(page.getByRole("row", { name: /Libras/ })).toBeVisible();
+    await expect(page.getByRole("row", { name: /Cálculo/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Remover filtro Tipo: Sem tipo" })).toBeVisible();
+  });
+
+  test("Sem tipo junto com um tipo lista as duas coisas", async ({ page }) => {
+    await irPara(page, "Disciplinas");
+    await marcar(page, "Tipo", "Sem tipo");
+    await marcar(page, "Tipo", "Tipo Alfa");
+    await expect(page.getByText("3 de 3")).toBeVisible();
   });
 });

@@ -13,10 +13,11 @@ import { TabelaDados, useTabela } from "@/componentes/tabela-dados";
 import { avisar } from "@/componentes/toasts";
 import { Button } from "@/componentes/ui/button";
 import { mensagemErro } from "@/lib/erros";
-import { COLUNAS_OCULTAS, criarColunas } from "./colunas";
+import { COLUNAS_OCULTAS, SEGUE_O_PERIODO, SEM_TIPO, criarColunas } from "./colunas";
 import { EditorDisciplina } from "./EditorDisciplina";
 import {
   SEM_AULAS,
+  fraseDasSalas,
   montarInstrucoes,
   novo,
   prepararAulas,
@@ -179,6 +180,7 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
       if (aulas.recusa !== undefined) return setErroDoFormulario(aulas.recusa);
 
       const { apagadas } = aulas;
+      const frasePorSala = apagadas ? fraseDasSalas(apagadas.mudamDeSala, apagadas.perdemSala) : "";
       if (
         apagadas &&
         !(await confirmar({
@@ -187,7 +189,7 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
             `${apagadas.total} aula(s) desta disciplina serão apagadas, porque deixam de valer com a mudança` +
             (apagadas.fixadasApagadas ? ` (${apagadas.fixadasApagadas} fixada(s))` : "") +
             "." +
-            (apagadas.mudamOuPerdemSala ? ` Outras ${apagadas.mudamOuPerdemSala} aula(s) trocam de sala.` : ""),
+            (frasePorSala ? ` ${frasePorSala}` : ""),
           itens: apagadas.itens,
           confirmar: `Salvar e apagar ${apagadas.total} aula(s)`,
           perigo: true,
@@ -264,7 +266,14 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
     () =>
       [
         { id: "periodo", titulo: "Período", opcoes: periodos.map((p) => ({ valor: p.numero, rotulo: `${p.numero}º` })) },
-        { id: "tipo_id", titulo: "Tipo", opcoes: tipos.map((t) => ({ valor: t.id, rotulo: t.nome })) },
+        {
+          id: "tipo_id",
+          titulo: "Tipo",
+          // Sem tipo cadastrado não há o que filtrar: "Sem tipo" sozinha não adianta.
+          opcoes: tipos.length
+            ? [...tipos.map((t) => ({ valor: t.id, rotulo: t.nome })), { valor: SEM_TIPO, rotulo: "Sem tipo" }]
+            : [],
+        },
         { id: "optativa", titulo: "Optativa", opcoes: SIM_OU_NAO },
         { id: "ofertada", titulo: "Ofertada", opcoes: SIM_OU_NAO },
         {
@@ -273,6 +282,7 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
           opcoes: [
             { valor: "manha", rotulo: "Manhã" },
             { valor: "tarde", rotulo: "Tarde" },
+            { valor: SEGUE_O_PERIODO, rotulo: "Segue o período" },
           ],
         },
       ].filter((d) => d.opcoes.length > 0),
