@@ -168,6 +168,22 @@ test.describe("Indisponibilidades", () => {
     });
   });
 
+  test.describe("com a recontagem falhando depois de gravar", () => {
+    // A recontagem roda na carga (1ª vez) e depois de cada gravação (2ª): a gravação passa e só ela falha.
+    test.use({ opcoesPonte: { falharAPartirDe: { quando: /^SELECT professor_id, COUNT\(\*\) AS n FROM indisponibilidades/, vez: 2 } } });
+
+    test("a marca gravada fica, e o erro é da página, não de gravação", async ({ page, banco }) => {
+      await irPara(page, "Indisponibilidades");
+      await page.getByRole("button", { name: "Ana Souza" }).click();
+      await celula(page, "Segunda", "M1").click();
+      await expect(page.getByRole("main").getByRole("alert")).toContainText("falha simulada");
+      // Nada de aviso de falha de gravação: a gravação deu certo, e a marca fica na malha e no banco.
+      await expect(page.locator("[data-sonner-toast]")).toHaveCount(0);
+      await expect(celula(page, "Segunda", "M1")).toHaveText("×");
+      expect(contar(banco, "SELECT COUNT(*) FROM indisponibilidades")).toBe(1);
+    });
+  });
+
   test.describe("com a carga falhando", () => {
     test.use({ opcoesPonte: { falharQuando: /FROM professores ORDER BY nome/ } });
 

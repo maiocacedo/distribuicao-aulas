@@ -10,6 +10,8 @@
  * `cursor` e o `border-radius` dos botões. O resto que o `.legado` repunha
  * (borda e fundo de botão, `padding` de célula, centro de `th`, herança de
  * fonte e cor) o reset já deixa como o desenho quer: não declare de novo.
+ * A linha do espaçador entre turnos tem `cursor: default`: a célula herda o
+ * `pointer` da malha e um respiro não é clicável.
  */
 
 .grade-horarios {
@@ -85,6 +87,7 @@
   border-radius: var(--r);
   text-align: center;
   color: var(--tx3);
+  line-height: 1;
 }
 
 .grade-horarios td {
@@ -99,9 +102,10 @@
 .grade-horarios td.indisponivel,
 .simbolo-celula.indisponivel {
   color: var(--neg);
-  font-size: 14px;
+  /* O × da malha tem 14 px; o do símbolo da legenda define a sua medida em
+     `--marca`, para o tamanho morar só aqui e não depender da ordem dos blocos. */
+  font-size: var(--marca, 14px);
   font-weight: 700;
-  line-height: 1;
   box-shadow: inset 0 0 0 1px var(--neg);
 }
 
@@ -125,14 +129,10 @@
 
 /* Símbolo da legenda: a caixa da célula, em miniatura. */
 .simbolo-celula {
+  --marca: 13px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 26px;
   height: 20px;
-  line-height: 1;
-}
-
-.simbolo-celula.indisponivel {
-  font-size: 13px;
 }

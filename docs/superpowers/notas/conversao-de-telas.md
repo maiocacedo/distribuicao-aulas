@@ -1,6 +1,6 @@
 # Notas para converter uma tela
 
-Estado do molde depois da tarefa 9. O exemplo vivo é `src/paginas/Professores.tsx`: na dúvida, copie de lá. Restrições e receita em `restricoes.md`.
+Estado do molde depois da tarefa 10. O exemplo vivo é `src/paginas/Professores.tsx`: na dúvida, copie de lá. Restrições e receita em `restricoes.md`.
 
 ## Componentes
 
@@ -176,6 +176,19 @@ Todo controle validado também limpa o próprio erro ao mudar (ver `Campo`). `re
 - **Quadro de células centradas** (Períodos): `Table` com `className="table-fixed [&_td]:h-8 [&_td]:text-center [&_th]:text-center"`; números em `font-mono text-[12px] tabular-nums`, cabeçalho de coluna numérica em `font-mono`. `Seletor` centrado na célula: `className="mx-auto h-6 w-[150px] *:data-[slot=select-value]:flex-1 *:data-[slot=select-value]:justify-center"`; `Input` embutido: `mx-auto block h-5 w-16 px-1 text-center font-mono`.
 - **Chip-botão com contorno** (padrões de bloco): `border` + `py-px pl-1.5 pr-[3px]` iguala o chip antigo (`padding: 2px 4px 2px 7px` com sombra interna); `group` no botão e `group-hover:`/`group-focus-visible:` nos filhos para o "×" e o filete que mudam no pouso; reserve a largura do "×" (`w-[7px]`, `opacity-0`) para o chip não crescer.
 - **Campos:** `Seletor` em `Campo` com `className="w-full"` (o gatilho nasce `w-fit`); `Textarea` com `rows`; `<input type="range" className="w-full accent-primary">` nativo; `Input type="number"`.
+
+## Malhas e o `grade.css`
+
+Tabela com desenho próprio (Indisponibilidades; a grade manual vem a seguir) mora em `src/estilos/grade.css`, camada `components`, desaninhada de `.legado`. Lá o `revert` não existe mais.
+- **O reset do Tailwind já dá:** `padding: 0`, `border: 0 solid`, `background: transparent`, `font: inherit`, `color: inherit` em botão; centro de `th` é o padrão do navegador. Não declare de novo (o `padding: 0` de `td` vem do reset, não do Chromium).
+- **O que é preciso declarar:** `border-collapse: separate` e `border-spacing` (o reset põe `collapse`; malha com vão entre células precisa de `separate`), `font-weight` de `th` (o navegador dá negrito), `font-style: normal` em `em`, `cursor: pointer` e `border-radius` de botão.
+- **Descubra por ablação, não por lista:** tire uma declaração por vez do `grade.css` e compare a medida (`getBoundingClientRect` + `getComputedStyle`, claro e escuro, seletores por estrutura para valer antes e depois). O que não muda a medida sai.
+- **A captura tem de ver o que vai ser mexido.** A de Indisponibilidades não mostrava a malha (nenhum professor escolhido); foi preciso uma captura com professor escolhido, gerada com o código antigo ANTES de converter.
+- **Ainda no legado, por causa das grades manual e automática:** `.painel-duplo` (equivale a `grid grid-cols-[200px_1fr] items-start gap-[14px]`), `.sub` (`CabecalhoPagina` com `sub`) e `.acoes-secao` (`mt-3 flex items-center gap-2`). Saem quando a última dessas telas sair.
+- **Medir botão do shadcn:** o `transition-colors` faz a cor sair intermediária se a medida vier logo depois de o botão deixar de ser `disabled`. Espere uns 500 ms.
+- **Item ativo de lista de seleção:** `<button aria-pressed>` com `bg-acc-bg font-semibold text-primary`, sem variante de hover no ativo; fundo, cor e peso, então não depende só de cor.
+- **Dois erros de carga, cada um limpo pela sua carga** (`erro` da lista e das contagens, `erroDoProfessor` da malha): limpar um no fim da carga do outro esconde um erro ainda verdadeiro. Gravação que passa e recarga que falha depois é erro de página, não toast de gravação: `try` só em volta da gravação.
+- Teste de recarga que falha só depois da gravação: `opcoesPonte: { falharAPartirDe: { quando: /…/, vez: 2 } }` (a 1ª vez é a carga inicial).
 
 ## Comparar antes e depois
 

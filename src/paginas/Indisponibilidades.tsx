@@ -28,7 +28,11 @@ export default function Indisponibilidades() {
   const [ocupadas, setOcupadas] = useState<Map<string, Ocupada>>(new Map());
   const [contagens, setContagens] = useState<Record<number, number>>({});
   // Falha de carga: a tela não tem como seguir. Falha de gravação é toast.
+  // Dois erros porque são de cargas diferentes e cada um sai quando a sua
+  // carga dá certo: a lista e as contagens (`erro`), e a malha do professor
+  // escolhido (`erroDoProfessor`). Escolher outro professor não apaga o primeiro.
   const [erro, setErro] = useState("");
+  const [erroDoProfessor, setErroDoProfessor] = useState("");
   const [carregando, setCarregando] = useState(true);
 
   // O que está gravado no banco. O arrastar mexe só em `marcados`; ao soltar,
@@ -51,7 +55,6 @@ export default function Indisponibilidades() {
     setDias(Number((await config("dias_letivos")) ?? 6));
     await recontar();
     setCarregando(false);
-    setErro("");
   }
 
   async function recontar() {
@@ -59,6 +62,7 @@ export default function Indisponibilidades() {
       "SELECT professor_id, COUNT(*) AS n FROM indisponibilidades GROUP BY professor_id",
     );
     setContagens(Object.fromEntries(linhas.map((l) => [l.professor_id, l.n])));
+    setErro("");
   }
 
   const carregarProfessor = useCallback(async (id: number) => {
@@ -77,7 +81,7 @@ export default function Indisponibilidades() {
       [id],
     );
     setOcupadas(new Map(aulas.map((a) => [chave(a.dia, a.hora), a])));
-    setErro("");
+    setErroDoProfessor("");
   }, []);
 
   useEffect(() => {
@@ -85,7 +89,7 @@ export default function Indisponibilidades() {
   }, []);
 
   useEffect(() => {
-    if (atual != null) carregarProfessor(atual).catch((e) => setErro(String(e)));
+    if (atual != null) carregarProfessor(atual).catch((e) => setErroDoProfessor(String(e)));
   }, [atual, carregarProfessor]);
 
   /** Grava a diferença entre o que está na tela e o que está no banco. */
@@ -121,12 +125,12 @@ export default function Indisponibilidades() {
     } catch (e) {
       // Sem formulário onde a recusa caiba: aviso, e a malha volta ao que o banco guarda.
       avisar.erro(mensagemErro(e, "A indisponibilidade"));
-      await carregarProfessor(atual).catch((e) => setErro(String(e)));
+      await carregarProfessor(atual).catch((falha) => setErroDoProfessor(String(falha)));
       return;
     }
     salvos.current = new Set(conjunto);
     // Fora do `try`: o que já foi gravado não é falha de gravação.
-    await recontar().catch((e) => setErro(String(e)));
+    await recontar().catch((falha) => setErro(String(falha)));
   }
 
   function pintar(dia: number, hora: number, modo: "marcar" | "desmarcar") {
@@ -184,6 +188,7 @@ export default function Indisponibilidades() {
       <CabecalhoPagina titulo="Indisponibilidades" sub="Horários em que o professor não pode dar aula." />
 
       <Alerta tom="erro">{erro}</Alerta>
+      <Alerta tom="erro">{erroDoProfessor}</Alerta>
 
       <div className="grid grid-cols-[200px_1fr] items-start gap-[14px]">
         <ul className="rounded-lg bg-panel p-1.5 shadow-[inset_0_0_0_1px_var(--line)]">
