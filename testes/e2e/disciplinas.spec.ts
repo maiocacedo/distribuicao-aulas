@@ -281,7 +281,15 @@ test.describe("validação do formulário", () => {
     await dialogo.getByRole("button", { name: "Remover a fatia 1" }).click();
     await dialogo.getByRole("button", { name: "Salvar" }).click();
     await expect(dialogo.getByText("Atribua a disciplina a pelo menos um professor.")).toBeVisible();
-    await expect(dialogo.getByRole("button", { name: "Adicionar professor" })).toBeFocused();
+    const adicionar = dialogo.getByRole("button", { name: "Adicionar professor" });
+    await expect(adicionar).toBeFocused();
+    // Botão não é campo: o marcador do diálogo, e nada de estado de campo inválido.
+    await expect(adicionar).toHaveAttribute("data-acusado", "true");
+    await expect(adicionar).not.toHaveAttribute("aria-invalid", /.*/);
+    await expect(adicionar).toHaveAccessibleDescription("Atribua a disciplina a pelo menos um professor.");
+    // Quem mexeu nas fatias já leu a mensagem (e o único professor foi usado: o botão sai).
+    await adicionar.click();
+    await expect(dialogo.getByText("Atribua a disciplina a pelo menos um professor.")).toHaveCount(0);
     expect(contar(banco, "SELECT COUNT(*) FROM disciplina_professores WHERE disciplina_id = 1")).toBe(1);
   });
 });
@@ -298,5 +306,51 @@ test.describe("sem professor cadastrado", () => {
     // Nada cadastrado: uma frase só, sem barra de filtros nem botão de limpar.
     await expect(page.getByText("Nenhuma disciplina cadastrada neste curso.")).toBeVisible();
     await expect(page.getByRole("button", { name: /^Filtrar por/ })).toHaveCount(0);
+  });
+});
+
+test.describe("sem professor para adicionar", () => {
+  test.use({
+    semMassa: true,
+    semente: `
+      INSERT INTO periodos (curso_id, numero, turno) VALUES (1, 1, 'manha');
+      INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais, exige_sala) VALUES (1, 1, 'Libras', 1, 2, 0);`,
+  });
+
+  test("a recusa das fatias é anunciada e trazida à vista mesmo sem botão nem campo a focar", async ({ page, banco }) => {
+    // Janela baixa: o grupo de fatias fica no meio do formulário, fora da vista.
+    await page.setViewportSize({ width: 1280, height: 420 });
+    await editar(page, "Libras");
+    const dialogo = page.getByRole("dialog");
+    await expect(dialogo.getByRole("button", { name: "Adicionar professor" })).toHaveCount(0);
+    await dialogo.getByRole("button", { name: "Salvar" }).click();
+    const recusa = dialogo.getByRole("alert").filter({ hasText: "Atribua a disciplina a pelo menos um professor." });
+    await expect(recusa).toBeVisible();
+    await expect(recusa).toBeInViewport();
+    expect(contar(banco, "SELECT COUNT(*) FROM disciplina_professores WHERE disciplina_id = 1")).toBe(0);
+  });
+});
+
+test.describe("professor que já tem fatia", () => {
+  test.use({
+    semMassa: true,
+    semente: `
+      INSERT INTO periodos (curso_id, numero, turno) VALUES (1, 1, 'manha');
+      INSERT INTO professores (id, nome) VALUES (1, 'Ana Souza'), (2, 'Bruno Lima');
+      INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais, exige_sala) VALUES (1, 1, 'Libras', 1, 2, 0);
+      INSERT INTO disciplina_professores (disciplina_id, professor_id, aulas) VALUES (1, 1, 2);`,
+  });
+
+  test("a opção desabilitada diz o motivo, e o gatilho da própria fatia mostra só o nome", async ({ page }) => {
+    await editar(page, "Libras");
+    const dialogo = page.getByRole("dialog");
+    await dialogo.getByRole("button", { name: "Adicionar professor" }).click();
+    const segunda = dialogo.getByRole("combobox", { name: "Professor da fatia 2" });
+    await expect(segunda).toHaveText("Bruno Lima");
+    await expect(dialogo.getByRole("combobox", { name: "Professor da fatia 1" })).toHaveText("Ana Souza");
+    await segunda.click();
+    await expect(page.getByRole("option", { name: "Ana Souza — já tem fatia" })).toBeDisabled();
+    // A própria escolha não é "já tem fatia": é a opção marcada, com o nome.
+    await expect(page.getByRole("option", { name: "Bruno Lima", exact: true })).toBeEnabled();
   });
 });

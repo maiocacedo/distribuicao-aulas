@@ -73,9 +73,10 @@ export interface AulasAApagar {
   /** Até 10 linhas "dia código — motivo"; a última resume as que não couberam. */
   itens: string[];
   total: number;
-  fixadas: number;
-  /** Aulas que, além das apagadas, trocam de sala. */
-  trocadas: number;
+  /** Das apagadas, as que estavam fixadas. */
+  fixadasApagadas: number;
+  /** Aulas que, além das apagadas, mudam de sala ou só perdem a sala. */
+  mudamOuPerdemSala: number;
 }
 
 /** O que a gravação faz com as aulas: o que pôr na transação e o que contar ao usuário. */
@@ -89,13 +90,13 @@ export interface PlanoAceito {
    * Aulas que passam para outra sala. A que só perde a sala, porque a
    * disciplina deixou de ocupar sala, não conta: foi o que o usuário pediu.
    */
-  trocadas: number;
+  mudamDeSala: number;
   /** Dessas, as que estavam fixadas. */
-  fixadas: number;
+  fixadasQueMudam: number;
 }
 
 /** Disciplina nova, ou sem aula na grade: nada a fazer com as aulas. */
-export const SEM_AULAS: PlanoAceito = { antes: [], depois: [], apagadas: null, trocadas: 0, fixadas: 0 };
+export const SEM_AULAS: PlanoAceito = { antes: [], depois: [], apagadas: null, mudamDeSala: 0, fixadasQueMudam: 0 };
 
 /**
  * Resultado de `prepararAulas`. `recusa` é a mensagem para o erro do
@@ -251,13 +252,13 @@ export async function prepararAulas(d: Rascunho, entrada: EntradaDasAulas): Prom
 
   let apagadas: AulasAApagar | null = null;
   if (apagar.length > 0) {
-    const fixadas = apagar.filter((x) => x.a.fixada).length;
+    const fixadasApagadas = apagar.filter((x) => x.a.fixada).length;
     const MAXIMO = 10;
     const quais = apagar
       .slice(0, MAXIMO)
       .map((x) => `${DIAS[x.a.dia]} ${codigos.get(x.a.hora) ?? x.a.hora} — ${x.razao}`);
     if (apagar.length > MAXIMO) quais.push(`… e mais ${apagar.length - MAXIMO}`);
-    apagadas = { itens: quais, total: apagar.length, fixadas, trocadas: trocar.length };
+    apagadas = { itens: quais, total: apagar.length, fixadasApagadas, mudamOuPerdemSala: trocar.length };
   }
 
   // Pela chave com o período antigo: o UPDATE de período vem depois.
@@ -281,8 +282,8 @@ export async function prepararAulas(d: Rascunho, entrada: EntradaDasAulas): Prom
     antes,
     depois,
     apagadas,
-    trocadas: mudamDeSala.length,
-    fixadas: mudamDeSala.filter((x) => x.a.fixada).length,
+    mudamDeSala: mudamDeSala.length,
+    fixadasQueMudam: mudamDeSala.filter((x) => x.a.fixada).length,
   };
 }
 

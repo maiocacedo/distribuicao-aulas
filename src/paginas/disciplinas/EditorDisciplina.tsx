@@ -93,10 +93,15 @@ export function EditorDisciplina({
   };
   const mudarFatia = (i: number, f: Fatia) => mudarFatias(valor.fatias.map((o, j) => (j === i ? f : o)));
 
-  /** Atributos do controle que a recusa das fatias acusa: o diálogo leva o foco ao primeiro. */
-  const acusado = (controle: "adicionar" | "professor" | "aulas", i?: number) =>
-    erros.fatias?.controle === controle && (i === undefined || erros.fatias.posicoes.includes(i))
+  /** Atributos do campo da fatia que a recusa acusa: o diálogo leva o foco ao primeiro. */
+  const acusado = (controle: "professor" | "aulas", i: number) =>
+    erros.fatias?.controle === controle && erros.fatias.posicoes.includes(i)
       ? ({ "aria-invalid": true, "aria-describedby": `${idDasFatias}-erro` } as const)
+      : {};
+  /** O botão não é campo: leva o marcador do diálogo em vez de `aria-invalid`, que lhe daria a borda de erro. */
+  const acusadoAdicionar =
+    erros.fatias?.controle === "adicionar"
+      ? ({ "data-acusado": true, "aria-describedby": `${idDasFatias}-erro` } as const)
       : {};
 
   const disponiveis = professores.filter(
@@ -105,12 +110,11 @@ export function EditorDisciplina({
 
   const opcoesDeProfessor = (f: Fatia): Opcao<number>[] => [
     { valor: 0, rotulo: "escolha…" },
-    ...professores.map((p) => ({
-      valor: p.id,
-      rotulo: p.nome,
-      // Um professor tem uma fatia só por disciplina.
-      desabilitada: p.id !== f.professor_id && valor.fatias.some((o) => o.professor_id === p.id),
-    })),
+    ...professores.map((p) => {
+      // Um professor tem uma fatia só por disciplina; a opção diz o motivo.
+      const jaTem = p.id !== f.professor_id && valor.fatias.some((o) => o.professor_id === p.id);
+      return { valor: p.id, rotulo: jaTem ? `${p.nome} — já tem fatia` : p.nome, desabilitada: jaTem };
+    }),
   ];
 
   return (
@@ -282,14 +286,20 @@ export function EditorDisciplina({
                   { professor_id: disponiveis[0].id, aulas: Math.max(1, valor.aulas_semanais - soma) },
                 ])
               }
-              {...acusado("adicionar")}
+              {...acusadoAdicionar}
             >
               Adicionar professor
             </Button>
           )}
         </div>
+        {/* `role="alert"`: anunciada ao aparecer e, sem botão ou campo a focar
+            (nenhum professor para adicionar), é o que o diálogo traz para a vista. */}
         {erros.fatias && (
-          <span id={`${idDasFatias}-erro`} className="mt-1.5 block text-xs leading-4 text-destructive">
+          <span
+            id={`${idDasFatias}-erro`}
+            role="alert"
+            className="mt-1.5 block text-xs leading-4 text-destructive"
+          >
             {erros.fatias.mensagem}
           </span>
         )}

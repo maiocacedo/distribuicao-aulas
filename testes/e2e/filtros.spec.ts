@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures";
-import { irPara } from "./paginas";
+import { escolher, irPara } from "./paginas";
 
 test.describe("Salas", () => {
   test.use({
@@ -138,5 +138,36 @@ test.describe("Disciplinas", () => {
     await marcar(page, "Período", "2º");
     await page.getByRole("button", { name: "Nova disciplina" }).click();
     await expect(page.getByRole("dialog").getByLabel("Período", { exact: true })).toContainText("2º");
+  });
+});
+
+test.describe("Disciplinas, troca de curso", () => {
+  test.use({
+    semMassa: true,
+    semente: `
+      INSERT INTO cursos (id, nome) VALUES (2, 'Zeta');
+      INSERT INTO periodos (curso_id, numero, turno) VALUES (1, 1, 'manha'), (1, 2, 'manha'), (2, 1, 'manha'), (2, 2, 'manha');
+      INSERT INTO professores (id, nome) VALUES (1, 'Ana Souza'), (2, 'Bruno Lima');
+      INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais, exige_sala) VALUES
+        (1, 1, 'Cálculo', 1, 4, 0), (2, 1, 'Física', 2, 4, 0), (3, 2, 'Redes', 1, 2, 0);
+      INSERT INTO disciplina_professores (disciplina_id, professor_id, aulas) VALUES (1, 1, 4), (2, 2, 4), (3, 1, 2);`,
+  });
+
+  test("busca e filtros ficam para trás: o curso novo aparece inteiro", async ({ page }) => {
+    await irPara(page, "Disciplinas");
+    await page.getByRole("button", { name: "Filtrar por Período" }).click();
+    await page.getByRole("checkbox", { name: "2º", exact: true }).check();
+    await page.keyboard.press("Escape");
+    await page.getByLabel("Buscar").fill("bruno");
+    await expect(page.getByText("1 de 2")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Remover filtro Período: 2º" })).toBeVisible();
+
+    // O período 2 existe nos dois cursos, então o chip faria sentido no novo;
+    // sem a limpeza, "Redes" (período 1, professora Ana) ficaria escondida.
+    await escolher(page.getByRole("navigation").getByRole("combobox", { name: "Curso" }), "Zeta");
+    await expect(page.getByRole("row", { name: /Redes/ })).toBeVisible();
+    await expect(page.getByText("1 de 1")).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Remover filtro/ })).toHaveCount(0);
+    await expect(page.getByLabel("Buscar")).toHaveValue("");
   });
 });

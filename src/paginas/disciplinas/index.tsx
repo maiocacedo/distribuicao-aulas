@@ -111,8 +111,12 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
 
   useEffect(() => {
     // Trocou de curso: até a recarga chegar, as linhas e os períodos à mostra
-    // são do curso anterior, e "Nova disciplina" proporia um período dele.
+    // são do curso anterior, e "Nova disciplina" proporia um período dele. A
+    // página não é remontada, então busca e filtros do curso velho ficariam
+    // escondendo disciplinas do novo, com um chip que o curso novo nem tem.
     setCarregando(true);
+    setBusca("");
+    setFiltros([]);
     void recarregar();
   }, [recarregar]);
 
@@ -181,9 +185,9 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
           titulo: "Apagar aulas desta disciplina?",
           descricao:
             `${apagadas.total} aula(s) desta disciplina serão apagadas, porque deixam de valer com a mudança` +
-            (apagadas.fixadas ? ` (${apagadas.fixadas} fixada(s))` : "") +
+            (apagadas.fixadasApagadas ? ` (${apagadas.fixadasApagadas} fixada(s))` : "") +
             "." +
-            (apagadas.trocadas ? ` Outras ${apagadas.trocadas} aula(s) trocam de sala.` : ""),
+            (apagadas.mudamOuPerdemSala ? ` Outras ${apagadas.mudamOuPerdemSala} aula(s) trocam de sala.` : ""),
           itens: apagadas.itens,
           confirmar: `Salvar e apagar ${apagadas.total} aula(s)`,
           perigo: true,
@@ -207,10 +211,10 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
     // Aula que trocou de sala sem ninguém ter pedido: a tela conta, e conta
     // também quando a mesma gravação apagou outras (a confirmação só avisou do
     // que ia acontecer).
-    if (plano.trocadas > 0)
+    if (plano.mudamDeSala > 0)
       avisar.sucesso(
-        `${plano.trocadas} aula(s) mudaram de sala`,
-        plano.fixadas ? `${plano.fixadas} delas estavam fixadas.` : undefined,
+        `${plano.mudamDeSala} aula(s) mudaram de sala`,
+        plano.fixadasQueMudam ? `${plano.fixadasQueMudam} delas estavam fixadas.` : undefined,
       );
     await recarregar();
   }
@@ -291,8 +295,10 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
     <>
       <CabecalhoPagina
         titulo="Disciplinas"
-        escopo={`Curso · ${linhas.reduce((s, l) => s + l.aulas_semanais, 0)} aulas por semana`}
-        contagem={`${tabela.getRowModel().rows.length} de ${linhas.length}`}
+        // Durante a recarga são os números do curso anterior. O que dá a altura
+        // do cabeçalho é a busca, que fica; o texto só some.
+        escopo={carregando ? undefined : `Curso · ${linhas.reduce((s, l) => s + l.aulas_semanais, 0)} aulas por semana`}
+        contagem={carregando ? undefined : `${tabela.getRowModel().rows.length} de ${linhas.length}`}
         busca={busca}
         aoBuscar={setBusca}
       >

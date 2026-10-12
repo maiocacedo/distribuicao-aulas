@@ -182,7 +182,7 @@ export function RequisitoSala({
                     {marcada && (
                       <Seletor
                         rotulo={`Preferência por ${s.nome}`}
-                        className="h-6 w-[104px] shrink-0"
+                        className="w-[104px] shrink-0"
                         valor={aceitaveis.includes(s.id) ? 2 : 1}
                         opcoes={PREFERENCIAS}
                         aoMudar={(preferencia) =>

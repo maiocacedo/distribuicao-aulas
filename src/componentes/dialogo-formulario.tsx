@@ -36,6 +36,10 @@ export function useAlterado<T>(valor: T | null): boolean {
  * de salvar, o foco vai para o primeiro campo marcado e, se não há campo
  * marcado, o alerta é trazido para a vista.
  *
+ * "Marcado" é `aria-invalid="true"` ou `data-acusado`. O segundo é para o que
+ * a recusa aponta e não é campo (um botão, um grupo): `aria-invalid` não é
+ * estado de botão e ainda lhe daria a borda de erro.
+ *
  * Ao fechar, o foco volta para onde estava quando o diálogo abriu (o botão
  * "Editar" da linha, o "Novo…" do cabeçalho).
  */
@@ -74,7 +78,7 @@ export function DialogoFormulario({
   const [tentativas, setTentativas] = useState(0);
   useEffect(() => {
     if (tentativas === 0 || salvando) return;
-    const invalido = formulario.current?.querySelector<HTMLElement>('[aria-invalid="true"]');
+    const invalido = formulario.current?.querySelector<HTMLElement>('[aria-invalid="true"], [data-acusado]');
     if (invalido) return invalido.focus();
     // Sem campo a apontar, a recusa está no alerta, no topo. Num formulário
     // mais alto que a janela quem clicou em "Salvar" está no fim dele e não

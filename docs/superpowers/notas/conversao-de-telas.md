@@ -1,6 +1,6 @@
 # Notas para converter uma tela
 
-Estado do molde depois da tarefa 10. O exemplo vivo é `src/paginas/Professores.tsx`: na dúvida, copie de lá. Restrições e receita em `restricoes.md`.
+Estado do molde depois da tarefa 11. O exemplo vivo é `src/paginas/Professores.tsx`: na dúvida, copie de lá. Restrições e receita em `restricoes.md`.
 
 ## Componentes
 
@@ -14,9 +14,9 @@ Com `aoBuscar` ou `contagem` é o desenho de lista (uma linha, 12 px até o cont
 </CabecalhoPagina>
 ```
 **`useTabela` / `TabelaDados`** (`@/componentes/tabela-dados`)
-`useTabela<T>({ dados: T[]; colunas: ColumnDef<T, any>[]; ordemInicial: SortingState; desempate: (l: T) => string; busca?: string; textoDeBusca?: (l: T) => string; filtros?: ColumnFiltersState }): Table<T>`
+`useTabela<T>({ dados: T[]; colunas: ColumnDef<T, any>[]; ordemInicial: SortingState; desempate: (l: T) => string; busca?: string; textoDeBusca?: (l: T) => string; filtros?: ColumnFiltersState; ocultas?: string[] }): Table<T>`
 `TabelaDados<T>({ tabela: Table<T>; vazio: ReactNode })`
-Também exporta `normalizar(texto)`, `compararValores(x, y)`, `ordenarPorDesempate(dados, desempate)` (a pré-ordenação do `useTabela`: cópia em ordem de `desempate`, pt-BR, estável) e `pertence(linha, coluna, valores)` (a `filterFn` de filtro facetado: lista vazia passa tudo). `meta: { numerico: true }` alinha à direita em fonte fixa; `meta: { centro: true }` centra.
+Também exporta `normalizar(texto)`, `compararValores(x, y)`, `ordenarPorDesempate(dados, desempate)` (a pré-ordenação do `useTabela`: cópia em ordem de `desempate`, pt-BR, estável) e `pertence(linha, coluna, valores)` (a `filterFn` de filtro facetado: lista vazia passa tudo). `meta: { numerico: true }` alinha à direita em fonte fixa; `meta: { centro: true }` centra; os dois juntos servem a coluna numérica centrada. `ocultas` são colunas só para filtrar: o filtro vale com a coluna escondida; passe constante de módulo ou `useMemo`.
 ```tsx
 const colunas = useMemo<ColumnDef<Linha, any>[]>(() => [
   { accessorKey: "nome", header: "Nome", cell: ({ row }) => <span className="font-semibold">{row.original.nome}</span> },
@@ -40,7 +40,7 @@ const tabela = useTabela({ dados: linhas, colunas, ordemInicial: [{ id: "nome", 
 **`DialogoFormulario` / `useAlterado`** (`@/componentes/dialogo-formulario`)
 `useAlterado<T>(valor: T | null): boolean`
 `DialogoFormulario({ titulo: string; alterado: boolean; salvando?: boolean; erro?: ReactNode; rotuloSalvar?: string; largo?: boolean; aoFechar: () => void; aoSalvar: () => void; children: ReactNode })`
-Faz sozinho: o `<form>` tem `noValidate` (nenhuma bolha nativa; ver "Validação" abaixo); não fecha no clique fora; Esc, Cancelar e "×" pedem "Descartar?" se `alterado`; nada fecha nem reenvia com `salvando` (Cancelar fica desabilitado, o "×" só não age); ao fechar devolve o foco a quem abriu; depois de uma tentativa de salvar foca o primeiro campo com `aria-invalid`.
+Faz sozinho: o `<form>` tem `noValidate` (nenhuma bolha nativa; ver "Validação" abaixo); não fecha no clique fora; Esc, Cancelar e "×" pedem "Descartar?" se `alterado`; nada fecha nem reenvia com `salvando` (Cancelar fica desabilitado, o "×" só não age); ao fechar devolve o foco a quem abriu; depois de uma tentativa de salvar foca o primeiro elemento com `aria-invalid="true"` ou `data-acusado` (ordem do documento) e, se não há nenhum, traz o alerta do formulário (`role="alert"`) para a vista: formulário mais alto que a janela tem o "Salvar" no fim e o alerta no topo. `data-acusado` é o marcador para o que a recusa aponta e não é campo (botão, grupo): `aria-invalid` não é estado de botão e lhe daria a borda de erro.
 ```tsx
 const alterado = useAlterado(edicao);
 {edicao && (
@@ -59,7 +59,7 @@ const alterado = useAlterado(edicao);
   }} />}
 </Campo>
 ```
-**`Seletor`** (`@/componentes/seletor`): `Seletor<V extends string | number | null>({ valor: V; opcoes: Opcao<V>[]; aoMudar: (v: V) => void; rotulo?: string; exibir?: ReactNode; desabilitado?: boolean; className?: string; id?; "aria-describedby"?; "aria-invalid"? })`, com `Opcao<V> = { valor: V; rotulo: string; desabilitada?: boolean }`. O gatilho tem o desenho do `Input`.
+**`Seletor`** (`@/componentes/seletor`): `Seletor<V extends string | number | null>({ valor: V; opcoes: Opcao<V>[]; aoMudar: (v: V) => void; rotulo?: string; exibir?: ReactNode; desabilitado?: boolean; className?: string; id?; "aria-describedby"?; "aria-invalid"? })`, com `Opcao<V> = { valor: V; rotulo: string; desabilitada?: boolean }`. O gatilho tem o desenho do `Input`. Opção desabilitada diz o motivo no rótulo (`${p.nome} — já tem fatia`); o gatilho da opção escolhida mostra só o nome.
 ```tsx
 <Campo rotulo="Preferência de distribuição dos dias" dica="…">
   {(a) => <Seletor {...a} className="w-full" valor={edicao.pref_dias} opcoes={PREFERENCIAS}
@@ -69,6 +69,11 @@ const alterado = useAlterado(edicao);
 **`BotaoIcone`** (`@/componentes/botao-icone`): `{ rotulo: string; icone: LucideIcon; aoClicar: () => void; perigo?: boolean; desabilitado?: boolean; motivo?: string; className?: string }`. `rotulo` é o nome acessível e a dica. `desabilitado` é `aria-disabled`: o botão continua alcançável, o clique não age e a dica mostra o `motivo`. Desabilitou, diga o motivo. Com `perigo`, habilitado, é sempre da cor de negativo (como na interface antiga); desabilitado fica rebaixado. Pendência: um e2e que confirme clique, Enter e Espaço inertes e a dica com o motivo quando alguma tela usar `desabilitado`:
 `<BotaoIcone rotulo="Remover" icone={Trash2} perigo desabilitado={impedido} motivo="…por que não pode…" aoClicar={…} />`
 
+- **`Marcador`** (`@/componentes/marcador`): `{ rotulo: string; descricao?: ReactNode; marcado: boolean; aoMudar: (marcado: boolean) => void }`. `Checkbox` com o rótulo e, embaixo, a frase que diz o que ele faz. O `<label>` envolve tudo (o clique vale na linha); o nome acessível é só o rótulo, a frase é a descrição. Não passe classes.
+```tsx
+<Marcador rotulo="Pode ir ao sábado" descricao="sem isto, o sábado nem entra nas possibilidades"
+  marcado={!!edicao.permite_sabado} aoMudar={() => setEdicao({ ...edicao, permite_sabado: edicao.permite_sabado ? 0 : 1 })} />
+```
 - **`Alerta`** (`@/componentes/alerta`): `{ tom: "erro" | "aviso" | "sucesso"; children: ReactNode; className?: string }`. Sem filhos não desenha nada: `<Alerta tom="erro">{erro}</Alerta>` fica sempre no JSX.
 - **`Secao`** (`@/componentes/secao`): `{ titulo?: string; children: ReactNode }`. O painel de seção (contorno de 1 px em sombra interna, `mb-3`) com o `h2` em caixa alta e peso 700 (o preflight o zera). Sem `titulo`, só o painel. Não passe classes. `Explica` (parágrafo justificado de explicação) só a página Regras usa e fica lá.
 ```tsx
@@ -109,6 +114,8 @@ const tabela = useTabela({ …, busca, textoDeBusca: (l) => `${l.nome} ${l.tipo}
 ```
 O botão do caso 2 tem nome diferente do "Limpar filtros" da barra (os dois aparecem juntos). Esconda a barra quando nada está cadastrado (`linhas.length > 0`), não quando o resultado é vazio.
 - Coluna só com `accessorKey` (sem `cell`) mostra o valor puro.
+- **Coluna só de filtro:** `{ accessorKey, filterFn: pertence, enableSorting: false }` e o `id` na lista `ocultas` do `useTabela` (constante de módulo).
+- **Opções de filtro que vêm de cadastro** (períodos, tipos): `useMemo` sobre os cadastros e `.filter((d) => d.opcoes.length > 0)` para esconder o filtro sem opção.
 - Valor da lista que não está nas `opcoes` não dá para filtrar; inclua os tipos distintos se importar.
 - **Validação.** Toda restrição de campo (`required`, `min`, `max`, `step`, `type="number"` que aceita vazio ou decimal) precisa de validação em JavaScript em `salvar`, com mensagem no `Campo`; o `noValidate` do diálogo deixa o navegador de fora. `min`/`max` podem ficar nos atributos (ajudam as setas), `required` sai. Número inteiro: `Number.isInteger`; campo numérico vazio vira `null` ou 0 conforme a tela, como antes.
 - **Campo numérico gravado no `onBlur`, fora de formulário** (Períodos): o navegador não valida e o `min` só ajuda as setas. Valide o texto (`trim`, vazio, `Number.isInteger`, `>= 0`) ANTES de compará-lo ao gravado: vazio dá `Number("") === 0` e passaria por "sem mudança" com a caixa vazia. Guarde `const caixa = e.target` antes de qualquer `await`; sempre que não gravar (recusa ou falha de gravação) faça `caixa.value = String(gravado)`. A tela que grava devolve se gravou (`tentar` → boolean). `defaultValue` pede `key` com o escopo e o valor gravado (`${cursoId}-${numero}-${valor}`), senão a caixa não acompanha o banco.
@@ -116,9 +123,14 @@ O botão do caso 2 tem nome diferente do "Limpar filtros" da barra (os dois apar
 - Gravação que muda outras coisas (aulas trocadas de sala): devolva um plano (instruções + contagens) em vez de só a lista, e conte ao usuário depois de salvar com `avisar.sucesso`, também quando a mesma gravação apagou outras (a confirmação já foi dada).
 - Lista sem busca (poucos registros: Tipos, Cursos): `useTabela` sem `busca`/`textoDeBusca` e `CabecalhoPagina` só com `contagem`; o estado vazio tem um texto só.
 - Grupo de caixas (turnos): `fieldset` + `legend` com `Checkbox`; dica e erro ligados ao grupo por `aria-describedby`, `aria-invalid` nas caixas (o diálogo foca a primeira). Não cabe no `Campo`.
+- Grupo de controles com recusa própria (lista de fatias): a validação devolve `{ mensagem, controle, posicoes }`. A mensagem fica dentro do `fieldset`, com `role="alert"` (anunciada, e o que o diálogo traz para a vista quando não há controle a focar) e `id`; o controle acusado leva `aria-describedby` para ela e, se é campo (seletor, caixa), `aria-invalid`; se é botão, `data-acusado`. Qualquer mudança no grupo limpa a recusa dele.
+- `fieldset` + `legend` em Tailwind: `min-w-0 rounded-lg px-3.5 pt-3 pb-3.5 shadow-[inset_0_0_0_1px_var(--line)]`, `legend` com `px-1.5 text-xs font-semibold text-tx2`, e o conteúdo numa `div` com `flex flex-col gap-4` (último filho sem margem).
+- Controle de linha de formulário ao lado de campos: `BotaoIcone` com contorno e da altura dos vizinhos (`className="size-7 border-input bg-panel"`); `Seletor` embutido ao lado de uma caixa com largura fixa (o gatilho `w-fit` muda de largura com a opção) e `shrink-0`, na altura do componente (28 px).
 - Coluna de texto derivado (etiquetas, rótulo composto): `accessorFn` que devolve o texto mostrado, para ordenar pelo que o usuário lê.
 - Dado da lista inteira de que a ação de linha precisa (total de registros): leve na própria linha (`n_cursos`), para as colunas não dependerem de `linhas` e continuarem estáveis.
 - Ilha `.legado` num diálogo novo (componente ainda antigo): `<div className="legado -mb-3">`; o `-mb-3` desfaz a margem de 12 px do último bloco antigo, que o item de flex não colapsa.
+- Limpeza do `legado.css`: o `grep` por classe também pega componente morto em `legado.tsx`; pode-o primeiro. Dentro de `.legado` só restam `GradeManual.tsx`, `GradeAutomatica.tsx` e `Vazio`/`Erro`; não há mais `input`, `textarea`, `fieldset` nem `label`. A grade manual tem um `<select>` nativo (trocar sala) que as capturas não mostram.
+- Para as grades: a confirmação de aulas apagadas e o toast de troca de sala já têm texto e padrão em `Salas` e em `disciplinas/index.tsx`; `motivosParaMostrar` (`disciplinas/salvar.ts`) é pura, se a grade precisar descrever motivos.
 - Arquivos em CRLF no disco: script que edita por substituição lê com `newline=""` e normaliza. Ao medir um diálogo, espere a animação de entrada (~600 ms).
 - CLI do shadcn importa `cn` do pacote npm `cn`: troque o import por `@/lib/utils`, `git checkout package.json package-lock.json`, confira `tema.css` e `components.json`.
 
@@ -163,7 +175,10 @@ Todo controle validado também limpa o próprio erro ao mudar (ver `Campo`). `re
 - **A célula de ações devolve só os `BotaoIcone`**, num fragmento. O embrulho que os esconde até o pouso mora em `TabelaDados`; um segundo muda a largura da coluna e desloca as outras.
 - **Borda conta na largura.** O contorno antigo era sombra interna; preenchimento copiado do CSS antigo perde 1 px (8 vira `px-[7px]`, 12 vira `px-[11px]`). Em painel, `shadow-[inset_0_0_0_1px_var(--line)]` em vez de `border`.
 - **`getByLabel` é por substring e sem diferenciar maiúsculas.** Um `aria-label` que contém o rótulo de outro controle da mesma tela ("…contraturno do 1º período" contém "turno do 1º período") faz o teste do outro falhar por modo estrito. Rótulos de controles vizinhos não podem conter um ao outro.
-- **Troca de escopo recarrega com `carregando`.** Página que depende de um id do shell (`cursoId`) põe `setCarregando(true)` no início do efeito de carga; senão, durante a recarga, ficam à mostra as linhas do escopo anterior e o que se calcula sobre elas (próximo número, botões).
+- **Troca de escopo recarrega com `carregando` e começa limpa.** Página que depende de um id do shell (`cursoId`) não é remontada ao trocá-lo. No início do efeito de carga: `setCarregando(true)`, `setBusca("")` e `setFiltros([])`. Sem o primeiro ficam à mostra as linhas do escopo anterior e o que se calcula sobre elas (próximo número, botões); sem os outros, um filtro ou uma busca do escopo velho esconde linhas do novo, com um chip que ele nem tem. Enquanto `carregando`, omita `escopo` e `contagem` do `CabecalhoPagina` (são números do escopo anterior; a altura vem da busca e não muda). O que usa o valor de um filtro para outra coisa (propor o período em "Nova…") confere que ele existe no escopo atual.
+- **E2E que afirma ausência de toast.** `toHaveCount(0)` tenta de novo até o toast sumir sozinho (5 s) e passa: falso verde. Espere um marco que vem depois do ponto em que o toast sairia (a lista recarregada) e afirme `expect(await locator.count()).toBe(0)` (ver "sem toast ao deixar de ocupar sala" em `disciplinas.spec.ts`). Plante o defeito para ver o teste falhar.
+- **E2E de popover em sequência.** O popover tem animação de saída: depois do `Escape` o conteúdo ainda existe por um instante, e abrir outro em seguida acha as opções dos dois. Espere a opção marcada sumir (`toHaveCount(0)`) antes de abrir o próximo.
+- **E2E de recusa que o usuário precisa ver.** `toBeVisible()` passa com o elemento fora da vista (formulário mais alto que a janela); use `toBeInViewport()`.
 - **Foco.** Não use `ref` para focar o campo com erro nem para devolver o foco: o diálogo e a confirmação já fazem. Depois de remover com sucesso o foco vai para o `body`; se a remoção falha, volta ao botão "Remover". Colunas recriadas a cada desenho, ou linha que troca de chave, fazem a origem do foco sumir e ele cai no `body` também depois de editar. Depois de uma edição que reordena a lista o foco pode cair no `body` (o navegador o perde quando o React move o elemento focado).
 
 ## Classes que igualaram a captura antiga
