@@ -32,21 +32,45 @@ const LIMITE = 50;
  *
  * Qualquer escrita que não seja da grade zera a pilha: restaurar aulas sobre um
  * cadastro que mudou poderia recriar o que o cadastro acabou de invalidar.
+ *
+ * Duas coisas mantêm isso verdadeiro quando as chamadas se cruzam (duplo
+ * Ctrl+Z, duas ações seguidas, troca de curso no meio de uma gravação):
+ *
+ * - Fila: `executarNaGrade` e `desfazer` rodam uma de cada vez, na ordem em que
+ *   foram chamadas. Ler o "antes" e gravar não são atômicos entre si, e dois
+ *   desfazer lendo o mesmo topo descartariam uma ação sem desfazê-la.
+ * - Época: um contador que sobe a cada invalidação (`limpar` e escrita que não
+ *   é da grade). Uma ação que começou numa época e terminou noutra fica gravada
+ *   no banco, mas não entra na pilha: o "antes" dela é anterior à invalidação.
  */
 export function criarHistorico({ consultar, transacao, aoEscrever }: Dependencias) {
   let pilha: Registro[] = [];
   let versao = 0;
+  let epoca = 0;
   let atual: EstadoDoHistorico = { podeDesfazer: false, rotulo: null, versao };
   const ouvintes = new Set<() => void>();
+  // Nunca rejeita: a falha de uma chamada não pode travar nem contaminar as seguintes.
+  let fila: Promise<unknown> = Promise.resolve();
 
+  function naFila<T>(tarefa: () => Promise<T>): Promise<T> {
+    const resultado = fila.then(tarefa);
+    fila = resultado.catch(() => {});
+    return resultado;
+  }
+
+  /** Só avisa e troca a referência de `estado()` se algo mudou de fato. */
   function publicar() {
     const topo = pilha[pilha.length - 1];
-    atual = { podeDesfazer: pilha.length > 0, rotulo: topo?.rotulo ?? null, versao };
+    const podeDesfazer = pilha.length > 0;
+    const rotulo = topo?.rotulo ?? null;
+    if (atual.podeDesfazer === podeDesfazer && atual.rotulo === rotulo && atual.versao === versao) return;
+    atual = { podeDesfazer, rotulo, versao };
     ouvintes.forEach((o) => o());
   }
 
   function limpar() {
-    if (pilha.length === 0) return;
+    // Sobe mesmo com a pilha vazia: pode haver uma ação em voo cujo "antes" já é velho.
+    epoca++;
     pilha = [];
     publicar();
   }
@@ -55,17 +79,35 @@ export function criarHistorico({ consultar, transacao, aoEscrever }: Dependencia
     if (origem !== "grade") limpar();
   });
 
-  async function executarNaGrade(cursoId: number, rotulo: string, instrucoes: Instrucao[]) {
-    const antes = await consultar<Record<string, unknown>>("SELECT * FROM alocacoes WHERE curso_id = ?", [cursoId]);
-    const resultado = await transacao(instrucoes, { origem: "grade" });
-    pilha = [...pilha, { rotulo, cursoId, antes }].slice(-LIMITE);
-    publicar();
-    return resultado;
+  /**
+   * Grava as instruções como uma ação da grade e a põe no histórico.
+   *
+   * As instruções devem se limitar às `alocacoes` do curso: é só isso que o
+   * desfazer guarda e restaura.
+   */
+  function executarNaGrade(cursoId: number, rotulo: string, instrucoes: Instrucao[]) {
+    // Anotada na chamada, não na vez da fila: se o histórico for invalidado
+    // enquanto esta ação espera, o curso pode já ser outro.
+    const epocaDaChamada = epoca;
+    return naFila(async () => {
+      const antes = await consultar<Record<string, unknown>>("SELECT * FROM alocacoes WHERE curso_id = ?", [cursoId]);
+      const resultado = await transacao(instrucoes, { origem: "grade" });
+      if (epoca === epocaDaChamada) {
+        pilha = [...pilha, { rotulo, cursoId, antes }].slice(-LIMITE);
+        publicar();
+      }
+      return resultado;
+    });
   }
 
-  async function desfazer(): Promise<string | null> {
+  function desfazer(): Promise<string | null> {
+    return naFila(desfazerDoTopo);
+  }
+
+  async function desfazerDoTopo(): Promise<string | null> {
     const registro = pilha[pilha.length - 1];
     if (!registro) return null;
+    const epocaDoInicio = epoca;
     const instrucoes: Instrucao[] = [
       { sql: "DELETE FROM alocacoes WHERE curso_id = ?", params: [registro.cursoId] },
       ...registro.antes.map((linha) => {
@@ -79,12 +121,16 @@ export function criarHistorico({ consultar, transacao, aoEscrever }: Dependencia
     try {
       await transacao(instrucoes, { origem: "grade" });
     } catch (e) {
-      // O que está guardado não cabe mais no banco; o resto da pilha também não.
+      // Qualquer falha na restauração zera a pilha, até uma passageira: por
+      // escolha, já que não dá para saber se o que está guardado ainda cabe no
+      // banco, e tentar de novo com um retrato duvidoso é pior que perder o histórico.
       pilha = [];
       publicar();
       throw e;
     }
-    pilha = pilha.slice(0, -1);
+    // Se a pilha foi zerada enquanto restaurava, não sobra registro para tirar:
+    // a restauração valeu (versao sobe e as telas recarregam), mas nada ressuscita.
+    if (epoca === epocaDoInicio) pilha = pilha.slice(0, -1);
     versao++;
     publicar();
     return registro.rotulo;

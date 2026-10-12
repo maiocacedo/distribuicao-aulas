@@ -38,7 +38,14 @@ export interface ResultadoEscrita {
   lastInsertId: number;
 }
 
-/** De onde vem uma escrita: a grade tem desfazer; cadastro invalida o histórico. */
+/**
+ * De onde vem uma escrita: a grade tem desfazer; cadastro invalida o histórico.
+ *
+ * `"grade"` é só do histórico (`historico.executarNaGrade` e o desfazer). Uma
+ * escrita de grade feita direto por `transacao` com essa origem não zera a pilha
+ * nem entra nela, e o desfazer seguinte a reverteria sem aviso. As telas usam
+ * `historico.executarNaGrade`.
+ */
 export type Origem = "grade" | "cadastro";
 
 const ouvintes = new Set<(origem: Origem) => void>();
@@ -55,7 +62,15 @@ export async function transacao(
   opcoes: { origem?: Origem } = {},
 ): Promise<ResultadoEscrita> {
   const resultado = await invoke<ResultadoEscrita>("transacao", { banco: await banco(), instrucoes });
-  ouvintes.forEach((o) => o(opcoes.origem ?? "cadastro"));
+  // Cada ouvinte é protegido: a gravação já aconteceu, e um ouvinte que lança não
+  // pode fazer quem gravou achar que falhou (nem impedir que os seguintes saibam).
+  ouvintes.forEach((o) => {
+    try {
+      o(opcoes.origem ?? "cadastro");
+    } catch (e) {
+      console.error("ouvinte de escrita falhou", e);
+    }
+  });
   return resultado;
 }
 
