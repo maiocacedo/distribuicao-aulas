@@ -20,9 +20,9 @@ Faltam as tarefas 15, 16 e 17 e a revisão final do branch.
 | | 11. Disciplinas | completa |
 | 4 · Grade | 12. Histórico de desfazer | completa |
 | | 13. Grade manual: controles novos e desfazer | completa |
-| | 14. Arrastar na grade manual | **implementada, revisão em andamento** |
+| | 14. Arrastar na grade manual | **implementada; a revisão pediu uma correção, pendente** |
 | | 15. Grade automática | por fazer |
-| 5 · Fecho | 16. E2E herdados que faltavam | por fazer |
+| 5 · Fecho | 16. E2E herdados que faltavam | testes commitados (`0455907`), sem revisão |
 | | 17. Apagar o legado, documentação e verificação final | por fazer |
 
 As decisões A1, B1 e D1 de Disciplinas (ver "Decisões de produto") entraram em `559cec8`,
@@ -170,6 +170,23 @@ escura no tema escuro aprovada.
 
 Ainda sem resposta, sem bloquear: "Adicionar padrão" (Regras) fica desabilitado com o campo
 vazio, sem dizer o motivo.
+
+## Onde parou (pausa em 2026-10-12, por limite de uso)
+
+- **Tarefa 14 (arrastar): revisada, precisa de correção, ainda não despachada.** Defeito
+  Importante, achado por leitura e não reproduzido: um arrasto que começa e não termina
+  (clique com escorregão que cruza os 6 px no último instante) deixa os painéis sem responder
+  ao mouse, o Ctrl+Z morto e o Esc engolindo cliques, até trocar de página. A correção e os
+  Menores que vão junto estão descritos em `.superpowers/sdd/progress.md`.
+- **Tarefa 16: os três e2e estão commitados (`0455907`)**, sem revisão. A investigação da
+  captura instável foi interrompida no meio: há uma mudança **não commitada** em
+  `testes/visual/telas.spec.ts`, que é experimento; descarte com
+  `git checkout testes/visual/telas.spec.ts` ou retome a investigação.
+- Faltam: correção e rerrevisão da 14, a captura instável, as tarefas 15 e 17, a revisão final.
+- Escolhas de produto abertas sobre o arrasto (o comportamento atual fica até você decidir):
+  mover não abre toast; só a frase "Solte aqui para remover" ensina que arrastar para o painel
+  remove; depois de arrastar o foco vai para o início da página; o cartão fica 12 px abaixo e à
+  direita do ponteiro.
 
 ## Como retomar
 
