@@ -1,8 +1,19 @@
+import { useId, type ReactNode } from "react";
+import { X } from "lucide-react";
 import { TURNOS, type Periodo, type Professor, type Sala, type TipoDisciplina, type Turno } from "../../tipos";
-import { Campo, Modal } from "../../componentes/legado";
 import { RequisitoSala, modoDe } from "../../componentes/RequisitoSala";
 import { PropriedadesDisciplina } from "../Tipos";
-import type { Rascunho } from "./salvar";
+import { Alerta } from "@/componentes/alerta";
+import { BotaoIcone } from "@/componentes/botao-icone";
+import { Campo } from "@/componentes/campo";
+import { DialogoFormulario } from "@/componentes/dialogo-formulario";
+import { Marcador } from "@/componentes/marcador";
+import { Seletor, type Opcao } from "@/componentes/seletor";
+import { Button } from "@/componentes/ui/button";
+import { Input } from "@/componentes/ui/input";
+import { Textarea } from "@/componentes/ui/textarea";
+import { cn } from "@/lib/utils";
+import type { ErrosDoRascunho, Fatia, Rascunho } from "./salvar";
 
 export function EditorDisciplina({
   valor,
@@ -13,7 +24,12 @@ export function EditorDisciplina({
   aulasComPadrao,
   horasPorAula,
   turnosDoCurso,
+  alterado,
+  salvando,
+  erro,
+  erros,
   aoMudar,
+  aoCorrigir,
   aoSalvar,
   aoFechar,
 }: {
@@ -25,10 +41,19 @@ export function EditorDisciplina({
   aulasComPadrao: Set<number>;
   horasPorAula: number;
   turnosDoCurso: string[];
+  alterado: boolean;
+  salvando: boolean;
+  /** Recusa de regra ou falha ao gravar: o alerta do formulário. */
+  erro: ReactNode;
+  /** Validação por campo; a mensagem fica junto do campo. */
+  erros: ErrosDoRascunho;
   aoMudar: (v: Rascunho) => void;
+  /** O usuário mexeu nestes campos: a mensagem deles sai. */
+  aoCorrigir: (...campos: (keyof ErrosDoRascunho)[]) => void;
   aoSalvar: (v: Rascunho) => void;
   aoFechar: () => void;
 }) {
+  const idDasFatias = useId();
   const soma = valor.fatias.reduce((s, f) => s + f.aulas, 0);
   const fecha = soma === valor.aulas_semanais;
   const turnoPeriodo = periodos.find((p) => p.numero === valor.periodo)?.turno;
@@ -56,269 +81,269 @@ export function EditorDisciplina({
     });
   };
 
+  // A recusa das fatias fala da conta entre elas e o total da disciplina:
+  // mexer em qualquer um dos dois lados tira a mensagem.
+  const mudarAulas = (aulas_semanais: number) => {
+    aoMudar({ ...valor, aulas_semanais });
+    aoCorrigir("aulas", "fatias");
+  };
+  const mudarFatias = (fatias: Fatia[]) => {
+    aoMudar({ ...valor, fatias });
+    aoCorrigir("fatias");
+  };
+  const mudarFatia = (i: number, f: Fatia) => mudarFatias(valor.fatias.map((o, j) => (j === i ? f : o)));
+
+  /** Atributos do controle que a recusa das fatias acusa: o diálogo leva o foco ao primeiro. */
+  const acusado = (controle: "adicionar" | "professor" | "aulas", i?: number) =>
+    erros.fatias?.controle === controle && (i === undefined || erros.fatias.posicoes.includes(i))
+      ? ({ "aria-invalid": true, "aria-describedby": `${idDasFatias}-erro` } as const)
+      : {};
+
   const disponiveis = professores.filter(
     (p) => !valor.fatias.some((f) => f.professor_id === p.id),
   );
 
+  const opcoesDeProfessor = (f: Fatia): Opcao<number>[] => [
+    { valor: 0, rotulo: "escolha…" },
+    ...professores.map((p) => ({
+      valor: p.id,
+      rotulo: p.nome,
+      // Um professor tem uma fatia só por disciplina.
+      desabilitada: p.id !== f.professor_id && valor.fatias.some((o) => o.professor_id === p.id),
+    })),
+  ];
+
   return (
-    <Modal
+    <DialogoFormulario
       titulo={valor.id ? "Editar disciplina" : "Nova disciplina"}
+      largo
+      alterado={alterado}
+      salvando={salvando}
+      erro={erro}
       aoFechar={aoFechar}
+      aoSalvar={() => aoSalvar(valor)}
     >
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          aoSalvar(valor);
-        }}
-      >
-        <div className="linha-campos">
-          <Campo rotulo="Nome">
-            <input
+      <div className="flex items-start gap-3">
+        <Campo rotulo="Nome" erro={erros.nome} className="flex-1">
+          {(a) => (
+            <Input
+              {...a}
               autoFocus
               value={valor.nome}
-              onChange={(e) => aoMudar({ ...valor, nome: e.target.value })}
+              onChange={(e) => {
+                aoMudar({ ...valor, nome: e.target.value });
+                aoCorrigir("nome");
+              }}
             />
-          </Campo>
-          <Campo
-            rotulo="Abreviação"
-            dica="Como aparece na célula da grade. Vazio usa o nome completo."
-          >
-            <input
-              className="curto-medio"
+          )}
+        </Campo>
+        <Campo
+          rotulo="Abreviação"
+          dica="Como aparece na célula da grade. Vazio usa o nome completo."
+          className="flex-1"
+        >
+          {(a) => (
+            <Input
+              {...a}
+              className="w-32"
               placeholder={valor.nome.slice(0, 18)}
               value={valor.abreviacao ?? ""}
-              onChange={(e) =>
-                aoMudar({ ...valor, abreviacao: e.target.value || null })
-              }
+              onChange={(e) => aoMudar({ ...valor, abreviacao: e.target.value || null })}
             />
-          </Campo>
-        </div>
+          )}
+        </Campo>
+      </div>
 
-        <div className="linha-campos">
-          <Campo rotulo="Período">
-            <select
-              value={valor.periodo}
-              onChange={(e) => aoMudar({ ...valor, periodo: Number(e.target.value) })}
-            >
-              {periodos.map((p) => (
-                <option key={p.numero} value={p.numero}>
-                  {p.numero}º ({p.turno})
-                </option>
-              ))}
-            </select>
-          </Campo>
-          <Campo rotulo="Aulas por semana">
-            <input
+      <div className="flex items-start gap-3">
+        <Campo rotulo="Período" className="flex-1">
+          {(a) => (
+            <Seletor
+              {...a}
+              className="w-full"
+              valor={valor.periodo}
+              opcoes={periodos.map((p) => ({ valor: p.numero, rotulo: `${p.numero}º (${p.turno})` }))}
+              aoMudar={(periodo) => aoMudar({ ...valor, periodo })}
+            />
+          )}
+        </Campo>
+        <Campo rotulo="Aulas por semana" erro={erros.aulas} className="flex-1">
+          {(a) => (
+            <Input
+              {...a}
               type="number"
               min={1}
               max={40}
               value={valor.aulas_semanais}
-              onChange={(e) =>
-                aoMudar({ ...valor, aulas_semanais: Number(e.target.value) })
-              }
+              onChange={(e) => mudarAulas(Number(e.target.value))}
             />
-          </Campo>
-          <Campo
-            rotulo="Carga do currículo"
-            dica={`${horasPorAula}h equivalem a 1 aula por semana`}
-          >
-            <input
+          )}
+        </Campo>
+        <Campo
+          rotulo="Carga do currículo"
+          dica={`${horasPorAula}h equivalem a 1 aula por semana`}
+          className="flex-1"
+        >
+          {(a) => (
+            <Input
+              {...a}
               type="number"
               min={0}
               step={horasPorAula}
               value={valor.aulas_semanais * horasPorAula}
-              onChange={(e) =>
-                aoMudar({
-                  ...valor,
-                  aulas_semanais: Math.max(
-                    1,
-                    Math.round(Number(e.target.value) / horasPorAula),
-                  ),
-                })
-              }
+              onChange={(e) => mudarAulas(Math.max(1, Math.round(Number(e.target.value) / horasPorAula)))}
             />
-          </Campo>
-        </div>
+          )}
+        </Campo>
+      </div>
 
-        {semPadrao.length > 0 && (
-          <p className="aviso">
-            Não há padrões de bloco cadastrados para fatia(s) de {semPadrao.join(", ")} aula(s). O
-            gerador planeja cada professor separadamente e não saberá dividir essa carga —
-            cadastre os padrões na página Regras, ou marque a disciplina como "blocos livres".
-          </p>
-        )}
+      {semPadrao.length > 0 && (
+        <Alerta tom="aviso" className="mb-0">
+          Não há padrões de bloco cadastrados para fatia(s) de {semPadrao.join(", ")} aula(s). O gerador planeja cada
+          professor separadamente e não saberá dividir essa carga — cadastre os padrões na página Regras, ou marque a
+          disciplina como "blocos livres".
+        </Alerta>
+      )}
 
-        {tipos.length > 0 && (
-          <Campo
-            rotulo="Tipo"
-            dica="Preenche as propriedades abaixo de uma vez. Depois você pode ajustar cada uma."
+      {tipos.length > 0 && (
+        <Campo
+          rotulo="Tipo"
+          dica="Preenche as propriedades abaixo de uma vez. Depois você pode ajustar cada uma."
+        >
+          {(a) => (
+            <Seletor
+              {...a}
+              className="w-full"
+              valor={valor.tipo_id}
+              opcoes={[
+                { valor: null, rotulo: "Sem tipo" },
+                ...tipos.map((t): Opcao<number | null> => ({ valor: t.id, rotulo: t.nome })),
+              ]}
+              aoMudar={aplicarTipo}
+            />
+          )}
+        </Campo>
+      )}
+
+      {/* O fio é sombra interna, como nos painéis: não conta na largura. */}
+      <fieldset className="min-w-0 rounded-lg px-3.5 pt-3 pb-3.5 shadow-[inset_0_0_0_1px_var(--line)]">
+        <legend className="flex items-baseline gap-2 px-1.5 text-xs font-semibold text-tx2">
+          Professores
+          {/* Os dois números dizem se fecha; a cor só acompanha. */}
+          <span
+            className={cn(
+              "rounded-[3px] bg-poco px-[5px] font-mono tabular-nums",
+              fecha ? "text-primary" : "text-destructive",
+            )}
           >
-            <select
-              value={valor.tipo_id ?? ""}
-              onChange={(e) =>
-                aplicarTipo(e.target.value ? Number(e.target.value) : null)
-              }
-            >
-              <option value="">Sem tipo</option>
-              {tipos.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.nome}
-                </option>
-              ))}
-            </select>
-          </Campo>
-        )}
-
-        <fieldset>
-          <legend>
-            Professores
-            <span className={fecha ? "contador ok" : "contador falta"}>
-              {soma} de {valor.aulas_semanais} aulas
-            </span>
-          </legend>
-          <p className="explica">
-            A carga pode ser repartida entre vários professores. Cada fatia é
-            planejada em blocos próprios, como se fosse uma disciplina.
-          </p>
+            {soma} de {valor.aulas_semanais} aulas
+          </span>
+        </legend>
+        <p className="mb-3 max-w-[68ch] text-xs leading-normal text-tx2">
+          A carga pode ser repartida entre vários professores. Cada fatia é planejada em blocos próprios, como se fosse
+          uma disciplina.
+        </p>
+        <div className="flex flex-col items-start gap-1.5">
           {valor.fatias.map((f, i) => (
-            <div key={i} className="linha-fatia">
-              <select
-                aria-label={`Professor da fatia ${i + 1}`}
-                value={f.professor_id}
-                onChange={(e) => {
-                  const fatias = [...valor.fatias];
-                  fatias[i] = { ...f, professor_id: Number(e.target.value) };
-                  aoMudar({ ...valor, fatias });
-                }}
-              >
-                <option value={0}>escolha…</option>
-                {professores.map((p) => (
-                  <option
-                    key={p.id}
-                    value={p.id}
-                    disabled={
-                      p.id !== f.professor_id &&
-                      valor.fatias.some((o) => o.professor_id === p.id)
-                    }
-                  >
-                    {p.nome}
-                  </option>
-                ))}
-              </select>
-              <input
+            <div key={i} className="flex w-full gap-1.5">
+              <Seletor
+                rotulo={`Professor da fatia ${i + 1}`}
+                className="min-w-0 flex-1"
+                valor={f.professor_id}
+                opcoes={opcoesDeProfessor(f)}
+                aoMudar={(professor_id) => mudarFatia(i, { ...f, professor_id })}
+                {...acusado("professor", i)}
+              />
+              <Input
                 type="number"
-                className="curto"
+                className="w-[58px] text-right"
                 aria-label={`Aulas da fatia ${i + 1}`}
                 min={1}
                 value={f.aulas}
-                onChange={(e) => {
-                  const fatias = [...valor.fatias];
-                  fatias[i] = { ...f, aulas: Number(e.target.value) };
-                  aoMudar({ ...valor, fatias });
-                }}
+                onChange={(e) => mudarFatia(i, { ...f, aulas: Number(e.target.value) })}
+                {...acusado("aulas", i)}
               />
-              <button
-                type="button"
-                className="perigo"
-                onClick={() =>
-                  aoMudar({
-                    ...valor,
-                    fatias: valor.fatias.filter((_, j) => j !== i),
-                  })
-                }
-              >
-                ×
-              </button>
+              <BotaoIcone
+                rotulo={`Remover a fatia ${i + 1}`}
+                icone={X}
+                perigo
+                // Com contorno e da altura dos vizinhos: é um controle da linha, não uma ação solta.
+                className="size-7 border-input bg-panel"
+                aoClicar={() => mudarFatias(valor.fatias.filter((_, j) => j !== i))}
+              />
             </div>
           ))}
           {disponiveis.length > 0 && (
-            <button
+            <Button
               type="button"
+              variant="outline"
               onClick={() =>
-                aoMudar({
-                  ...valor,
-                  fatias: [
-                    ...valor.fatias,
-                    {
-                      professor_id: disponiveis[0].id,
-                      aulas: Math.max(1, valor.aulas_semanais - soma),
-                    },
-                  ],
-                })
+                mudarFatias([
+                  ...valor.fatias,
+                  { professor_id: disponiveis[0].id, aulas: Math.max(1, valor.aulas_semanais - soma) },
+                ])
               }
+              {...acusado("adicionar")}
             >
               Adicionar professor
-            </button>
+            </Button>
           )}
-        </fieldset>
-
-        <div className="marcadores">
-          <label>
-            <input
-              type="checkbox"
-              checked={!!valor.ofertada}
-              onChange={() => aoMudar({ ...valor, ofertada: valor.ofertada ? 0 : 1 })}
-            />
-            <span>
-              Ofertada neste semestre
-              <em>desmarcada, sai da grade, das pendências e do gerador, mas continua cadastrada</em>
-            </span>
-          </label>
         </div>
+        {erros.fatias && (
+          <span id={`${idDasFatias}-erro`} className="mt-1.5 block text-xs leading-4 text-destructive">
+            {erros.fatias.mensagem}
+          </span>
+        )}
+      </fieldset>
 
-        <PropriedadesDisciplina
-          valor={valor}
-          aoMudar={(v) => aoMudar({ ...valor, ...v })}
-        />
+      <Marcador
+        rotulo="Ofertada neste semestre"
+        descricao="desmarcada, sai da grade, das pendências e do gerador, mas continua cadastrada"
+        marcado={!!valor.ofertada}
+        aoMudar={() => aoMudar({ ...valor, ofertada: valor.ofertada ? 0 : 1 })}
+      />
 
-        <Campo
-          rotulo="Turno"
-          dica={`Por padrão segue o período (${turnoPeriodo ?? "—"}). Forçar um turno é regra: o gerador e a grade manual não põem a disciplina fora dele.`}
-        >
-          <select
-            value={valor.turno ?? ""}
-            onChange={(e) =>
-              aoMudar({ ...valor, turno: (e.target.value || null) as Turno | null })
-            }
-          >
-            <option value="">Segue o período</option>
-            {TURNOS.filter((t) => turnosDoCurso.includes(t.valor) || t.valor === valor.turno).map((t) => (
-              <option key={t.valor} value={t.valor}>
-                {t.rotulo}
-              </option>
-            ))}
-          </select>
-        </Campo>
+      <PropriedadesDisciplina valor={valor} aoMudar={(v) => aoMudar({ ...valor, ...v })} />
 
-        <RequisitoSala
-          valor={valor}
-          modo={valor.modoSala}
-          salas={salas}
-          permitirEspecificas
-          aoMudar={(v, m) =>
-            aoMudar({ ...valor, ...v, salas: v.salas ?? [], aceitaveis: v.aceitaveis ?? [], modoSala: m })
-          }
-        />
+      <Campo
+        rotulo="Turno"
+        dica={`Por padrão segue o período (${turnoPeriodo ?? "—"}). Forçar um turno é regra: o gerador e a grade manual não põem a disciplina fora dele.`}
+      >
+        {(a) => (
+          <Seletor
+            {...a}
+            className="w-full"
+            valor={valor.turno}
+            opcoes={[
+              { valor: null, rotulo: "Segue o período" },
+              ...TURNOS.filter((t) => turnosDoCurso.includes(t.valor) || t.valor === valor.turno).map(
+                (t): Opcao<Turno | null> => ({ valor: t.valor, rotulo: t.rotulo }),
+              ),
+            ]}
+            aoMudar={(turno) => aoMudar({ ...valor, turno })}
+          />
+        )}
+      </Campo>
 
-        <Campo rotulo="Observação">
-          <textarea
+      <RequisitoSala
+        valor={valor}
+        modo={valor.modoSala}
+        salas={salas}
+        permitirEspecificas
+        aoMudar={(v, m) =>
+          aoMudar({ ...valor, ...v, salas: v.salas ?? [], aceitaveis: v.aceitaveis ?? [], modoSala: m })
+        }
+      />
+
+      <Campo rotulo="Observação">
+        {(a) => (
+          <Textarea
+            {...a}
             rows={2}
             value={valor.observacao ?? ""}
-            onChange={(e) =>
-              aoMudar({ ...valor, observacao: e.target.value || null })
-            }
+            onChange={(e) => aoMudar({ ...valor, observacao: e.target.value || null })}
           />
-        </Campo>
-
-        <div className="rodape-modal">
-          <button type="button" onClick={aoFechar}>
-            Cancelar
-          </button>
-          <button type="submit" className="primario" disabled={!fecha}>
-            Salvar
-          </button>
-        </div>
-      </form>
-    </Modal>
+        )}
+      </Campo>
+    </DialogoFormulario>
   );
 }

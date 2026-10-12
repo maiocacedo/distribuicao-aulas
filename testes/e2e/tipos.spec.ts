@@ -1,8 +1,6 @@
 import { expect, test } from "./fixtures";
 import { contar, escolher, irPara, linhaCom, responderConfirmacoes } from "./paginas";
 
-// O requisito de sala do formulário ainda é a ilha antiga (`<select>` nativo), que
-// só sai na conversão de Disciplinas; `escolher` serve aos dois tipos de controle.
 test.describe("tipos de disciplina", () => {
   test.use({
     semMassa: true,

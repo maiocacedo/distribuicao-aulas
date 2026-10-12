@@ -4,7 +4,6 @@ import { Pencil, Trash2 } from "lucide-react";
 import { RequisitoSala, modoDe, type Modo } from "../componentes/RequisitoSala";
 import { consultar, executar } from "../db";
 import type { Sala, TipoDisciplina } from "../tipos";
-import { Campo as CampoAntigo } from "../componentes/legado";
 import { Alerta } from "@/componentes/alerta";
 import { BotaoIcone } from "@/componentes/botao-icone";
 import { CabecalhoPagina } from "@/componentes/cabecalho-pagina";
@@ -12,6 +11,8 @@ import { Campo } from "@/componentes/campo";
 import { useConfirmar } from "@/componentes/confirmacao";
 import { DialogoFormulario, useAlterado } from "@/componentes/dialogo-formulario";
 import { EstadoVazio } from "@/componentes/estado-vazio";
+import { Marcador } from "@/componentes/marcador";
+import { Seletor, type Opcao } from "@/componentes/seletor";
 import { TabelaDados, useTabela } from "@/componentes/tabela-dados";
 import { avisar } from "@/componentes/toasts";
 import { Button } from "@/componentes/ui/button";
@@ -245,34 +246,32 @@ export default function Tipos() {
             )}
           </Campo>
 
-          {/* Ilha antiga: o requisito de sala e as propriedades são os componentes
-              de Disciplinas, que ainda não foi convertida; a marca sai junto com
-              eles (tarefa 11). O `-mb-3` desfaz a margem de 12 px do último bloco
-              antigo, que o item de flex não colapsa: o diálogo já dá o espaço
-              até o rodapé. */}
-          <div className="legado -mb-3">
-            <RequisitoSala
-              valor={edicao}
-              modo={modoSala}
-              salas={salas}
-              permitirEspecificas={false}
-              aoMudar={(v, m) => {
-                setEdicao({ ...edicao, ...v });
-                setModoSala(m);
-              }}
-            />
-            <PropriedadesDisciplina valor={edicao} aoMudar={setEdicao} />
-          </div>
+          <RequisitoSala
+            valor={edicao}
+            modo={modoSala}
+            salas={salas}
+            permitirEspecificas={false}
+            aoMudar={(v, m) => {
+              setEdicao({ ...edicao, ...v });
+              setModoSala(m);
+            }}
+          />
+          <PropriedadesDisciplina valor={edicao} aoMudar={setEdicao} />
         </DialogoFormulario>
       )}
     </>
   );
 }
 
+const PRIORIDADES: Opcao<number>[] = [
+  { valor: 1, rotulo: "Alta — aloca primeiro" },
+  { valor: 2, rotulo: "Normal" },
+  { valor: 3, rotulo: "Baixa — encaixa nas folgas" },
+];
+
 /**
- * Reaproveitado pelo cadastro de disciplinas — são os mesmos campos. Continua
- * com os componentes antigos enquanto Disciplinas não for convertida: ela os
- * desenha dentro de `.legado`, onde um componente novo perderia o estilo.
+ * Reaproveitado pelo cadastro de disciplinas — são os mesmos campos. Devolve
+ * dois blocos soltos, sem margem: quem os desenha (o diálogo) dá o espaço.
  */
 export function PropriedadesDisciplina<
   T extends {
@@ -287,54 +286,40 @@ export function PropriedadesDisciplina<
 
   return (
     <>
-      <CampoAntigo
+      <Campo
         rotulo="Prioridade na distribuição"
         dica="Prioridade baixa é alocada por último, no que sobrar, e com as preferências atenuadas."
       >
-        <select
-          value={valor.prioridade}
-          onChange={(e) => aoMudar({ ...valor, prioridade: Number(e.target.value) })}
-        >
-          <option value={1}>Alta — aloca primeiro</option>
-          <option value={2}>Normal</option>
-          <option value={3}>Baixa — encaixa nas folgas</option>
-        </select>
-      </CampoAntigo>
+        {(a) => (
+          <Seletor
+            {...a}
+            className="w-full"
+            valor={valor.prioridade}
+            opcoes={PRIORIDADES}
+            aoMudar={(prioridade) => aoMudar({ ...valor, prioridade })}
+          />
+        )}
+      </Campo>
 
-      <div className="marcadores">
-        <label>
-          <input
-            type="checkbox"
-            checked={!!valor.optativa}
-            onChange={() => alterna("optativa")}
-          />
-          <span>
-            Optativa
-            <em>o gerador a põe no contraturno quando convém, mantendo ao menos uma optativa do período no turno</em>
-          </span>
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            checked={!!valor.permite_sabado}
-            onChange={() => alterna("permite_sabado")}
-          />
-          <span>
-            Pode ir ao sábado
-            <em>sem isto, o sábado nem entra nas possibilidades</em>
-          </span>
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            checked={!!valor.blocos_livres}
-            onChange={() => alterna("blocos_livres")}
-          />
-          <span>
-            Blocos livres
-            <em>qualquer divisão da carga vale; ignora os padrões de bloco</em>
-          </span>
-        </label>
+      <div className="flex flex-col gap-2">
+        <Marcador
+          rotulo="Optativa"
+          descricao="o gerador a põe no contraturno quando convém, mantendo ao menos uma optativa do período no turno"
+          marcado={!!valor.optativa}
+          aoMudar={() => alterna("optativa")}
+        />
+        <Marcador
+          rotulo="Pode ir ao sábado"
+          descricao="sem isto, o sábado nem entra nas possibilidades"
+          marcado={!!valor.permite_sabado}
+          aoMudar={() => alterna("permite_sabado")}
+        />
+        <Marcador
+          rotulo="Blocos livres"
+          descricao="qualquer divisão da carga vale; ignora os padrões de bloco"
+          marcado={!!valor.blocos_livres}
+          aoMudar={() => alterna("blocos_livres")}
+        />
       </div>
     </>
   );

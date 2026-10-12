@@ -78,14 +78,36 @@ export interface AulasAApagar {
   trocadas: number;
 }
 
+/** O que a gravação faz com as aulas: o que pôr na transação e o que contar ao usuário. */
+export interface PlanoAceito {
+  recusa?: undefined;
+  antes: Instrucao[];
+  depois: Instrucao[];
+  /** Não-nulo pede confirmação antes de gravar. */
+  apagadas: AulasAApagar | null;
+  /**
+   * Aulas que passam para outra sala. A que só perde a sala, porque a
+   * disciplina deixou de ocupar sala, não conta: foi o que o usuário pediu.
+   */
+  trocadas: number;
+  /** Dessas, as que estavam fixadas. */
+  fixadas: number;
+}
+
+/** Disciplina nova, ou sem aula na grade: nada a fazer com as aulas. */
+export const SEM_AULAS: PlanoAceito = { antes: [], depois: [], apagadas: null, trocadas: 0, fixadas: 0 };
+
 /**
- * Resultado de `prepararAulas`. `recusa` é a mensagem para o erro da tela
- * (salvar não segue); senão, `apagadas` não-nulo pede confirmação antes de
- * seguir, e `antes`/`depois` são as instruções a pôr na transação.
+ * Resultado de `prepararAulas`. `recusa` é a mensagem para o erro do
+ * formulário (salvar não segue); senão vale o plano.
  */
-export type PlanoDasAulas =
-  | { recusa: string }
-  | { recusa?: undefined; antes: Instrucao[]; depois: Instrucao[]; apagadas: AulasAApagar | null };
+export type PlanoDasAulas = { recusa: string } | PlanoAceito;
+
+/** A sala inválida é consequência quando há outro motivo: mostrar os dois repete a notícia. */
+export function motivosParaMostrar(motivos: Motivo[]): Motivo[] {
+  const outros = motivos.filter((m) => m.regra !== "sala-invalida");
+  return outros.length > 0 ? outros : motivos;
+}
 
 /**
  * O que a edição faz com as aulas que a disciplina já tem: o período leva as
@@ -97,8 +119,6 @@ export type PlanoDasAulas =
  */
 export async function prepararAulas(d: Rascunho, entrada: EntradaDasAulas): Promise<PlanoDasAulas> {
   const { cursoId, linhas, professores, salas } = entrada;
-  const antes: Instrucao[] = [];
-  const depois: Instrucao[] = [];
   const original = linhas.find((l) => l.id === d.id);
   const mudouPeriodo = !!original && original.periodo !== d.periodo;
   const dela = (
@@ -116,7 +136,9 @@ export async function prepararAulas(d: Rascunho, entrada: EntradaDasAulas): Prom
       [d.id],
     )
   ).filter((a) => d.fatias.some((f) => f.professor_id === a.professor_id));
-  if (dela.length === 0) return { antes, depois, apagadas: null };
+  if (dela.length === 0) return SEM_AULAS;
+  const antes: Instrucao[] = [];
+  const depois: Instrucao[] = [];
 
   const ctx = await carregarContexto(cursoId, consultar);
   const codigos = new Map(
@@ -194,7 +216,7 @@ export async function prepararAulas(d: Rascunho, entrada: EntradaDasAulas): Prom
       semServir.push({ a, aula, fatia });
       continue;
     }
-    razoes.set(a, [...new Set(motivos.map((m) => descrever(m, nomes)))].join("; "));
+    razoes.set(a, [...new Set(motivosParaMostrar(motivos).map((m) => descrever(m, nomes)))].join("; "));
     oc.retirar(aula);
   }
   const { trocas, semSala } = reatribuirSalas(ctx, oc, semServir);
@@ -202,6 +224,7 @@ export async function prepararAulas(d: Rascunho, entrada: EntradaDasAulas): Prom
   // Na ordem das aulas (dia, hora), que é a ordem em que o diálogo as lista.
   const apagar = dela.filter((a) => razoes.has(a)).map((a) => ({ a, razao: razoes.get(a)! }));
   const trocar = trocas.map((t) => ({ a: t.item.a, sala: t.sala }));
+  const mudamDeSala = trocar.filter((x) => x.sala !== null);
 
   // O choque de período só conta para as aulas que ficam: a que vai ser
   // apagada não ocupa o horário no período novo.
@@ -254,27 +277,80 @@ export async function prepararAulas(d: Rascunho, entrada: EntradaDasAulas): Prom
       params: [d.periodo, d.id],
     });
   }
-  return { antes, depois, apagadas };
+  return {
+    antes,
+    depois,
+    apagadas,
+    trocadas: mudamDeSala.length,
+    fixadas: mudamDeSala.filter((x) => x.a.fixada).length,
+  };
 }
 
-/** A recusa do formulário antes de qualquer consulta; `null` = pode seguir. */
-export function validarRascunho(d: Rascunho): string | null {
-  const nome = d.nome.trim();
-  if (!nome) return "O nome é obrigatório.";
+/**
+ * A recusa do grupo de fatias. As fatias são uma lista de controles, não um
+ * campo: além da mensagem, a tela precisa saber quais marcar (e aonde levar o
+ * foco).
+ */
+export interface RecusaDasFatias {
+  mensagem: string;
+  /** O botão de adicionar (não há fatia), ou o seletor de professor ou a caixa de aulas das fatias em `posicoes`. */
+  controle: "adicionar" | "professor" | "aulas";
+  posicoes: number[];
+}
+
+/** Mensagem de validação por campo do formulário; fica junto do campo, não no alerta. */
+export interface ErrosDoRascunho {
+  nome?: string;
+  aulas?: string;
+  fatias?: RecusaDasFatias;
+}
+
+/** Inteiro de 1 para cima: o que `type="number"` com `min={1}` cobrava no navegador. */
+const contagemValida = (n: number) => Number.isInteger(n) && n >= 1;
+
+/** Das fatias sai uma recusa por vez, a primeira nesta ordem; `undefined` = nada a acusar. */
+function validarFatias(d: Rascunho): RecusaDasFatias | undefined {
+  const todas = d.fatias.map((_, i) => i);
   if (d.fatias.length === 0) {
-    return "Atribua a disciplina a pelo menos um professor.";
+    return { mensagem: "Atribua a disciplina a pelo menos um professor.", controle: "adicionar", posicoes: [] };
+  }
+  const semContagem = todas.filter((i) => !contagemValida(d.fatias[i].aulas));
+  if (semContagem.length > 0) {
+    return {
+      mensagem: "Cada fatia precisa de um número inteiro de aulas, 1 ou mais.",
+      controle: "aulas",
+      posicoes: semContagem,
+    };
   }
   const soma = d.fatias.reduce((s, f) => s + f.aulas, 0);
   if (soma !== d.aulas_semanais) {
-    return (
-      `As fatias dos professores somam ${soma} aula(s), mas a disciplina tem ` +
-      `${d.aulas_semanais}. Os dois têm de fechar.`
-    );
+    return {
+      mensagem:
+        `As fatias dos professores somam ${soma} aula(s), mas a disciplina tem ` +
+        `${d.aulas_semanais}. Os dois têm de fechar.`,
+      controle: "aulas",
+      posicoes: todas,
+    };
   }
-  if (d.fatias.some((f) => !f.professor_id)) {
-    return "Há uma fatia sem professor escolhido.";
+  const semProfessor = todas.filter((i) => !d.fatias[i].professor_id);
+  if (semProfessor.length > 0) {
+    return { mensagem: "Há uma fatia sem professor escolhido.", controle: "professor", posicoes: semProfessor };
   }
-  return null;
+  return undefined;
+}
+
+/**
+ * As recusas do formulário antes de qualquer consulta, cada uma no campo a que
+ * pertence; `null` = pode seguir. O diálogo não deixa o navegador validar, então
+ * as restrições dos campos numéricos também são conferidas aqui.
+ */
+export function validarRascunho(d: Rascunho): ErrosDoRascunho | null {
+  const erros: ErrosDoRascunho = {};
+  if (!d.nome.trim()) erros.nome = "O nome é obrigatório.";
+  if (!contagemValida(d.aulas_semanais) || d.aulas_semanais > 40) erros.aulas = "Use um número inteiro de 1 a 40.";
+  const fatias = validarFatias(d);
+  if (fatias) erros.fatias = fatias;
+  return Object.keys(erros).length > 0 ? erros : null;
 }
 
 /**

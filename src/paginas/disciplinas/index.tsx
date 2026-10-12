@@ -1,25 +1,45 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ColumnFiltersState } from "@tanstack/react-table";
 import { consultar, executar, proximoId, transacao } from "../../db";
 import type { Periodo, Professor, Sala, TipoDisciplina } from "../../tipos";
-import {
-  BotaoIcone,
-  CabecalhoLista,
-  Erro,
-  Lapis,
-  Lixeira,
-  Ordenavel,
-  Vazio,
-  comparar,
-  mensagemErro,
-  type Ordem,
-} from "../../componentes/legado";
-import { useConfirmar } from "../../componentes/confirmacao";
 import { modoDe } from "../../componentes/RequisitoSala";
-import { marcasDe } from "./colunas";
+import { Alerta } from "@/componentes/alerta";
+import { BarraDeFiltros, type DefinicaoDeFiltro } from "@/componentes/barra-de-filtros";
+import { CabecalhoPagina } from "@/componentes/cabecalho-pagina";
+import { useConfirmar } from "@/componentes/confirmacao";
+import { useAlterado } from "@/componentes/dialogo-formulario";
+import { EstadoVazio } from "@/componentes/estado-vazio";
+import { TabelaDados, useTabela } from "@/componentes/tabela-dados";
+import { avisar } from "@/componentes/toasts";
+import { Button } from "@/componentes/ui/button";
+import { mensagemErro } from "@/lib/erros";
+import { COLUNAS_OCULTAS, criarColunas } from "./colunas";
 import { EditorDisciplina } from "./EditorDisciplina";
-import { novo, prepararAulas, montarInstrucoes, validarRascunho, type Fatia, type Linha, type Rascunho } from "./salvar";
+import {
+  SEM_AULAS,
+  montarInstrucoes,
+  novo,
+  prepararAulas,
+  validarRascunho,
+  type ErrosDoRascunho,
+  type Fatia,
+  type Linha,
+  type PlanoAceito,
+  type Rascunho,
+} from "./salvar";
 
-type Campo = "periodo" | "nome" | "aulas_semanais" | "professores" | "marcas";
+const SEM_ERROS: ErrosDoRascunho = {};
+
+// Dependem só da linha, como o `useTabela` pede. O período vai na frente do
+// nome: em qualquer ordenação, quem empata fica na ordem do currículo.
+const desempate = (l: Linha) => `${l.periodo}${l.nome}`;
+// Quem procura pela sigla da grade ou pelo professor quer as disciplinas dele.
+const textoDeBusca = (l: Linha) => `${l.nome} ${l.abreviacao ?? ""} ${l.professores ?? ""}`;
+
+const SIM_OU_NAO = [
+  { valor: 1, rotulo: "Sim" },
+  { valor: 0, rotulo: "Não" },
+];
 
 export default function Disciplinas({ cursoId }: { cursoId: number }) {
   const confirmar = useConfirmar();
@@ -28,18 +48,22 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
   const [professores, setProfessores] = useState<Professor[]>([]);
   const [salas, setSalas] = useState<Sala[]>([]);
   const [tipos, setTipos] = useState<TipoDisciplina[]>([]);
-  const [aulasComPadrao, setChsComPadrao] = useState<Set<number>>(new Set());
+  const [aulasComPadrao, setAulasComPadrao] = useState<Set<number>>(new Set());
   // Conversão currículo → grade, definida em Gerenciar cursos.
   const [horasPorAula, setHorasPorAula] = useState(15);
   const [turnosDoCurso, setTurnosDoCurso] = useState<string[]>(["manha", "tarde"]);
-  const [filtro, setFiltro] = useState<number | "todos">("todos");
   const [edicao, setEdicao] = useState<Rascunho | null>(null);
   const [erro, setErro] = useState("");
+  const [erroDoFormulario, setErroDoFormulario] = useState("");
+  const [errosDeCampo, setErrosDeCampo] = useState<ErrosDoRascunho>(SEM_ERROS);
+  const [salvando, setSalvando] = useState(false);
   const [carregando, setCarregando] = useState(true);
-  const [ordem, setOrdem] = useState<Ordem<Campo>>({ campo: "periodo", desc: false });
   const [busca, setBusca] = useState("");
+  // Estado, e não uma lista montada no corpo: o `useTabela` compara por referência.
+  const [filtros, setFiltros] = useState<ColumnFiltersState>([]);
+  const alterado = useAlterado(edicao);
 
-  async function carregar() {
+  const carregar = useCallback(async () => {
     setLinhas(
       await consultar<Linha>(`
         SELECT d.*, t.nome AS tipo_nome,
@@ -71,234 +95,257 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
         "SELECT * FROM tipos_disciplina ORDER BY nome COLLATE NOCASE",
       ),
     );
-    const chs = await consultar<{ aulas: number }>("SELECT DISTINCT aulas FROM padroes_blocos");
-    setChsComPadrao(new Set(chs.map((c) => c.aulas)));
+    const cargas = await consultar<{ aulas: number }>("SELECT DISTINCT aulas FROM padroes_blocos");
+    setAulasComPadrao(new Set(cargas.map((c) => c.aulas)));
     const [curso] = await consultar<{ horas_por_aula_semanal: number; turnos: string }>(
       "SELECT horas_por_aula_semanal, turnos FROM cursos WHERE id = ?", [cursoId]);
     setHorasPorAula(curso?.horas_por_aula_semanal || 15);
     setTurnosDoCurso((curso?.turnos ?? "manha,tarde").split(",").filter(Boolean));
     setCarregando(false);
-  }
-
-  useEffect(() => {
-    carregar().catch((e) => setErro(String(e)));
+    setErro("");
   }, [cursoId]);
 
-  async function abrir(l: Linha) {
-    const fatias = await consultar<Fatia>(
-      "SELECT professor_id, aulas FROM disciplina_professores WHERE disciplina_id = ?",
-      [l.id],
-    );
-    const ds = await consultar<{ sala_id: number; preferencia: number }>(
-      "SELECT sala_id, preferencia FROM disciplina_salas WHERE disciplina_id = ?",
-      [l.id],
-    );
-    const escolhidas = ds.map((s) => s.sala_id);
-    setEdicao({
-      ...l,
-      fatias,
-      salas: escolhidas,
-      aceitaveis: ds.filter((s) => s.preferencia === 2).map((s) => s.sala_id),
-      modoSala: modoDe({ ...l, salas: escolhidas }),
-    });
+  // A falha de carga aparece na página, venha da abertura da tela ou da recarga
+  // depois de gravar: nos dois casos o que está errado é a lista.
+  const recarregar = useCallback(() => carregar().catch((e) => setErro(String(e))), [carregar]);
+
+  useEffect(() => {
+    // Trocou de curso: até a recarga chegar, as linhas e os períodos à mostra
+    // são do curso anterior, e "Nova disciplina" proporia um período dele.
+    setCarregando(true);
+    void recarregar();
+  }, [recarregar]);
+
+  // O rascunho nasce inteiro, com as fatias, as salas e o modo do requisito:
+  // completar depois de abrir contaria como alteração (ver `useAlterado`).
+  const abrir = useCallback((d: Rascunho) => {
+    setErroDoFormulario("");
+    setErrosDeCampo(SEM_ERROS);
+    setEdicao(d);
+  }, []);
+
+  const editar = useCallback(
+    async (l: Linha) => {
+      let fatias: Fatia[];
+      let ds: { sala_id: number; preferencia: number }[];
+      try {
+        fatias = await consultar<Fatia>(
+          "SELECT professor_id, aulas FROM disciplina_professores WHERE disciplina_id = ?",
+          [l.id],
+        );
+        ds = await consultar<{ sala_id: number; preferencia: number }>(
+          "SELECT sala_id, preferencia FROM disciplina_salas WHERE disciplina_id = ?",
+          [l.id],
+        );
+      } catch (e) {
+        // Não há formulário ainda onde a falha caiba.
+        return avisar.erro(mensagemErro(e, "A disciplina"));
+      }
+      const escolhidas = ds.map((s) => s.sala_id);
+      abrir({
+        ...l,
+        fatias,
+        salas: escolhidas,
+        aceitaveis: ds.filter((s) => s.preferencia === 2).map((s) => s.sala_id),
+        modoSala: modoDe({ ...l, salas: escolhidas }),
+      });
+    },
+    [abrir],
+  );
+
+  /** O período do filtro, quando há exatamente um marcado e ele é deste curso; senão o primeiro. */
+  function periodoProposto(): number {
+    const marcados = (filtros.find((f) => f.id === "periodo")?.value as number[] | undefined) ?? [];
+    return marcados.length === 1 && periodos.some((p) => p.numero === marcados[0]) ? marcados[0] : periodos[0].numero;
   }
 
   async function salvar(d: Rascunho) {
-    setErro("");
-    const recusa = validarRascunho(d);
-    if (recusa) return setErro(recusa);
+    // Cada tentativa começa limpa: ver o mesmo trecho em `Salas`.
+    setErroDoFormulario("");
+    setErrosDeCampo(SEM_ERROS);
+    const erros = validarRascunho(d);
+    if (erros) return setErrosDeCampo(erros);
 
+    setSalvando(true);
+    let plano: PlanoAceito = SEM_AULAS;
     try {
       // Tudo o que consulta o banco fica dentro do `try`: uma falha aqui tem de
-      // aparecer na tela, não sumir numa promessa rejeitada.
-      const aulas = d.id
-        ? await prepararAulas(d, { cursoId, linhas, professores, salas })
-        : { antes: [], depois: [], apagadas: null };
-      if (aulas.recusa !== undefined) return setErro(aulas.recusa);
+      // aparecer no formulário, não sumir numa promessa rejeitada.
+      const aulas = d.id ? await prepararAulas(d, { cursoId, linhas, professores, salas }) : SEM_AULAS;
+      if (aulas.recusa !== undefined) return setErroDoFormulario(aulas.recusa);
 
       const { apagadas } = aulas;
-      if (apagadas) {
-        if (
-          !(await confirmar({
-            titulo: "Apagar aulas desta disciplina?",
-            descricao:
-              `${apagadas.total} aula(s) desta disciplina serão apagadas, porque deixam de valer com a mudança` +
-              (apagadas.fixadas ? ` (${apagadas.fixadas} fixada(s))` : "") +
-              "." +
-              (apagadas.trocadas ? ` Outras ${apagadas.trocadas} aula(s) trocam de sala.` : ""),
-            itens: apagadas.itens,
-            confirmar: `Salvar e apagar ${apagadas.total} aula(s)`,
-            perigo: true,
-          }))
-        )
-          return;
-      }
+      if (
+        apagadas &&
+        !(await confirmar({
+          titulo: "Apagar aulas desta disciplina?",
+          descricao:
+            `${apagadas.total} aula(s) desta disciplina serão apagadas, porque deixam de valer com a mudança` +
+            (apagadas.fixadas ? ` (${apagadas.fixadas} fixada(s))` : "") +
+            "." +
+            (apagadas.trocadas ? ` Outras ${apagadas.trocadas} aula(s) trocam de sala.` : ""),
+          itens: apagadas.itens,
+          confirmar: `Salvar e apagar ${apagadas.total} aula(s)`,
+          perigo: true,
+        }))
+      )
+        return;
 
       // Uma transação só para as três tabelas. O id é reservado antes de abrir
       // a transação porque `last_insert_rowid()` não serve de referência: ele
       // muda a cada INSERT seguinte dentro da mesma transação.
       const id = d.id || (await proximoId("disciplinas"));
-
       await transacao(montarInstrucoes(cursoId, d, id, aulas));
-      setEdicao(null);
-      await carregar();
+      plano = aulas;
     } catch (e) {
-      setErro(mensagemErro(e, "A disciplina"));
-      await carregar();
+      return setErroDoFormulario(mensagemErro(e, "A disciplina"));
+    } finally {
+      setSalvando(false);
     }
+    // Só chega aqui o que foi gravado; a falha da recarga é da lista (ver `Salas`).
+    setEdicao(null);
+    // Aula que trocou de sala sem ninguém ter pedido: a tela conta, e conta
+    // também quando a mesma gravação apagou outras (a confirmação só avisou do
+    // que ia acontecer).
+    if (plano.trocadas > 0)
+      avisar.sucesso(
+        `${plano.trocadas} aula(s) mudaram de sala`,
+        plano.fixadas ? `${plano.fixadas} delas estavam fixadas.` : undefined,
+      );
+    await recarregar();
   }
 
-  async function remover(l: Linha) {
-    if (
-      !(await confirmar({
-        titulo: `Remover ${l.nome}?`,
-        descricao: `As ${l.n_aulas} aula(s) dela na grade saem junto.`,
-        confirmar: "Remover disciplina",
-        perigo: true,
-      }))
-    )
-      return;
-    setErro("");
-    try {
-      await executar("DELETE FROM disciplinas WHERE id = ?", [l.id]);
-      await carregar();
-    } catch (e) {
-      setErro(mensagemErro(e, "A disciplina"));
-    }
-  }
+  const remover = useCallback(
+    async (l: Linha) => {
+      if (
+        !(await confirmar({
+          titulo: `Remover ${l.nome}?`,
+          descricao: `As ${l.n_aulas} aula(s) dela na grade saem junto.`,
+          confirmar: "Remover disciplina",
+          perigo: true,
+        }))
+      )
+        return;
+      try {
+        await executar("DELETE FROM disciplinas WHERE id = ?", [l.id]);
+      } catch (e) {
+        return avisar.erro(mensagemErro(e, "A disciplina"));
+      }
+      // Fora do `try`, como em `salvar`: falha da recarga não é falha da remoção.
+      await recarregar();
+    },
+    [confirmar, recarregar],
+  );
 
-  const visiveis = useMemo(() => {
-    const termo = busca.trim().toLowerCase();
-    let recorte = filtro === "todos" ? linhas : linhas.filter((l) => l.periodo === filtro);
-    if (termo) recorte = recorte.filter((l) => l.nome.toLowerCase().includes(termo));
-    const comMarcas = recorte.map((l) => ({ ...l, marcas: marcasDe(l) }));
-    return comparar(comMarcas, ordem, (l) => `${l.periodo}${l.nome}`);
-  }, [linhas, filtro, ordem, busca]);
+  // As colunas não podem ser recriadas a cada desenho: ver `useTabela`.
+  const colunas = useMemo(
+    () => criarColunas({ abrir: (l) => void editar(l), remover: (l) => void remover(l) }),
+    [editar, remover],
+  );
+
+  const tabela = useTabela({
+    dados: linhas,
+    colunas,
+    ordemInicial: [{ id: "periodo", desc: false }],
+    desempate,
+    busca,
+    textoDeBusca,
+    filtros,
+    ocultas: COLUNAS_OCULTAS,
+  });
+
+  // O `id` é o da coluna filtrada. Período e tipo vêm dos cadastros; filtro
+  // sem opção nenhuma (nenhum tipo cadastrado) não é mostrado.
+  const definicoes = useMemo<DefinicaoDeFiltro[]>(
+    () =>
+      [
+        { id: "periodo", titulo: "Período", opcoes: periodos.map((p) => ({ valor: p.numero, rotulo: `${p.numero}º` })) },
+        { id: "tipo_id", titulo: "Tipo", opcoes: tipos.map((t) => ({ valor: t.id, rotulo: t.nome })) },
+        { id: "optativa", titulo: "Optativa", opcoes: SIM_OU_NAO },
+        { id: "ofertada", titulo: "Ofertada", opcoes: SIM_OU_NAO },
+        {
+          id: "turno",
+          titulo: "Turno forçado",
+          opcoes: [
+            { valor: "manha", rotulo: "Manhã" },
+            { valor: "tarde", rotulo: "Tarde" },
+          ],
+        },
+      ].filter((d) => d.opcoes.length > 0),
+    [periodos, tipos],
+  );
 
   if (!carregando && periodos.length === 0) {
     return (
       <>
-        <header className="cabecalho-pagina">
-          <h1>Disciplinas</h1>
-        </header>
-        <Vazio>
-          Cadastre os períodos do curso primeiro — uma disciplina precisa
-          pertencer a um.
-        </Vazio>
+        <CabecalhoPagina titulo="Disciplinas" />
+        <Alerta tom="erro">{erro}</Alerta>
+        <EstadoVazio>Cadastre os períodos do curso primeiro — uma disciplina precisa pertencer a um.</EstadoVazio>
       </>
     );
   }
 
+  const semProfessores = professores.length === 0;
+
   return (
     <>
-      <CabecalhoLista
+      <CabecalhoPagina
         titulo="Disciplinas"
         escopo={`Curso · ${linhas.reduce((s, l) => s + l.aulas_semanais, 0)} aulas por semana`}
-        contagem={`${visiveis.length} de ${linhas.length}`}
-        filtro={busca}
-        aoFiltrar={setBusca}
+        contagem={`${tabela.getRowModel().rows.length} de ${linhas.length}`}
+        busca={busca}
+        aoBuscar={setBusca}
       >
-        <div className="acoes-cabecalho">
-          <select
-            value={filtro}
-            onChange={(e) =>
-              setFiltro(e.target.value === "todos" ? "todos" : Number(e.target.value))
-            }
-          >
-            <option value="todos">Todos os períodos</option>
-            {periodos.map((p) => (
-              <option key={p.numero} value={p.numero}>
-                {p.numero}º período
-              </option>
-            ))}
-          </select>
-          <button
-            className="primario"
-            disabled={professores.length === 0}
-            title={
-              professores.length === 0 ? "Cadastre um professor antes" : undefined
-            }
-            onClick={() =>
-              setEdicao(novo(cursoId, filtro === "todos" ? periodos[0].numero : filtro))
-            }
-          >
-            Nova disciplina
-          </button>
-        </div>
-      </CabecalhoLista>
+        {/* Antes da carga não há período a propor nem como saber se há professor. */}
+        {!carregando && (
+          <>
+            {/* O botão desabilitado não recebe foco nem pouso: o motivo fica à
+                vista, ao lado, em vez de numa dica que ninguém alcança. */}
+            {semProfessores && (
+              <span id="motivo-nova-disciplina" className="text-xs whitespace-nowrap text-tx3">
+                Cadastre um professor antes
+              </span>
+            )}
+            <Button
+              disabled={semProfessores}
+              aria-describedby={semProfessores ? "motivo-nova-disciplina" : undefined}
+              onClick={() => abrir(novo(cursoId, periodoProposto()))}
+            >
+              Nova disciplina
+            </Button>
+          </>
+        )}
+      </CabecalhoPagina>
 
-      <Erro>{erro}</Erro>
+      <Alerta tom="erro">{erro}</Alerta>
 
-      {carregando ? null : visiveis.length === 0 ? (
-        <Vazio>Nenhuma disciplina neste recorte.</Vazio>
-      ) : (
-        <table className="lista">
-          <thead>
-            <tr>
-              <Ordenavel campo="periodo" ordem={ordem} aoOrdenar={setOrdem} numerico centro>
-                Período
-              </Ordenavel>
-              <Ordenavel campo="nome" ordem={ordem} aoOrdenar={setOrdem}>
-                Disciplina
-              </Ordenavel>
-              <Ordenavel campo="aulas_semanais" ordem={ordem} aoOrdenar={setOrdem} numerico centro>
-                Aulas
-              </Ordenavel>
-              <Ordenavel campo="professores" ordem={ordem} aoOrdenar={setOrdem}>
-                Professores
-              </Ordenavel>
-              <Ordenavel campo="marcas" ordem={ordem} aoOrdenar={setOrdem}>
-                Marcas
-              </Ordenavel>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {visiveis.map((l) => (
-              <tr key={l.id}>
-                <td className="num centro fraco">{l.periodo}º</td>
-                <td>
-                  <span className="forte">{l.nome}</span>
-                  {l.tipo_nome && <span className="fraco"> · {l.tipo_nome}</span>}
-                </td>
-                <td className="num centro">
-                  {l.aulas_semanais}
-                  {l.aulas_distribuidas !== l.aulas_semanais && (
-                    <span className="aviso-inline" title="fatias não fecham com a CH">
-                      !
-                    </span>
-                  )}
-                </td>
-                <td>
-                  {l.professores ?? <span className="fraco">sem professor</span>}
-                </td>
-                <td>
-                  {!l.ofertada && <span className="marca-prop">não ofertada</span>}
-                  {!l.exige_sala && <span className="marca-prop">sem sala</span>}
-                  {l.n_salas > 0 && (
-                    <span className="marca-prop">{l.n_salas} sala(s)</span>
-                  )}
-                  {l.blocos_livres ? <span className="marca-prop">livre</span> : null}
-                  {l.permite_sabado ? <span className="marca-prop">sábado</span> : null}
-                  {l.turno && <span className="marca-prop">{l.turno}</span>}
-                  {l.prioridade !== 2 && (
-                    <span className="marca-prop">
-                      prio. {l.prioridade === 1 ? "alta" : "baixa"}
-                    </span>
-                  )}
-                </td>
-                <td className="acoes">
-                  <BotaoIcone rotulo="Editar" aoClicar={() => abrir(l)}>
-                    <Lapis />
-                  </BotaoIcone>
-                  <BotaoIcone rotulo="Remover" perigo aoClicar={() => remover(l)}>
-                    <Lixeira />
-                  </BotaoIcone>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* Sem disciplina nenhuma não há o que filtrar. */}
+      {!carregando && linhas.length > 0 && <BarraDeFiltros definicoes={definicoes} valor={filtros} aoMudar={setFiltros} />}
+
+      {carregando ? null : (
+        <TabelaDados
+          tabela={tabela}
+          vazio={
+            <EstadoVazio>
+              {linhas.length === 0 ? (
+                "Nenhuma disciplina cadastrada neste curso."
+              ) : (
+                <>
+                  Nenhuma disciplina encontrada.{" "}
+                  <Button
+                    variant="link"
+                    onClick={() => {
+                      setFiltros([]);
+                      setBusca("");
+                    }}
+                  >
+                    Limpar busca e filtros
+                  </Button>
+                </>
+              )}
+            </EstadoVazio>
+          }
+        />
       )}
 
       {edicao && (
@@ -311,8 +358,16 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
           aulasComPadrao={aulasComPadrao}
           horasPorAula={horasPorAula}
           turnosDoCurso={turnosDoCurso}
+          alterado={alterado}
+          salvando={salvando}
+          erro={erroDoFormulario}
+          erros={errosDeCampo}
           aoMudar={setEdicao}
-          aoSalvar={salvar}
+          aoCorrigir={(...campos) =>
+            // Quem mexeu no campo já leu a mensagem dele.
+            setErrosDeCampo((erros) => ({ ...erros, ...Object.fromEntries(campos.map((c) => [c, undefined])) }))
+          }
+          aoSalvar={(d) => void salvar(d)}
           aoFechar={() => setEdicao(null)}
         />
       )}

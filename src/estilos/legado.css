@@ -198,27 +198,6 @@ table.lista tr:last-child td {
   color: var(--tx3);
 }
 
-/* Ações aparecem no pouso do mouse; a coluna reserva o espaço para nada
-   saltar quando aparecem. */
-.acoes {
-  text-align: right;
-  white-space: nowrap;
-  width: 1%;
-}
-
-/* Opacity, não `visibility`: some sem sumir do fluxo, e volta junto com o
-   realce da linha inteira — é o realce que torna a ação descobrível. */
-.acoes button {
-  margin-left: 4px;
-  opacity: 0;
-  transition: opacity 90ms;
-}
-
-tr:hover .acoes button,
-.acoes button:focus-visible {
-  opacity: 1;
-}
-
 .vazio {
   color: var(--tx3);
   background: var(--panel);
@@ -289,15 +268,9 @@ button.perigo {
   align-items: center;
 }
 
-.acoes-cabecalho select {
-  width: auto;
-}
-
 /* `--lineS` é a borda de CONTROLE; `--line` é hairline de tabela. Com a
    segunda, campo e dropdown somem no fundo e nada indica que são clicáveis. */
-input,
-select,
-textarea {
+select {
   font: inherit;
   font-size: 12.5px;
   color: var(--tx);
@@ -309,281 +282,8 @@ textarea {
   width: 100%;
 }
 
-input:hover,
-select:hover,
-textarea:hover {
+select:hover {
   box-shadow: inset 0 0 0 1px var(--tx2);
-}
-
-/* Embutidos são menores e mais discretos que um campo de formulário, mas
-   continuam sendo campos: sem fundo e sem contorno viravam texto comum, e não
-   havia como saber que se pode clicar neles. */
-input.embutido,
-select.embutido {
-  background: var(--inset);
-  box-shadow: inset 0 0 0 1px var(--lineC);
-  padding: 3px 5px;
-  /* Sem teto, o campo estica pela coluna inteira e fica desproporcional ao
-     lado dos vizinhos estreitos. */
-  max-width: 150px;
-}
-
-input.embutido:hover,
-select.embutido:hover {
-  box-shadow: inset 0 0 0 1px var(--tx2);
-}
-
-input.curto {
-  width: 64px;
-  text-align: right;
-}
-
-.curto-medio {
-  width: 128px;
-}
-
-input[type="range"] {
-  padding: 0;
-  background: none;
-  box-shadow: none;
-}
-
-input[type="checkbox"] {
-  width: auto;
-  box-shadow: none;
-  accent-color: var(--acc);
-}
-
-.campo {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 16px;
-}
-
-.campo .rotulo {
-  font-size: 11px;
-  color: var(--tx2);
-  font-weight: 600;
-}
-
-.campo .dica {
-  font-size: 11px;
-  line-height: 1.45;
-  color: var(--tx3);
-}
-
-.linha-campos {
-  display: flex;
-  gap: 12px;
-  align-items: flex-end;
-}
-
-.linha-campos .campo {
-  flex: 1;
-  margin-bottom: 0;
-}
-
-.linha-inline {
-  display: flex;
-  gap: 8px;
-}
-
-.linha-inline input {
-  flex: 1;
-}
-
-.linha-inline button {
-  white-space: nowrap;
-}
-
-fieldset {
-  border: none;
-  box-shadow: inset 0 0 0 1px var(--line);
-  border-radius: var(--rp);
-  padding: 12px 14px 14px;
-  margin: 0 0 16px;
-}
-
-legend {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--tx2);
-  padding: 0 6px;
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-
-.contador {
-  font-family: Consolas, monospace;
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  padding: 0 5px;
-  border-radius: 3px;
-  background: var(--inset);
-  color: var(--tx2);
-}
-
-.contador.ok {
-  color: var(--acc);
-}
-
-.contador.falta {
-  color: var(--neg);
-}
-
-.linha-fatia {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 6px;
-}
-
-.linha-fatia select {
-  flex: 1;
-}
-
-.linha-fatia .curto {
-  width: 58px;
-}
-
-.marcadores,
-.grade-salas {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.grade-salas {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  margin-bottom: 0;
-}
-
-/* A preferência fica ao lado da sala marcada, sem empurrar a grade. */
-.escolha-sala {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-  justify-content: space-between;
-}
-
-.marcadores label,
-.grade-salas label {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-  cursor: pointer;
-}
-
-.marcadores input,
-.grade-salas input {
-  margin-top: 2px;
-}
-
-.marcadores span,
-.grade-salas span {
-  display: flex;
-  flex-direction: column;
-}
-
-.marcadores em,
-.grade-salas em {
-  font-style: normal;
-  font-size: 11px;
-  color: var(--tx3);
-}
-
-.marca-prop {
-  display: inline-block;
-  margin-right: 4px;
-  padding: 1px 6px;
-  border-radius: 3px;
-  background: var(--inset);
-  font-size: 10.5px;
-  color: var(--tx2);
-  white-space: nowrap;
-}
-
-button.ligacao {
-  border: none;
-  box-shadow: none;
-  background: none;
-  padding: 0;
-  font: inherit;
-  color: var(--acc);
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-button.ordenavel {
-  border: none;
-  box-shadow: none;
-  background: none;
-  padding: 0;
-  font: inherit;
-  color: inherit;
-  text-transform: inherit;
-  letter-spacing: inherit;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
-}
-
-button.ordenavel:hover,
-button.ordenavel.ativo {
-  background: none;
-  color: var(--tx);
-}
-
-button.ordenavel em {
-  font-style: normal;
-  font-size: 9px;
-  width: 8px;
-}
-
-th.num button.ordenavel {
-  flex-direction: row-reverse;
-}
-
-/* ------------------------------------------------------------- modal */
-
-.fundo-modal {
-  position: fixed;
-  inset: 0;
-  background: rgba(20, 22, 28, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 32px;
-}
-
-.modal {
-  background: var(--panel);
-  box-shadow:
-    0 10px 30px var(--shadow),
-    inset 0 0 0 1px var(--line);
-  border-radius: 8px;
-  padding: 16px 20px 20px;
-  width: 100%;
-  max-width: 540px;
-  max-height: 85vh;
-  overflow: auto;
-}
-
-.modal h3 {
-  margin: 0 0 16px;
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.rodape-modal {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 20px;
 }
 
 /* ------------------------------------------------------------- alertas */
@@ -599,14 +299,6 @@ th.num button.ordenavel {
   color: var(--tx);
 }
 
-.alerta pre {
-  white-space: pre-wrap;
-  margin: 6px 0 0;
-  font-family: Consolas, monospace;
-  font-size: 11px;
-  color: var(--tx2);
-}
-
 .aviso {
   background: var(--inset);
   border-left: 3px solid var(--warnDot);
@@ -620,12 +312,6 @@ th.num button.ordenavel {
 
 .aviso.sucesso {
   border-left-color: var(--acc);
-}
-
-.aviso-inline {
-  color: var(--neg);
-  font-weight: 700;
-  margin-left: 4px;
 }
 
 .melhor {
@@ -659,17 +345,6 @@ table.comparacao td:first-child {
 
 .painel-duplo.largo {
   grid-template-columns: 264px 1fr;
-}
-
-table.lista tr.troca-turno td,
-table.lista tr.troca-turno th {
-  border-top: 2px solid var(--bg);
-}
-
-input.embutido.codigo {
-  width: 56px;
-  font-weight: 600;
-  font-family: Consolas, monospace;
 }
 
 /* ------------------------------------------------------------- grade de aulas */
@@ -1098,71 +773,6 @@ input.embutido.codigo {
   box-shadow: inset 0 0 0 1px var(--line);
 }
 
-/* ------------------------------------------------------- cabeçalho de lista */
-
-.cabecalho-lista {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.cabecalho-lista .escopo {
-  font-size: 11px;
-  color: var(--tx3);
-}
-
-.cabecalho-lista .espaco {
-  flex: 1;
-}
-
-.cabecalho-lista .contagem {
-  font-size: 11px;
-  color: var(--tx3);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-input.filtro {
-  width: 240px;
-  padding: 7px 10px;
-}
-
-/* Ações de linha como ícone: numa lista de 60 linhas, "Editar Remover"
-   repetido é mais tinta que conteúdo. */
-.acoes button.icone {
-  padding: 5px 6px;
-  line-height: 0;
-  color: var(--tx2);
-}
-
-.acoes button.icone.perigo {
-  color: var(--neg);
-}
-
-/* Estado "selecionado" dos controles: par acento + fundo do acento, com a
-   borda acompanhando — distinto do hover, que só escurece o fundo. */
-button.selecionado {
-  background: var(--accBg);
-  color: var(--acc);
-  box-shadow: inset 0 0 0 1px var(--accLine);
-}
-
-/* O anel só quando o foco veio do TECLADO. Em `:focus` ele permanecia depois
-   de escolher uma opção com o mouse — o campo ficava marcado sem que houvesse
-   nada a marcar. */
-input:focus,
-select:focus,
-textarea:focus {
-  outline: none;
-}
-
-input:focus-visible,
-textarea:focus-visible {
-  outline: none;
-  box-shadow: inset 0 0 0 1px var(--acc);
-}
-
 /* Nenhum <select> muda de aparência depois de escolhido.
  *
  * O Chromium casa `:focus-visible` com <select> mesmo no clique do mouse — a
@@ -1173,36 +783,5 @@ select:focus,
 select:focus-visible {
   outline: none;
   box-shadow: inset 0 0 0 1px var(--lineC);
-}
-
-select.embutido:focus,
-select.embutido:focus-visible {
-  box-shadow: inset 0 0 0 1px var(--lineC);
-}
-
-/* Coluna numérica curta fica melhor centrada que encostada na borda: com
-   valores de um dígito, o alinhamento à direita afasta o número do rótulo. */
-table.lista th.centro,
-table.lista td.centro {
-  text-align: center;
-  /* O recuo extra existe para afastar colunas numéricas alinhadas à direita
-     da coluna anterior; numa coluna centrada ele só desloca o conteúdo. */
-  padding-left: 10px;
-}
-
-th.centro button.ordenavel {
-  justify-content: center;
-  width: 100%;
-}
-
-/* Contrapeso invisível da seta.
-   A seta ocupa 8px sempre (mesmo inativa, para o cabeçalho não pular ao
-   ordenar). Sem um vão igual do outro lado, o par texto+seta é centrado como
-   grupo e o TEXTO fica deslocado meia seta — nunca alinhando com os valores
-   da coluna, que estão centrados de verdade. */
-th.centro button.ordenavel::before {
-  content: "";
-  width: 8px;
-  flex: none;
 }
 }

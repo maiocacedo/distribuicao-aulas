@@ -65,7 +65,7 @@ const GRUPOS: { titulo: string; paginas: Pagina[] }[] = [
         id: "disciplinas",
         rotulo: "Disciplinas",
         icone: BookOpen,
-        legado: true,
+        legado: false,
         componente: (p) => <Disciplinas cursoId={p.cursoId} />,
       },
     ],

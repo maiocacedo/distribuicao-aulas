@@ -59,6 +59,7 @@ export function pertence<T>(linha: Row<T>, coluna: string, valores: unknown[]): 
 // o faria refiltrar e reordenar a tabela inteira em todo desenho, sem nada ter
 // mudado. O mesmo vale para o que a tela passa (ver `useTabela`).
 const SEM_FILTROS: ColumnFiltersState = [];
+const SEM_OCULTAS: string[] = [];
 
 /**
  * Ordenação, busca e filtros de uma lista.
@@ -77,6 +78,7 @@ export function useTabela<T>({
   busca = "",
   textoDeBusca,
   filtros = SEM_FILTROS,
+  ocultas = SEM_OCULTAS,
 }: {
   /**
    * Referência estável: o estado da tela, não uma lista filtrada ou mapeada no
@@ -112,8 +114,15 @@ export function useTabela<T>({
   textoDeBusca?: (l: T) => string;
   /** Referência estável: estado ou `useMemo`, nunca uma lista montada na chamada. */
   filtros?: ColumnFiltersState;
+  /**
+   * `id` das colunas que existem só para filtrar: não são desenhadas, mas o
+   * filtro delas vale (o TanStack filtra por coluna, visível ou não).
+   * Referência estável: constante de módulo.
+   */
+  ocultas?: string[];
 }): Tabela<T> {
   const [ordem, setOrdem] = useState<SortingState>(ordemInicial);
+  const visibilidade = useMemo(() => Object.fromEntries(ocultas.map((id) => [id, false])), [ocultas]);
 
   // A ordenação do TanStack é estável: com os dados já em ordem de desempate,
   // linhas iguais na coluna ordenada ficam nessa ordem, crescente ou não.
@@ -127,7 +136,7 @@ export function useTabela<T>({
     data: ordenados,
     columns: colunas,
     // Espaço nas pontas não é busca: quem só bateu na barra continua vendo tudo.
-    state: { sorting: ordem, globalFilter: busca.trim(), columnFilters: filtros },
+    state: { sorting: ordem, globalFilter: busca.trim(), columnFilters: filtros, columnVisibility: visibilidade },
     onSortingChange: setOrdem,
     enableSortingRemoval: false,
     // Um critério por vez, como nas listas antigas (sem Shift + clique).

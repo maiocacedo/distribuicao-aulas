@@ -33,7 +33,8 @@ export function useAlterado<T>(valor: T | null): boolean {
  *
  * `erro` é o alerta do formulário: recusa de regra ou falha ao gravar. Erro de
  * validação de um campo vai na prop `erro` do `Campo`; depois de uma tentativa
- * de salvar, o foco vai para o primeiro campo marcado.
+ * de salvar, o foco vai para o primeiro campo marcado e, se não há campo
+ * marcado, o alerta é trazido para a vista.
  *
  * Ao fechar, o foco volta para onde estava quando o diálogo abriu (o botão
  * "Editar" da linha, o "Novo…" do cabeçalho).
@@ -73,7 +74,12 @@ export function DialogoFormulario({
   const [tentativas, setTentativas] = useState(0);
   useEffect(() => {
     if (tentativas === 0 || salvando) return;
-    formulario.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+    const invalido = formulario.current?.querySelector<HTMLElement>('[aria-invalid="true"]');
+    if (invalido) return invalido.focus();
+    // Sem campo a apontar, a recusa está no alerta, no topo. Num formulário
+    // mais alto que a janela quem clicou em "Salvar" está no fim dele e não
+    // veria nada acontecer: o alerta vem para a vista (se já está, nada rola).
+    formulario.current?.querySelector('[role="alert"]')?.scrollIntoView({ block: "nearest" });
   }, [tentativas, salvando]);
 
   async function fechar() {
