@@ -13,8 +13,8 @@ interface Props {
   motivoDe: (f: Fatia, dia: number, hora: number) => string | null;
   exigeSala: (a: Aula) => boolean;
   salasParaTroca: (a: Aula) => { id: number | null; rotulo: string }[];
-  aoAlocar: (dia: number, hora: number) => void;
-  aoRemover: (a: Aula) => void;
+  aoAlocar: (dia: number, hora: number) => Promise<boolean>;
+  aoRemover: (a: Aula) => Promise<boolean>;
   aoFixar: (a: Aula) => void;
   aoTrocarSala: (a: Aula, salaId: number | null) => void;
 }
@@ -93,7 +93,7 @@ export function Malha({
                     exigeSala={aula ? exigeSala(aula) : false}
                     salas={aula ? salasParaTroca(aula).map((s) => ({ valor: s.id, rotulo: s.rotulo })) : []}
                     aoAlocar={() => aoAlocar(d, l.h.indice)}
-                    aoRemover={() => aula && aoRemover(aula)}
+                    aoRemover={() => (aula ? aoRemover(aula) : Promise.resolve(false))}
                     aoFixar={() => aula && aoFixar(aula)}
                     aoTrocarSala={(salaId) => aula && aoTrocarSala(aula, salaId)}
                   />

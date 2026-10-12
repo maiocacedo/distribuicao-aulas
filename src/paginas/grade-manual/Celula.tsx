@@ -1,5 +1,5 @@
 import { Lock, LockOpen, X } from "lucide-react";
-import { useId } from "react";
+import { useId, useLayoutEffect, useRef } from "react";
 import { BotaoIcone } from "@/componentes/botao-icone";
 import { Seletor, type Opcao } from "@/componentes/seletor";
 import { DIAS } from "../../tipos";
@@ -17,8 +17,9 @@ interface Props {
   exigeSala: boolean;
   /** As salas que a aula pode trocar pela dela. Vazia = nada a escolher. */
   salas: Opcao<number | null>[];
-  aoAlocar: () => void;
-  aoRemover: () => void;
+  /** Devolvem se gravaram: só então o foco muda de elemento (ver `agindo`). */
+  aoAlocar: () => Promise<boolean>;
+  aoRemover: () => Promise<boolean>;
   aoFixar: () => void;
   aoTrocarSala: (salaId: number | null) => void;
 }
@@ -53,6 +54,9 @@ export function Celula({
   aoTrocarSala,
 }: Props) {
   const idDoTexto = useId();
+  const raiz = useRef<HTMLElement | null>(null);
+  const devolverFoco = useRef(false);
+  const emCurso = useRef(0);
   const rotulo = `${DIAS[dia]}, ${codigo}`;
   const classe = aula
     ? aula.fixada
@@ -67,6 +71,31 @@ export function Celula({
         : "neutra";
   const classes = `celula ${classe} ${foraDoTurno ? "contraturno" : ""}`;
 
+  /**
+   * Alocar troca o botão da célula vazia pelo grupo da ocupada, e remover faz
+   * o contrário: o elemento focado some e o foco cairia no `body`. Se ele
+   * estava na célula quando a ação foi pedida, vai para o elemento novo; quem
+   * agiu pelo mouse em outro lugar não tem o foco roubado.
+   */
+  async function agindo(acao: () => Promise<boolean>) {
+    if (raiz.current?.contains(document.activeElement)) devolverFoco.current = true;
+    emCurso.current++;
+    const gravou = await acao();
+    emCurso.current--;
+    // Não gravou (falha, recusa, ou um clique repetido que a tela ignorou): o
+    // elemento não vai mudar, e o pedido não pode ficar para uma troca futura.
+    // Com outra chamada ainda em curso, o pedido é dela.
+    if (!gravou && emCurso.current === 0) devolverFoco.current = false;
+  }
+
+  const ocupada = !!aula;
+  useLayoutEffect(() => {
+    if (!devolverFoco.current) return;
+    devolverFoco.current = false;
+    // Só se o foco caiu no `body`: se já está em outro lugar, o usuário seguiu.
+    if (!document.activeElement || document.activeElement === document.body) raiz.current?.focus();
+  }, [ocupada]);
+
   if (!aula) {
     // O nome do botão é o horário (o contrato dos testes e o que um leitor de
     // tela precisa para saber onde está); o que a célula diz — o motivo do
@@ -74,14 +103,19 @@ export function Celula({
     const impedida = motivo != null;
     return (
       <button
+        ref={(el) => {
+          raiz.current = el;
+        }}
         type="button"
         aria-label={rotulo}
-        aria-describedby={motivo || fatiaEscolhida ? idDoTexto : undefined}
+        aria-describedby={idDoTexto}
         // Impedida não aceita a pendência e diz por quê: `aria-disabled`, que
         // mantém a célula alcançável, em vez de um clique que não faz nada.
         aria-disabled={impedida || undefined}
         className={classes}
-        onClick={impedida ? undefined : aoAlocar}
+        onClick={impedida ? undefined : () => void agindo(aoAlocar)}
+        // O clique direito que erra a aula não abre o menu do navegador.
+        onContextMenu={(e) => e.preventDefault()}
       >
         {motivo ? (
           <span id={idDoTexto} className="motivo">
@@ -91,7 +125,13 @@ export function Celula({
           <span id={idDoTexto} className="alocar">
             Alocar
           </span>
-        ) : null}
+        ) : (
+          // Sem pendência escolhida o clique não faz nada: a descrição conta
+          // isso a quem usa leitor de tela, sem mudar o desenho.
+          <span id={idDoTexto} className="sr-only">
+            Escolha uma pendência para alocar
+          </span>
+        )}
       </button>
     );
   }
@@ -101,7 +141,12 @@ export function Celula({
   const mostraSala = aula.salaId != null || exigeSala;
   return (
     <div
+      ref={(el) => {
+        raiz.current = el;
+      }}
       role="group"
+      // Focável só por código: o foco que a ação devolve (ver `agindo`).
+      tabIndex={-1}
       aria-label={rotulo}
       className={classes}
       onContextMenu={(e) => {
@@ -140,7 +185,7 @@ export function Celula({
           perigo
           desabilitado={!!aula.fixada}
           motivo="Solte o cadeado para remover"
-          aoClicar={aoRemover}
+          aoClicar={() => void agindo(aoRemover)}
           className={BOTAO_DA_AULA}
         />
         <BotaoIcone
@@ -151,7 +196,11 @@ export function Celula({
           className={aula.fixada ? `${BOTAO_DA_AULA} text-tx3` : BOTAO_DA_AULA}
         />
       </span>
-      {foraDoTurno && <span className="ponto" />}
+      {foraDoTurno && (
+        <span className="ponto">
+          <span className="sr-only">fora do turno</span>
+        </span>
+      )}
     </div>
   );
 }

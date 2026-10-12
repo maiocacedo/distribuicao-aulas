@@ -1,6 +1,6 @@
 # Notas para converter uma tela
 
-Estado do molde depois da tarefa 11. O exemplo vivo é `src/paginas/Professores.tsx`: na dúvida, copie de lá. Restrições e receita em `restricoes.md`.
+Estado do molde depois da tarefa 13. O exemplo vivo é `src/paginas/Professores.tsx`: na dúvida, copie de lá. Restrições e receita em `restricoes.md`.
 
 ## Componentes
 
@@ -66,7 +66,7 @@ const alterado = useAlterado(edicao);
     aoMudar={(pref_dias) => setEdicao({ ...edicao, pref_dias })} />}
 </Campo>
 ```
-**`BotaoIcone`** (`@/componentes/botao-icone`): `{ rotulo: string; icone: LucideIcon; aoClicar: () => void; perigo?: boolean; desabilitado?: boolean; motivo?: string; className?: string }`. `rotulo` é o nome acessível e a dica. `desabilitado` é `aria-disabled`: o botão continua alcançável, o clique não age e a dica mostra o `motivo`. Desabilitou, diga o motivo. Com `perigo`, habilitado, é sempre da cor de negativo (como na interface antiga); desabilitado fica rebaixado. Pendência: um e2e que confirme clique, Enter e Espaço inertes e a dica com o motivo quando alguma tela usar `desabilitado`:
+**`BotaoIcone`** (`@/componentes/botao-icone`): `{ rotulo: string; icone: LucideIcon; aoClicar: () => void; perigo?: boolean; desabilitado?: boolean; motivo?: string; className?: string }`. `rotulo` é o nome acessível e a dica. `desabilitado` é `aria-disabled`: o botão continua alcançável, o clique não age e a dica mostra o `motivo`. Desabilitou, diga o motivo. Com `perigo`, habilitado, é sempre da cor de negativo (como na interface antiga); desabilitado fica rebaixado. E2E do desabilitado: `desfazer.spec.ts` (aula fixada) confirma clique, Enter e Espaço inertes e a dica com o motivo; afirme também que a recusa que o clique acenderia (toast) NÃO aparece, senão o teste passa com o botão quebrado se a ação tiver guarda. A classe do desabilitado é `ESTILO_DESABILITADO`, exportada de `botao-icone.tsx`: botão próprio com `aria-disabled` a importa em vez de copiar:
 `<BotaoIcone rotulo="Remover" icone={Trash2} perigo desabilitado={impedido} motivo="…por que não pode…" aoClicar={…} />`
 
 - **`Marcador`** (`@/componentes/marcador`): `{ rotulo: string; descricao?: ReactNode; marcado: boolean; aoMudar: (marcado: boolean) => void }`. `Checkbox` com o rótulo e, embaixo, a frase que diz o que ele faz. O `<label>` envolve tudo (o clique vale na linha); o nome acessível é só o rótulo, a frase é a descrição. Não passe classes.
@@ -129,7 +129,7 @@ O botão do caso 2 tem nome diferente do "Limpar filtros" da barra (os dois apar
 - Coluna de texto derivado (etiquetas, rótulo composto): `accessorFn` que devolve o texto mostrado, para ordenar pelo que o usuário lê.
 - Dado da lista inteira de que a ação de linha precisa (total de registros): leve na própria linha (`n_cursos`), para as colunas não dependerem de `linhas` e continuarem estáveis.
 - Ilha `.legado` num diálogo novo (componente ainda antigo): `<div className="legado -mb-3">`; o `-mb-3` desfaz a margem de 12 px do último bloco antigo, que o item de flex não colapsa.
-- Limpeza do `legado.css`: o `grep` por classe também pega componente morto em `legado.tsx`; pode-o primeiro. Dentro de `.legado` só restam `GradeManual.tsx`, `GradeAutomatica.tsx` e `Vazio`/`Erro`; não há mais `input`, `textarea`, `fieldset` nem `label`. A grade manual tem um `<select>` nativo (trocar sala) que as capturas não mostram.
+- Limpeza do `legado.css`: o `grep` por classe também pega componente morto em `legado.tsx`; pode-o primeiro. Dentro de `.legado` só restam `GradeAutomatica.tsx` e `Vazio`/`Erro`; não há mais `input`, `textarea`, `fieldset`, `label` nem `<select>` nativo.
 - Para as grades: a confirmação de aulas apagadas e o toast de troca de sala já têm texto e padrão em `Salas` e em `disciplinas/index.tsx`; `motivosParaMostrar` (`disciplinas/salvar.ts`) é pura, se a grade precisar descrever motivos.
 - Arquivos em CRLF no disco: script que edita por substituição lê com `newline=""` e normaliza. Ao medir um diálogo, espere a animação de entrada (~600 ms).
 - CLI do shadcn importa `cn` do pacote npm `cn`: troque o import por `@/lib/utils`, `git checkout package.json package-lock.json`, confira `tema.css` e `components.json`.
@@ -199,11 +199,34 @@ Tabela com desenho próprio (Indisponibilidades; a grade manual vem a seguir) mo
 - **O que é preciso declarar:** `border-collapse: separate` e `border-spacing` (o reset põe `collapse`; malha com vão entre células precisa de `separate`), `font-weight` de `th` (o navegador dá negrito), `font-style: normal` em `em`, `cursor: pointer` e `border-radius` de botão.
 - **Descubra por ablação, não por lista:** tire uma declaração por vez do `grade.css` e compare a medida (`getBoundingClientRect` + `getComputedStyle`, claro e escuro, seletores por estrutura para valer antes e depois). O que não muda a medida sai.
 - **A captura tem de ver o que vai ser mexido.** A de Indisponibilidades não mostrava a malha (nenhum professor escolhido); foi preciso uma captura com professor escolhido, gerada com o código antigo ANTES de converter.
-- **Ainda no legado, por causa das grades manual e automática:** `.painel-duplo` (equivale a `grid grid-cols-[200px_1fr] items-start gap-[14px]`), `.sub` (`CabecalhoPagina` com `sub`) e `.acoes-secao` (`mt-3 flex items-center gap-2`). Saem quando a última dessas telas sair.
+- **Ainda no legado, por causa da grade automática:** `.sub` (`CabecalhoPagina` com `sub`) e `.acoes-secao` (`mt-3 flex items-center gap-2`). Saem quando ela sair. `.painel-duplo` já saiu: virou `grid grid-cols-[264px_1fr] items-stretch gap-[14px]` na grade manual.
 - **Medir botão do shadcn:** o `transition-colors` faz a cor sair intermediária se a medida vier logo depois de o botão deixar de ser `disabled`. Espere uns 500 ms.
 - **Item ativo de lista de seleção:** `<button aria-pressed>` com `bg-acc-bg font-semibold text-primary`, sem variante de hover no ativo; fundo, cor e peso, então não depende só de cor.
 - **Dois erros de carga, cada um limpo pela sua carga** (`erro` da lista e das contagens, `erroDoProfessor` da malha): limpar um no fim da carga do outro esconde um erro ainda verdadeiro. Gravação que passa e recarga que falha depois é erro de página, não toast de gravação: `try` só em volta da gravação.
 - Teste de recarga que falha só depois da gravação: `opcoesPonte: { falharAPartirDe: { quando: /…/, vez: 2 } }` (a 1ª vez é a carga inicial).
+
+## Grades: histórico, desfazer e células (tarefa 13)
+
+Telegráfico; o exemplo vivo é `src/paginas/grade-manual/`.
+- **Toda escrita da grade por `historico.executarNaGrade`** (um caminho único, `gravar` em `index.tsx`: histórico, recarga sempre, toast de erro). Toast com "Desfazer" só se `historico.estado().podeDesfazer`: a ação que cruza com escrita de cadastro grava sem entrar no histórico, e o botão não teria o que desfazer.
+- **Só o toast mais recente oferece "Desfazer".** O botão do toast desfaz o topo da pilha, que pode já ser outra ação. `avisar.desfazer` guarda o toast aberto e fecha o anterior ao abrir; `desfazer.ts` assina `historico.assinar` e chama `avisar.fecharDesfazer()` a cada mudança de estado (outra ação, desfazer, histórico zerado). Ordem em `gravar`: grava, o histórico publica (o antigo fecha), SÓ ENTÃO o novo abre. E2E: `toHaveCount(0, { timeout: 3_000 })`, menor que os 10 s do toast, ou passa por ele ter vencido.
+- **Atalho global (Ctrl+Z):** ignora campo de texto, `e.repeat` (tecla presa desfaria a pilha) e diálogo aberto (`[role="alertdialog"], [role="dialog"]`): sem isto age por trás da confirmação.
+- **Ouvinte de Esc em `window`** começa com `if (e.defaultPrevented) return;`. O Radix marca o Esc que consome (lista do `Seletor`, diálogo, confirmação, dica); o Esc que fechou uma camada não solta o modo da tela.
+- **Guarda na ação, não só no botão desabilitado.** Quem chama a ação por outro caminho (arrastar) não passa pelo botão: `removerAula` recusa aula fixada com `avisar.aviso`.
+- **Ação em voo por célula.** Um `Set` em `ref` (chave dia-hora), da ordem até a recarga: a segunda ação na mesma célula é ignorada (duplo "Alocar" dá `UNIQUE`; duplo "Remover" empilharia dois registros iguais e o desfazer não devolveria a aula). Células diferentes seguem livres. A ação devolve `Promise<boolean>` (gravou).
+- **Devolver o foco à célula depois de uma ação que troca o elemento** (vazia é `button`, ocupada é `div role="group" tabIndex={-1}`): na hora da ação, `raiz.contains(document.activeElement)` marca o pedido; `useLayoutEffect` sobre "está ocupada" foca o elemento novo, e só se o foco caiu no `body`. Ação que não gravou desfaz o pedido. Foco em outro lugar (mouse) não é roubado.
+- **Carga com geração na troca de escopo.** `carregar` numera a carga e confere depois de cada leitura (a `consultar` da carga lança ao ser superada, antes de qualquer `set`); a de outro escopo (ação em voo durante a troca de curso) não faz nada. `carregando` volta a falso só pela carga mais recente: trocar de escopo zera "carregado" no próprio desenho (`setState` durante a renderização), senão A, B, A mostra o que sobrou de B.
+- **`Seletor` com valor fora das opções deixa o gatilho vazio** (é o `placeholder` do Radix; `exibir` é ignorado). Inclua a situação atual como opção: "Sem sala (atual, fora do requisito)".
+- **Controles que só aparecem no pouso ou no foco:** `:hover` e `:has(:focus-visible)`, não `:focus-within` (depois de escolher com o mouse o Radix devolve o foco ao gatilho e os botões ficariam à mostra). `opacity`, não `visibility`, para continuarem na ordem do Tab. O que fica no mesmo canto (ponto de "fora do turno") leva `pointer-events: none` e sai da frente deles nos mesmos estados.
+- **Descrição de botão que não faz nada:** `aria-describedby` para um `sr-only` ("Escolha uma pendência para alocar"); com motivo visível, o próprio texto é a descrição. O nome fica no horário.
+- **Menu de contexto do WebView:** o botão direito que erra o alvo abre o menu do navegador; `onContextMenu` com `preventDefault` na célula vazia. Na ocupada, confira `currentTarget.contains(e.target)`: os eventos da lista do `Seletor` (portal) sobem pela árvore do React.
+- **Motivo de botão desabilitado no cabeçalho:** `span` ANTES dos botões, `inline-flex h-7 items-center` (o cabeçalho de página alinha pelo topo e `self-center` o centra na altura do título); assim, aparecendo, ele não empurra os botões.
+- **Componente do molde dentro de malha:** o `grade.css` (camada `components`) perde para os utilitários do componente; para mudar o desenho dele use `className` no ponto de uso (ícone do `BotaoIcone`: `[&_svg]:size-3`), e no `grade.css` só o que ele não define.
+- **`outline` como estado** (tracejado da apta) vence o anel de foco global na camada `components`: repita o anel depois. Anel dentro de caixa com `overflow: hidden`: para dentro (`outline-offset` negativo) ou solte o `overflow` com `:has(:focus-visible)`.
+- **Elemento que vira `button`:** declare `text-align` (o navegador centra); `align-items` não precisa.
+- **`transition` num filho do `Button`** perde para o `transition-colors` dele: não declare.
+- **Medir malha:** altura fracionária acima dela (o `.aviso` de 35,25 px) faz a comparação de pixels acusar a tela inteira; monte um cenário sem ele para provar que a malha não mudou.
+- **E2E:** `locator.focus()` depois de um clique não casa `:focus-visible` (chegue com `Shift+Tab` do vizinho); `click({ force: true })` clica num `aria-disabled`; `keyboard.down` repetido sem `up` chega com `repeat: true`; dois cliques no mesmo turno do JavaScript (`el.click(); el.click()` num `evaluate`) simulam o duplo clique sem depender de tempo; `el.click()` do DOM não leva o foco.
 
 ## Comparar antes e depois
 

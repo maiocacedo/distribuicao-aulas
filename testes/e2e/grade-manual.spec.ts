@@ -164,3 +164,83 @@ test.describe("aula órfã", () => {
     await expect(page.getByText(/este professor não leciona mais a disciplina/)).toBeVisible();
   });
 });
+
+test.describe("aula órfã com sala", () => {
+  test.use({
+    semMassa: true,
+    semente: `${BASE}
+      INSERT INTO salas (id, nome, tipo, capacidade) VALUES (1, 'A01', 'Sala de Aula', 40);
+      INSERT INTO professores (id, nome) VALUES (2, 'Bruno Lima');
+      INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais, exige_sala) VALUES (1, 1, 'Cálculo', 1, 2, 0);
+      INSERT INTO disciplina_professores (disciplina_id, professor_id, aulas) VALUES (1, 1, 2), (1, 2, 2);
+      INSERT INTO alocacoes (curso_id, periodo, dia, hora, disciplina_id, professor_id, sala_id) VALUES (1, 1, 0, 0, 1, 2, 1);
+      PRAGMA foreign_keys = OFF;
+      DELETE FROM disciplina_professores WHERE professor_id = 2;
+      PRAGMA foreign_keys = ON;`,
+  });
+
+  test("mostra a sala como texto, sem seletor", async ({ page }) => {
+    await irPara(page, "Manual");
+    await expect(celula(page, "Segunda", "M1")).toContainText("A01");
+    await expect(celula(page, "Segunda", "M1").getByRole("combobox")).toHaveCount(0);
+  });
+});
+
+test.describe("sala: lista aberta", () => {
+  test.use({
+    semMassa: true,
+    semente: `${BASE}
+      INSERT INTO salas (id, nome, tipo, capacidade) VALUES (1, 'A01', 'Sala de Aula', 40), (2, 'A02', 'Sala de Aula', 40);
+      INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais) VALUES (1, 1, 'Cálculo', 1, 2);
+      INSERT INTO disciplina_professores (disciplina_id, professor_id, aulas) VALUES (1, 1, 2);
+      INSERT INTO disciplina_salas (disciplina_id, sala_id, preferencia) VALUES (1, 1, 2), (1, 2, 1);
+      INSERT INTO alocacoes (curso_id, periodo, dia, hora, disciplina_id, professor_id, sala_id) VALUES (1, 1, 0, 0, 1, 1, 2);`,
+  });
+
+  test("o botão direito sobre a lista de salas não fixa a aula", async ({ page, banco }) => {
+    await irPara(page, "Manual");
+    await page.getByRole("combobox", { name: "Trocar sala de Cálculo" }).click();
+    await page.getByRole("listbox").dispatchEvent("contextmenu");
+    // Marco: a troca de sala entra na mesma fila de gravação; se o botão
+    // direito tivesse fixado a aula, a fixação já estaria gravada.
+    await page.getByRole("option", { name: "A01 (aceitável)" }).click();
+    await expect.poll(() => contar(banco, "SELECT sala_id FROM alocacoes")).toBe(1);
+    expect(contar(banco, "SELECT fixada FROM alocacoes")).toBe(0);
+  });
+
+  test("o Esc que fecha a lista de salas mantém a pendência; o seguinte a solta", async ({ page }) => {
+    await irPara(page, "Manual");
+    const pendencia = page.getByRole("button", { name: /Cálculo/ });
+    await pendencia.click();
+    await expect(pendencia).toHaveAttribute("aria-pressed", "true");
+    await page.getByRole("combobox", { name: "Trocar sala de Cálculo" }).click();
+    await expect(page.getByRole("listbox")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("listbox")).toHaveCount(0);
+    await expect(pendencia).toHaveAttribute("aria-pressed", "true");
+    await page.keyboard.press("Escape");
+    await expect(pendencia).toHaveAttribute("aria-pressed", "false");
+  });
+});
+
+test.describe("aula de contraturno", () => {
+  test.use({
+    semMassa: true,
+    semente: `${BASE}
+      INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais, exige_sala) VALUES (1, 1, 'Cálculo', 1, 2, 0);
+      INSERT INTO disciplina_professores (disciplina_id, professor_id, aulas) VALUES (1, 1, 2);
+      INSERT INTO alocacoes (curso_id, periodo, dia, hora, disciplina_id, professor_id)
+        VALUES (1, 1, 0, (SELECT indice FROM horarios WHERE codigo = 'T1'), 1, 1);`,
+  });
+
+  test("o ponto de fora do turno não cobre os botões e tem texto", async ({ page, banco }) => {
+    await irPara(page, "Manual");
+    const aula = celula(page, "Segunda", "T1");
+    await expect(aula).toContainText("fora do turno");
+    await aula.hover();
+    // O clique de verdade: com o ponto por cima, o Playwright acusaria que
+    // outro elemento recebe o clique.
+    await aula.getByRole("button", { name: "Fixar" }).click();
+    await expect.poll(() => contar(banco, "SELECT fixada FROM alocacoes")).toBe(1);
+  });
+});

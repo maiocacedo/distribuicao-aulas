@@ -4,6 +4,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/componentes/ui/toolti
 import { cn } from "@/lib/utils";
 
 /**
+ * O desenho do `disabled` do `Button` para quem usa `aria-disabled` (o botão
+ * continua alcançável): texto e borda rebaixados, fundo do poço, sem `opacity`.
+ * O pouso não muda nada.
+ */
+export const ESTILO_DESABILITADO = "cursor-default border-line bg-poco text-tx3 hover:bg-poco hover:text-tx3";
+
+/**
  * Ação como ícone. O rótulo vive na dica para quem passa o mouse e no
  * `aria-label` para quem não usa o mouse.
  *
@@ -52,9 +59,7 @@ export function BotaoIcone({
           className={cn(
             "size-6",
             desabilitado
-              ? // O desenho do `disabled` do `Button`: texto e borda rebaixados,
-                // fundo do poço, sem `opacity`. O pouso não muda nada.
-                "cursor-default border-line bg-poco text-tx3 hover:bg-poco hover:text-tx3"
+              ? ESTILO_DESABILITADO
               : perigo
                 ? // Sempre da cor de negativo, como na interface antiga: a ação
                   // destrutiva se distingue sem depender do pouso. O `hover` repete a

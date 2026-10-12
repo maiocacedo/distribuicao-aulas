@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { consultar } from "../../db";
 import type { Horario, Periodo } from "../../tipos";
 import { carregarContexto } from "../../regras/carregar";
@@ -6,6 +6,11 @@ import { AULA_ORFA, descrever, type Nomes } from "../../regras/descrever";
 import { violacoesDaAula } from "../../regras/impedimentos";
 import { Ocupacao } from "../../regras/ocupacao";
 import type { AulaOcupada, Contexto, FatiaRegras, SalaAceita, Turno } from "../../regras/tipos";
+
+/** O que uma consulta lança quando a carga que a pediu já foi superada. */
+const SUPERADA = Symbol("carga superada");
+
+type Consultar = typeof consultar;
 
 export const chave = (dia: number, hora: number) => `${dia}-${hora}`;
 
@@ -56,8 +61,26 @@ export function usarGrade(cursoId: number) {
   // os estados acima chegam um a um, e no meio do caminho a tela teria o
   // contexto de um curso com as aulas do outro.
   const [cursoCarregado, setCursoCarregado] = useState<number | null>(null);
+  // Trocou de curso: o que está carregado deixa de valer neste mesmo desenho,
+  // sem esperar um efeito. Voltar a um curso já carregado (A, B, A) não pode
+  // mostrar de imediato o que sobrou de uma carga de B interrompida.
+  const [cursoVisto, setCursoVisto] = useState(cursoId);
+  if (cursoVisto !== cursoId) {
+    setCursoVisto(cursoId);
+    setCursoCarregado(null);
+  }
 
-  const carregar = useCallback(async () => {
+  // Cada carga tem o número da vez; só a mais recente, e só a do curso atual,
+  // escreve estado. Uma carga velha que termina depois de uma nova trocaria o
+  // que a tela mostra por dados antigos, e uma ação que estava em voo na troca
+  // de curso recarregaria o curso de que se saiu por cima do novo.
+  const cursoAtual = useRef(cursoId);
+  cursoAtual.current = cursoId;
+  const geracao = useRef(0);
+
+  // `consultar` é o da carga: depois de cada leitura ele confere se a carga
+  // continua valendo e, se não, interrompe antes de qualquer `set`.
+  const lerDoCurso = useCallback(async (consultar: Consultar) => {
     const contexto = await carregarContexto(cursoId, consultar);
     setCtx(contexto);
     // A grade mostra só os turnos que o curso ocupa (D13).
@@ -152,6 +175,23 @@ export function usarGrade(cursoId: number) {
     setPadroes(pads);
     setCursoCarregado(cursoId);
   }, [cursoId]);
+
+  const carregar = useCallback(async () => {
+    if (cursoId !== cursoAtual.current) return;
+    const minha = ++geracao.current;
+    const superada = () => minha !== geracao.current || cursoId !== cursoAtual.current;
+    const vigente: Consultar = async <T,>(sql: string, params?: unknown[]) => {
+      const linhas = await consultar<T>(sql, params);
+      if (superada()) throw SUPERADA;
+      return linhas;
+    };
+    try {
+      await lerDoCurso(vigente);
+    } catch (e) {
+      // A falha de uma carga superada não é da página: ela já é de outra carga.
+      if (e !== SUPERADA && !superada()) throw e;
+    }
+  }, [cursoId, lerDoCurso]);
 
   const doCurso = useMemo(() => aulas.filter((a) => a.cursoId === cursoId), [aulas, cursoId]);
   const oc = useMemo(() => new Ocupacao(cursoId, aulas), [aulas, cursoId]);

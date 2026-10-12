@@ -547,7 +547,6 @@
 
 .celula .controles > * {
   opacity: 0;
-  transition: opacity 90ms;
 }
 
 /* O cadeado fechado da aula fixada é o estado dela: sempre à vista, no lugar
@@ -565,6 +564,8 @@
   background: var(--card);
 }
 
+/* O ponto é só desenho (o texto dele é do leitor de tela): não pode interceptar
+   o clique nos botões, que ficam no mesmo canto. */
 .celula .ponto {
   position: absolute;
   top: 5px;
@@ -573,11 +574,18 @@
   height: 6px;
   border-radius: 3px;
   background: var(--warnDot);
+  pointer-events: none;
 }
 
 /* Ao lado do cadeado, não embaixo dele. */
 .celula.travada .ponto {
   right: 18px;
+}
+
+/* Com os dois botões à mostra (40 px), o ponto passa para a esquerda deles. */
+.celula:hover .ponto,
+.celula:has(:focus-visible) .ponto {
+  right: 44px;
 }
 
 /* --- legenda --- */

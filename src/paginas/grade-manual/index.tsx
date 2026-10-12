@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Instrucao } from "../../db";
 import { DIAS } from "../../tipos";
 import { Alerta } from "@/componentes/alerta";
@@ -65,8 +65,13 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
   useEffect(() => setEscolhida(null), [cursoId]);
 
   // Esc solta a pendência escolhida: sair de um modo é sempre a mesma tecla.
+  // Quando o Esc já fechou outra coisa (a lista de salas, a confirmação), o
+  // Radix marca o evento como tratado: aquele Esc foi dela, e a pendência fica.
   useEffect(() => {
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && setEscolhida(null);
+    const esc = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+      if (e.key === "Escape") setEscolhida(null);
+    };
     window.addEventListener("keydown", esc);
     return () => window.removeEventListener("keydown", esc);
   }, []);
@@ -94,31 +99,58 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
    * ação entrou no histórico. A que cruza com uma escrita de cadastro fica
    * gravada sem entrar nele, e um "Desfazer" ali não teria o que desfazer.
    */
-  async function gravar(rotulo: string, instrucoes: Instrucao[], feito?: string) {
+  async function gravar(rotulo: string, instrucoes: Instrucao[], feito?: string): Promise<boolean> {
     try {
       await historico.executarNaGrade(cursoId, rotulo, instrucoes);
     } catch (e) {
       avisar.erro(mensagemErro(e, "A aula"));
       await recarregar();
-      return;
+      return false;
     }
+    // O histórico já publicou (o toast de desfazer anterior fechou) antes de
+    // este abrir: o novo não é fechado pela ação que o gerou.
     if (feito) {
       if (historico.estado().podeDesfazer) avisar.desfazer(feito, () => void desfazerEAvisar());
       else avisar.sucesso(feito);
     }
     await recarregar();
+    return true;
   }
 
-  async function alocarEm(dia: number, hora: number) {
-    if (!fatiaEscolhida || periodo == null || !ctx) return;
+  /**
+   * Células com uma ação em voo (chave dia-hora), da ordem até a recarga. A
+   * segunda ação na mesma célula antes disso falharia ("Alocar" de novo dá
+   * `UNIQUE`) ou entraria duas vezes no histórico (o segundo "antes" já não tem
+   * a aula, e desfazer não a traria de volta). Células diferentes seguem livres.
+   */
+  const emVoo = useRef(new Set<string>());
+
+  /** Roda a ação da célula, se não há outra em voo nela. Devolve se gravou. */
+  async function naCelula(dia: number, hora: number, acao: () => Promise<boolean>): Promise<boolean> {
+    const k = chave(dia, hora);
+    if (emVoo.current.has(k)) return false;
+    emVoo.current.add(k);
+    try {
+      return await acao();
+    } finally {
+      emVoo.current.delete(k);
+    }
+  }
+
+  function alocarEm(dia: number, hora: number): Promise<boolean> {
+    return naCelula(dia, hora, () => alocar(dia, hora));
+  }
+
+  async function alocar(dia: number, hora: number): Promise<boolean> {
+    if (!fatiaEscolhida || periodo == null || !ctx) return false;
     // Célula impedida não aloca; o motivo já está escrito nela.
-    if (motivoDe(fatiaEscolhida, dia, hora)) return;
+    if (motivoDe(fatiaEscolhida, dia, hora)) return false;
     // A sala da aula vizinha da mesma fatia, para o bloco não trocar de sala.
     const vizinha = [hora - 1, hora + 1]
       .map((h) => daGrade.get(chave(dia, h)))
       .find((a) => a && idAula(a) === idFatia(fatiaEscolhida));
     const sala = escolherSala(ctx, oc, regrasDe(fatiaEscolhida), dia, hora, vizinha?.salaId ?? null) ?? null;
-    await gravar(`Alocar ${fatiaEscolhida.disciplina_curta}`, [
+    return gravar(`Alocar ${fatiaEscolhida.disciplina_curta}`, [
       acoes.alocar(cursoId, periodo, dia, hora, fatiaEscolhida, sala),
     ]);
   }
@@ -149,22 +181,33 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
     return opcoes;
   }
 
-  async function trocarSalaDe(a: Aula, salaId: number | null) {
-    if (salaId === a.salaId) return;
-    await gravar(`Trocar a sala de ${a.disciplina}`, [acoes.trocarSala(a, salaId)]);
+  function trocarSalaDe(a: Aula, salaId: number | null): Promise<boolean> {
+    if (salaId === a.salaId) return Promise.resolve(false);
+    return naCelula(a.dia, a.hora, () => gravar(`Trocar a sala de ${a.disciplina}`, [acoes.trocarSala(a, salaId)]));
   }
 
-  /** Fixar protege a aula do gerador, do "Limpar período" e do botão de remover. */
-  async function alternarFixada(a: Aula) {
-    await gravar(`${a.fixada ? "Soltar" : "Fixar"} ${a.disciplina}`, [acoes.fixar(a, !a.fixada)]);
+  /** Fixar protege a aula do gerador, do "Limpar período" e de remover. */
+  function alternarFixada(a: Aula): Promise<boolean> {
+    return naCelula(a.dia, a.hora, () =>
+      gravar(`${a.fixada ? "Soltar" : "Fixar"} ${a.disciplina}`, [acoes.fixar(a, !a.fixada)]),
+    );
   }
 
-  /** Só o botão da aula chama, e na aula fixada ele está desabilitado. */
-  async function removerAula(a: Aula) {
-    await gravar(
-      `Remover ${a.disciplina}`,
-      [acoes.remover(a)],
-      `${a.disciplina} removida de ${DIAS[a.dia]} ${codigoDe(a.hora)}`,
+  /**
+   * O botão da aula fixada já está desabilitado; a guarda é para quem chama de
+   * outro caminho (arrastar a aula para fora da malha).
+   */
+  function removerAula(a: Aula): Promise<boolean> {
+    if (a.fixada) {
+      avisar.aviso("Solte o cadeado para remover");
+      return Promise.resolve(false);
+    }
+    return naCelula(a.dia, a.hora, () =>
+      gravar(
+        `Remover ${a.disciplina}`,
+        [acoes.remover(a)],
+        `${a.disciplina} removida de ${DIAS[a.dia]} ${codigoDe(a.hora)}`,
+      ),
     );
   }
 
@@ -228,14 +271,15 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
             : `${faltando} aula(s) deste período ainda por alocar.`
         }
       >
-        <BotaoDesfazer />
         {/* O botão desabilitado não recebe foco nem pouso: o motivo fica à
-            vista, ao lado, em vez de numa dica que ninguém alcança. */}
+            vista, ao lado, em vez de numa dica que ninguém alcança. Vem antes
+            dos botões, à esquerda: quando aparece, eles não se mexem. */}
         {nadaALimpar && (
-          <span id="motivo-limpar-periodo" className="self-center text-xs text-tx3">
+          <span id="motivo-limpar-periodo" className="inline-flex h-7 items-center text-xs text-tx3">
             {nadaALimpar}
           </span>
         )}
+        <BotaoDesfazer />
         <Button
           variant="outline"
           className="text-destructive"
@@ -295,8 +339,8 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
           motivoDe={motivoDe}
           exigeSala={(a) => !!fatiaDaAula(a)?.exige_sala}
           salasParaTroca={salasParaTroca}
-          aoAlocar={(dia, hora) => void alocarEm(dia, hora)}
-          aoRemover={(a) => void removerAula(a)}
+          aoAlocar={alocarEm}
+          aoRemover={removerAula}
           aoFixar={(a) => void alternarFixada(a)}
           aoTrocarSala={(a, salaId) => void trocarSalaDe(a, salaId)}
         />

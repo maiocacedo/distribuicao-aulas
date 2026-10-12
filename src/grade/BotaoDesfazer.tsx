@@ -1,5 +1,6 @@
 import { Undo2 } from "lucide-react";
 import { useEffect } from "react";
+import { ESTILO_DESABILITADO } from "@/componentes/botao-icone";
 import { Button } from "@/componentes/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/componentes/ui/tooltip";
 import { desfazerEAvisar } from "./desfazer";
@@ -8,6 +9,9 @@ import { useHistorico } from "./useHistorico";
 /** Num campo de texto, Ctrl+Z é do campo. */
 const emCampo = (alvo: EventTarget | null) =>
   alvo instanceof HTMLElement && (alvo.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(alvo.tagName));
+
+/** Com uma confirmação ou um formulário aberto, a tela por trás não é de quem digita Ctrl+Z. */
+const dialogoAberto = () => document.querySelector('[role="alertdialog"], [role="dialog"]') != null;
 
 /**
  * O botão de desfazer das telas de grade, com o Ctrl+Z.
@@ -23,6 +27,9 @@ export function BotaoDesfazer() {
   useEffect(() => {
     const tecla = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.key.toLowerCase() !== "z" || emCampo(e.target)) return;
+      // Fixar uma aula, abrir "Limpar período" e Ctrl+Z soltaria a aula por
+      // trás do diálogo, e confirmar apagaria a que o usuário não via.
+      if (dialogoAberto()) return;
       e.preventDefault();
       // Tecla presa repete o evento: sem isto, segurar Ctrl+Z desfaria a pilha inteira.
       if (e.repeat) return;
@@ -47,9 +54,7 @@ export function BotaoDesfazer() {
           variant="outline"
           aria-disabled={!podeDesfazer || undefined}
           onClick={podeDesfazer ? () => void desfazerEAvisar() : undefined}
-          // O desenho do `disabled` do `Button`: texto e borda rebaixados, fundo
-          // do poço, sem `opacity`. O pouso não muda nada.
-          className={podeDesfazer ? undefined : "cursor-default border-line bg-poco text-tx3 hover:bg-poco hover:text-tx3"}
+          className={podeDesfazer ? undefined : ESTILO_DESABILITADO}
         >
           <Undo2 className="size-3.5" aria-hidden />
           Desfazer

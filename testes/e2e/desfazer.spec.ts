@@ -114,6 +114,10 @@ test("remover de aula fixada não age por clique, Enter nem Espaço, e a dica di
   expect(total(banco)).toBe(1);
   expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE dia = 0 AND hora = 0 AND fixada = 1")).toBe(1);
   await expect(fixada).toContainText("Cálculo");
+  // O aviso é do toast, não da dica (que também diz isto): se o botão deixasse
+  // o clique passar, a guarda de `removerAula` o acenderia. A afirmação vem
+  // depois do marco, quando o aviso, se houvesse, ainda estaria na tela.
+  expect(await page.locator("[data-sonner-toast]", { hasText: "Solte o cadeado para remover" }).count()).toBe(0);
 });
 
 test("sem o que desfazer, o botão é alcançável pelo teclado e diz por quê", async ({ page, banco }) => {
@@ -176,4 +180,151 @@ test.describe("falha ao carregar", () => {
     await irPara(page, "Manual");
     await expect(page.getByRole("main").getByRole("alert")).toContainText("falha simulada");
   });
+});
+
+test("Ctrl+Z não age com a confirmação aberta", async ({ page, banco }) => {
+  await irPara(page, "Manual");
+  await celula(page, "Segunda", "M1").getByRole("button", { name: "Fixar" }).click();
+  await expect.poll(() => contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE fixada = 1")).toBe(1);
+  await page.getByRole("button", { name: "Limpar período" }).click();
+  await expect(page.getByRole("alertdialog")).toBeVisible();
+  await page.keyboard.press("Control+z");
+  // Marco: um desfazer indevido teria gravado em milissegundos.
+  await page.waitForTimeout(500);
+  expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE fixada = 1")).toBe(1);
+  expect(await page.getByText(/^Desfeito/).count()).toBe(0);
+  await page.getByRole("button", { name: "Cancelar" }).click();
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  // Fechado o diálogo, o atalho volta a valer e a ação continua no histórico.
+  await page.keyboard.press("Control+z");
+  await expect.poll(() => contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE fixada = 1")).toBe(0);
+});
+
+test("só o toast mais recente oferece Desfazer", async ({ page, banco }) => {
+  await irPara(page, "Manual");
+  const avisos = page.locator("[data-sonner-toast]");
+  await celula(page, "Segunda", "M1").getByRole("button", { name: "Remover aula" }).click();
+  await expect(avisos.filter({ hasText: "removida de" })).toBeVisible();
+  await page.getByRole("button", { name: /Cálculo/ }).click();
+  await celula(page, "Terça", "M1").click();
+  await expect(celula(page, "Terça", "M1")).toContainText("Cálculo");
+  // O toast da remoção sai quando a alocação entra no histórico; o prazo dele
+  // é de 10 s, então esperar menos que isso não passa por ele ter vencido.
+  await expect(avisos.filter({ hasText: "removida de" })).toHaveCount(0, { timeout: 3_000 });
+  expect(await avisos.getByRole("button", { name: "Desfazer" }).count()).toBe(0);
+  // O que o Ctrl+Z desfaz é a alocação, a última.
+  await page.keyboard.press("Control+z");
+  await expect.poll(() => total(banco)).toBe(1);
+  await expect(celula(page, "Terça", "M1")).not.toContainText("Cálculo");
+});
+
+test("o toast de desfazer sai quando o histórico é zerado", async ({ page }) => {
+  await irPara(page, "Manual");
+  const avisos = page.locator("[data-sonner-toast]");
+  await celula(page, "Segunda", "M1").getByRole("button", { name: "Remover aula" }).click();
+  await expect(avisos.filter({ hasText: "removida de" })).toBeVisible();
+  await irPara(page, "Professores");
+  await page.getByRole("row", { name: /Ana Souza/ }).getByRole("button", { name: "Editar" }).click();
+  await page.getByLabel("Nome", { exact: true }).fill("Ana S.");
+  await page.getByRole("button", { name: "Salvar" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(avisos.filter({ hasText: "removida de" })).toHaveCount(0, { timeout: 3_000 });
+});
+
+test("duplo clique em Remover aula grava e registra uma vez só", async ({ page, banco }) => {
+  await irPara(page, "Manual");
+  // Dois cliques no mesmo turno do JavaScript: o segundo sai antes da recarga.
+  await celula(page, "Segunda", "M1")
+    .getByRole("button", { name: "Remover aula" })
+    .evaluate((botao: HTMLElement) => {
+      botao.click();
+      botao.click();
+    });
+  await expect.poll(() => total(banco)).toBe(1);
+  await expect(celula(page, "Segunda", "M1")).not.toContainText("Cálculo");
+  // Um registro só: um Ctrl+Z devolve a aula (com dois, o segundo "antes" já
+  // não a tinha e nada voltaria).
+  await page.keyboard.press("Control+z");
+  await expect.poll(() => total(banco)).toBe(2);
+});
+
+test("o botão direito na célula vazia não abre o menu do navegador", async ({ page }) => {
+  await irPara(page, "Manual");
+  const impedido = await celula(page, "Quarta", "M1").evaluate((el) => {
+    const evento = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });
+    el.dispatchEvent(evento);
+    return evento.defaultPrevented;
+  });
+  expect(impedido).toBe(true);
+});
+
+test("o motivo de Limpar período fica antes dos botões, na altura deles, e some ao soltar", async ({ page, banco }) => {
+  banco.exec("UPDATE alocacoes SET fixada = 1");
+  await page.reload();
+  await irPara(page, "Manual");
+  const main = page.getByRole("main");
+  const motivo = main.getByText("As aulas deste período estão fixadas.");
+  const desfazer = main.getByRole("button", { name: "Desfazer" });
+  const limpar = main.getByRole("button", { name: "Limpar período" });
+  await expect(motivo).toBeVisible();
+  const [m, d, l] = await Promise.all([motivo.boundingBox(), desfazer.boundingBox(), limpar.boundingBox()]);
+  expect(m!.x + m!.width).toBeLessThanOrEqual(d!.x);
+  const centro = (c: { y: number; height: number }) => c.y + c.height / 2;
+  expect(Math.abs(centro(m!) - centro(d!))).toBeLessThanOrEqual(0.5);
+  expect(Math.abs(centro(m!) - centro(l!))).toBeLessThanOrEqual(0.5);
+  await celula(page, "Segunda", "M1").getByRole("button", { name: "Soltar" }).click();
+  await expect(motivo).toHaveCount(0);
+  await expect(limpar).toBeEnabled();
+  // O motivo aparecer e sumir não mexe nos botões.
+  const depois = await desfazer.boundingBox();
+  expect(depois!.x).toBe(d!.x);
+});
+
+test("alocar pelo teclado e remover pelo botão devolvem o foco à célula", async ({ page, banco }) => {
+  await irPara(page, "Manual");
+  await page.getByRole("button", { name: /Cálculo/ }).click();
+  await celula(page, "Quarta", "M1").focus();
+  await page.keyboard.press("Enter");
+  await expect.poll(() => total(banco)).toBe(3);
+  await expect(celula(page, "Quarta", "M1")).toContainText("Cálculo");
+  await expect(celula(page, "Quarta", "M1")).toBeFocused();
+  // Remover pelo teclado: o foco vai ao botão da célula que ficou vazia.
+  const remover = celula(page, "Quarta", "M1").getByRole("button", { name: "Remover aula" });
+  await remover.focus();
+  await page.keyboard.press("Enter");
+  await expect.poll(() => total(banco)).toBe(2);
+  await expect(celula(page, "Quarta", "M1")).not.toContainText("Cálculo");
+  await expect(celula(page, "Quarta", "M1")).toBeFocused();
+});
+
+test("o foco só volta à célula se estava nela", async ({ page, banco }) => {
+  await irPara(page, "Manual");
+  const pendencia = page.getByRole("button", { name: /Cálculo/ });
+  await pendencia.click();
+  // O `click()` do DOM não leva o foco: ele continua na pendência.
+  await celula(page, "Quarta", "M1").evaluate((el: HTMLElement) => el.click());
+  await expect.poll(() => total(banco)).toBe(3);
+  await expect(celula(page, "Quarta", "M1")).toContainText("Cálculo");
+  await expect(pendencia).toBeFocused();
+});
+
+test("a célula vazia sem pendência escolhida diz o que falta", async ({ page }) => {
+  await irPara(page, "Manual");
+  await expect(celula(page, "Quarta", "M1")).toHaveAccessibleDescription("Escolha uma pendência para alocar");
+  await page.getByRole("button", { name: /Cálculo/ }).click();
+  await expect(celula(page, "Quarta", "M1")).toHaveAccessibleDescription("Alocar");
+});
+
+test("dois cliques seguidos em Alocar gravam uma aula e não dão erro", async ({ page, banco }) => {
+  await irPara(page, "Manual");
+  await page.getByRole("button", { name: /Cálculo/ }).click();
+  await celula(page, "Quarta", "M1").evaluate((el: HTMLElement) => {
+    el.click();
+    el.click();
+  });
+  await expect(celula(page, "Quarta", "M1")).toContainText("Cálculo");
+  // O erro do segundo clique, se houvesse, chegaria logo depois da recarga.
+  await page.waitForTimeout(500);
+  expect(await page.locator("[data-sonner-toast]").count()).toBe(0);
+  expect(total(banco)).toBe(3);
 });
