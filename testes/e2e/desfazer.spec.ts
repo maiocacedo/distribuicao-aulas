@@ -1,3 +1,4 @@
+import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import { celula, contar, irPara, responderConfirmacoes } from "./paginas";
 
@@ -189,13 +190,18 @@ test("Ctrl+Z não age com a confirmação aberta", async ({ page, banco }) => {
   await page.getByRole("button", { name: "Limpar período" }).click();
   await expect(page.getByRole("alertdialog")).toBeVisible();
   await page.keyboard.press("Control+z");
-  // Marco: um desfazer indevido teria gravado em milissegundos.
-  await page.waitForTimeout(500);
+  // Marco: confirmar a limpeza, que entra na mesma fila do histórico. Um
+  // desfazer indevido teria soltado a aula antes, e a limpeza a levaria junto.
+  await page.getByRole("alertdialog").getByRole("button", { name: "Limpar período" }).click();
+  await expect(celula(page, "Segunda", "M2")).not.toContainText("Cálculo");
+  expect(total(banco)).toBe(1);
   expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE fixada = 1")).toBe(1);
   expect(await page.getByText(/^Desfeito/).count()).toBe(0);
-  await page.getByRole("button", { name: "Cancelar" }).click();
-  await expect(page.getByRole("alertdialog")).toHaveCount(0);
-  // Fechado o diálogo, o atalho volta a valer e a ação continua no histórico.
+  // Fechado o diálogo, o atalho volta a valer e as duas ações continuam no
+  // histórico: a limpeza volta primeiro, a fixação depois.
+  await page.keyboard.press("Control+z");
+  await expect.poll(() => total(banco)).toBe(2);
+  expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE fixada = 1")).toBe(1);
   await page.keyboard.press("Control+z");
   await expect.poll(() => contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE fixada = 1")).toBe(0);
 });
@@ -323,8 +329,99 @@ test("dois cliques seguidos em Alocar gravam uma aula e não dão erro", async (
     el.click();
   });
   await expect(celula(page, "Quarta", "M1")).toContainText("Cálculo");
-  // O erro do segundo clique, se houvesse, chegaria logo depois da recarga.
-  await page.waitForTimeout(500);
+  // Marco: fixar outra aula, que entra na mesma fila de gravação e não abre
+  // aviso. O erro do segundo clique, se houvesse, já estaria na tela quando o
+  // cadeado dela aparece.
+  await celula(page, "Segunda", "M1").getByRole("button", { name: "Fixar" }).click();
+  await expect(celula(page, "Segunda", "M1").getByRole("button", { name: "Soltar" })).toBeVisible();
   expect(await page.locator("[data-sonner-toast]").count()).toBe(0);
   expect(total(banco)).toBe(3);
+});
+
+type JanelaSegura = { __seguras: (() => void)[] | null };
+
+/**
+ * Segura a resposta de toda consulta cujo SQL contém `trecho`, até o teste
+ * soltar. A ponte responde na hora; é assim que se monta uma corrida entre
+ * duas cargas da grade. `soltar(1)` solta a mais antiga; `soltar()` solta
+ * todas e deixa de segurar.
+ */
+async function segurarConsultas(page: Page, trecho: string) {
+  await page.evaluate((trecho) => {
+    type Interno = { invoke: (cmd: string, args?: { query?: unknown }) => Promise<unknown> };
+    const w = window as unknown as JanelaSegura & { __TAURI_INTERNALS__: Interno };
+    const invocar = w.__TAURI_INTERNALS__.invoke;
+    w.__seguras = [];
+    w.__TAURI_INTERNALS__.invoke = async (cmd, args) => {
+      const resposta = await invocar(cmd, args);
+      const seguras = w.__seguras;
+      if (seguras && cmd === "plugin:sql|select" && String(args?.query).includes(trecho))
+        await new Promise<void>((solta) => seguras.push(solta));
+      return resposta;
+    };
+  }, trecho);
+  return {
+    seguras: () => page.evaluate(() => (window as unknown as JanelaSegura).__seguras?.length ?? 0),
+    soltar: (quantas?: number) =>
+      page.evaluate((quantas) => {
+        const w = window as unknown as JanelaSegura;
+        const seguras = w.__seguras ?? [];
+        if (quantas == null) w.__seguras = null;
+        seguras.splice(0, quantas ?? seguras.length).forEach((solta) => solta());
+      }, quantas),
+  };
+}
+
+/** A consulta das aulas, no meio da carga da grade. */
+const AULAS_DA_GRADE = "FROM alocacoes a";
+
+test("a célula continua travada até a tela mostrar a ação, mesmo com a carga dela superada", async ({ page, banco }) => {
+  await irPara(page, "Manual");
+  await expect(celula(page, "Segunda", "M2")).toContainText("Cálculo");
+  const consultas = await segurarConsultas(page, AULAS_DA_GRADE);
+  // A carga da primeira remoção fica parada; a da segunda a supera.
+  await celula(page, "Segunda", "M1").getByRole("button", { name: "Remover aula" }).click();
+  await expect.poll(consultas.seguras).toBe(1);
+  await celula(page, "Segunda", "M2").getByRole("button", { name: "Remover aula" }).click();
+  await expect.poll(consultas.seguras).toBe(2);
+  expect(total(banco)).toBe(0);
+  // A carga superada termina, e a tela ainda mostra a aula de M1 (a carga que
+  // vale não chegou): o segundo "Remover" nela tem de ser ignorado.
+  await consultas.soltar(1);
+  await celula(page, "Segunda", "M1").getByRole("button", { name: "Remover aula" }).click();
+  await consultas.soltar();
+  await expect(celula(page, "Segunda", "M1")).not.toContainText("Cálculo");
+  await expect(celula(page, "Segunda", "M2")).not.toContainText("Cálculo");
+  // Dois registros, um por aula: dois Ctrl+Z devolvem as duas. Com um terceiro
+  // (a remoção repetida, cujo "antes" já não tinha aula), o primeiro Ctrl+Z não
+  // devolveria nada.
+  await page.keyboard.press("Control+z");
+  await expect.poll(() => total(banco)).toBe(1);
+  await page.keyboard.press("Control+z");
+  await expect.poll(() => total(banco)).toBe(2);
+});
+
+test.describe("dois períodos", () => {
+  test.use({
+    semente: `${SEMENTE}
+      INSERT INTO periodos (curso_id, numero, turno) VALUES (1, 2, 'manha');
+      INSERT INTO professores (id, nome) VALUES (2, 'Bruno Lima');
+      INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais, exige_sala) VALUES (2, 1, 'Física', 2, 2, 0);
+      INSERT INTO disciplina_professores (disciplina_id, professor_id, aulas) VALUES (2, 2, 2);`,
+  });
+
+  test("a ação em voo num período não trava o mesmo horário de outro", async ({ page, banco }) => {
+    await irPara(page, "Manual");
+    await expect(celula(page, "Segunda", "M1")).toContainText("Cálculo");
+    const consultas = await segurarConsultas(page, AULAS_DA_GRADE);
+    await celula(page, "Segunda", "M1").getByRole("button", { name: "Remover aula" }).click();
+    await expect.poll(consultas.seguras).toBe(1);
+    // Com a remoção do 1º período ainda em voo, o mesmo horário do 2º aloca.
+    await page.getByRole("button", { name: "2º", exact: true }).click();
+    await page.getByRole("button", { name: /Física/ }).click();
+    await celula(page, "Segunda", "M1").click();
+    await expect.poll(() => contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE periodo = 2")).toBe(1);
+    await consultas.soltar();
+    await expect(celula(page, "Segunda", "M1")).toContainText("Física");
+  });
 });

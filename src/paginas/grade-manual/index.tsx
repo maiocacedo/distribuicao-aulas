@@ -46,10 +46,14 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
   // Falha de carga: a tela não tem como seguir. Falha de gravação é toast.
   const [erro, setErro] = useState("");
 
+  // O erro só sai quando uma carga deste curso chegou ao fim: a que nem
+  // começou (o curso já é outro) não sabe se ele continua verdadeiro.
   const recarregar = useCallback(
     () =>
       carregar().then(
-        () => setErro(""),
+        (carregou) => {
+          if (carregou) setErro("");
+        },
         (e) => setErro(String(e)),
       ),
     [carregar],
@@ -118,27 +122,35 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
   }
 
   /**
-   * Células com uma ação em voo (chave dia-hora), da ordem até a recarga. A
-   * segunda ação na mesma célula antes disso falharia ("Alocar" de novo dá
-   * `UNIQUE`) ou entraria duas vezes no histórico (o segundo "antes" já não tem
-   * a aula, e desfazer não a traria de volta). Células diferentes seguem livres.
+   * Células com uma ação em voo, da ordem até a tela mostrar o resultado (a
+   * recarga só resolve depois disso). A segunda ação na mesma célula antes
+   * disso falharia ("Alocar" de novo dá `UNIQUE`) ou entraria duas vezes no
+   * histórico (o segundo "antes" já não tem a aula, e desfazer não a traria de
+   * volta). Células diferentes seguem livres.
    */
   const emVoo = useRef(new Set<string>());
 
-  /** Roda a ação da célula, se não há outra em voo nela. Devolve se gravou. */
-  async function naCelula(dia: number, hora: number, acao: () => Promise<boolean>): Promise<boolean> {
-    const k = chave(dia, hora);
-    if (emVoo.current.has(k)) return false;
-    emVoo.current.add(k);
+  /** A célula como a tabela a conhece: o mesmo horário de outro período é outra. */
+  const celulaDe = (periodo: number, dia: number, hora: number) => `${cursoId}:${periodo}:${chave(dia, hora)}`;
+  const celulaDaAula = (a: Aula) => celulaDe(a.periodo, a.dia, a.hora);
+
+  /**
+   * Roda a ação, se nenhuma das células dela tem outra em voo. Mover mexe em
+   * duas (de onde a aula sai e aonde chega). Devolve se gravou.
+   */
+  async function nasCelulas(celulas: string[], acao: () => Promise<boolean>): Promise<boolean> {
+    if (celulas.some((c) => emVoo.current.has(c))) return false;
+    celulas.forEach((c) => emVoo.current.add(c));
     try {
       return await acao();
     } finally {
-      emVoo.current.delete(k);
+      celulas.forEach((c) => emVoo.current.delete(c));
     }
   }
 
   function alocarEm(dia: number, hora: number): Promise<boolean> {
-    return naCelula(dia, hora, () => alocar(dia, hora));
+    if (periodo == null) return Promise.resolve(false);
+    return nasCelulas([celulaDe(periodo, dia, hora)], () => alocar(dia, hora));
   }
 
   async function alocar(dia: number, hora: number): Promise<boolean> {
@@ -183,12 +195,12 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
 
   function trocarSalaDe(a: Aula, salaId: number | null): Promise<boolean> {
     if (salaId === a.salaId) return Promise.resolve(false);
-    return naCelula(a.dia, a.hora, () => gravar(`Trocar a sala de ${a.disciplina}`, [acoes.trocarSala(a, salaId)]));
+    return nasCelulas([celulaDaAula(a)], () => gravar(`Trocar a sala de ${a.disciplina}`, [acoes.trocarSala(a, salaId)]));
   }
 
   /** Fixar protege a aula do gerador, do "Limpar período" e de remover. */
   function alternarFixada(a: Aula): Promise<boolean> {
-    return naCelula(a.dia, a.hora, () =>
+    return nasCelulas([celulaDaAula(a)], () =>
       gravar(`${a.fixada ? "Soltar" : "Fixar"} ${a.disciplina}`, [acoes.fixar(a, !a.fixada)]),
     );
   }
@@ -202,7 +214,7 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
       avisar.aviso("Solte o cadeado para remover");
       return Promise.resolve(false);
     }
-    return naCelula(a.dia, a.hora, () =>
+    return nasCelulas([celulaDaAula(a)], () =>
       gravar(
         `Remover ${a.disciplina}`,
         [acoes.remover(a)],

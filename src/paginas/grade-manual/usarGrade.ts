@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { consultar } from "../../db";
 import type { Horario, Periodo } from "../../tipos";
 import { carregarContexto } from "../../regras/carregar";
@@ -77,6 +77,22 @@ export function usarGrade(cursoId: number) {
   const cursoAtual = useRef(cursoId);
   cursoAtual.current = cursoId;
   const geracao = useRef(0);
+  // A carga mais recente: quem é superado passa a valer o que acontecer com ela.
+  const vigente = useRef<Promise<boolean>>(Promise.resolve(false));
+
+  // A última carga inteira que a tela já desenhou. Quem pediu a carga só segue
+  // depois disso: os `set` de uma carga não aparecem na hora, e por um instante
+  // os botões ainda seriam os de antes dela.
+  const [desenhada, setDesenhada] = useState(0);
+  const aguardandoDesenho = useRef(new Map<number, () => void>());
+  useEffect(() => {
+    // Todas até esta: duas cargas que terminam juntas saem num desenho só.
+    for (const [numero, seguir] of aguardandoDesenho.current) {
+      if (numero > desenhada) continue;
+      aguardandoDesenho.current.delete(numero);
+      seguir();
+    }
+  }, [desenhada]);
 
   // `consultar` é o da carga: depois de cada leitura ele confere se a carga
   // continua valendo e, se não, interrompe antes de qualquer `set`.
@@ -176,21 +192,38 @@ export function usarGrade(cursoId: number) {
     setCursoCarregado(cursoId);
   }, [cursoId]);
 
-  const carregar = useCallback(async () => {
-    if (cursoId !== cursoAtual.current) return;
+  /**
+   * Lê tudo de novo. Resolve quando a tela já mostra o que há no banco:
+   * `true` se foi uma carga inteira deste curso (esta, ou a que a superou),
+   * `false` se o curso já é outro e não havia o que carregar. Rejeita com a
+   * falha da carga que vale.
+   *
+   * A carga superada não resolve por conta própria: quem a pediu (uma ação que
+   * acabou de gravar) esperaria por nada e seguiria com a tela de antes.
+   */
+  const carregar = useCallback((): Promise<boolean> => {
+    if (cursoId !== cursoAtual.current) return Promise.resolve(false);
     const minha = ++geracao.current;
     const superada = () => minha !== geracao.current || cursoId !== cursoAtual.current;
-    const vigente: Consultar = async <T,>(sql: string, params?: unknown[]) => {
+    const daCarga: Consultar = async <T,>(sql: string, params?: unknown[]) => {
       const linhas = await consultar<T>(sql, params);
       if (superada()) throw SUPERADA;
       return linhas;
     };
-    try {
-      await lerDoCurso(vigente);
-    } catch (e) {
-      // A falha de uma carga superada não é da página: ela já é de outra carga.
-      if (e !== SUPERADA && !superada()) throw e;
-    }
+    const carga = (async () => {
+      try {
+        await lerDoCurso(daCarga);
+        setDesenhada(minha);
+        await new Promise<void>((seguir) => aguardandoDesenho.current.set(minha, seguir));
+        if (!superada()) return true;
+      } catch (e) {
+        // A falha de uma carga superada não é da página: ela já é de outra carga.
+        if (e !== SUPERADA && !superada()) throw e;
+      }
+      return cursoId === cursoAtual.current ? vigente.current : false;
+    })();
+    vigente.current = carga;
+    return carga;
   }, [cursoId, lerDoCurso]);
 
   const doCurso = useMemo(() => aulas.filter((a) => a.cursoId === cursoId), [aulas, cursoId]);
