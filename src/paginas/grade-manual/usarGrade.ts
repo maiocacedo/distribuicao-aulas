@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { consultar } from "../../db";
 import type { Horario, Periodo } from "../../tipos";
 import { carregarContexto } from "../../regras/carregar";
-import type { Nomes } from "../../regras/descrever";
+import { AULA_ORFA, descrever, type Nomes } from "../../regras/descrever";
 import { violacoesDaAula } from "../../regras/impedimentos";
 import { Ocupacao } from "../../regras/ocupacao";
 import type { AulaOcupada, Contexto, FatiaRegras, SalaAceita, Turno } from "../../regras/tipos";
@@ -52,6 +52,10 @@ export function usarGrade(cursoId: number) {
   const [nomesProfessor, setNomesProfessor] = useState<Map<number, string>>(new Map());
   const [nomesCurso, setNomesCurso] = useState<Map<number, string>>(new Map());
   const [padroes, setPadroes] = useState<Map<number, string[]>>(new Map());
+  // De que curso é o que está carregado. Só muda no fim de uma carga inteira:
+  // os estados acima chegam um a um, e no meio do caminho a tela teria o
+  // contexto de um curso com as aulas do outro.
+  const [cursoCarregado, setCursoCarregado] = useState<number | null>(null);
 
   const carregar = useCallback(async () => {
     const contexto = await carregarContexto(cursoId, consultar);
@@ -146,6 +150,7 @@ export function usarGrade(cursoId: number) {
     for (const r of await consultar<{ aulas: number; padrao: string }>("SELECT aulas, padrao FROM padroes_blocos"))
       pads.set(r.aulas, [...(pads.get(r.aulas) ?? []), r.padrao]);
     setPadroes(pads);
+    setCursoCarregado(cursoId);
   }, [cursoId]);
 
   const doCurso = useMemo(() => aulas.filter((a) => a.cursoId === cursoId), [aulas, cursoId]);
@@ -178,29 +183,40 @@ export function usarGrade(cursoId: number) {
     [salasPorDisciplina],
   );
 
-  const nomes: Nomes = {
-    cursoAtual: cursoId,
-    professor: (id) => nomesProfessor.get(id) ?? `#${id}`,
-    curso: (id) => nomesCurso.get(id) ?? `#${id}`,
-    sala: (id) => nomesSala.get(id) ?? `#${id}`,
-  };
+  const nomes = useMemo<Nomes>(
+    () => ({
+      cursoAtual: cursoId,
+      professor: (id) => nomesProfessor.get(id) ?? `#${id}`,
+      curso: (id) => nomesCurso.get(id) ?? `#${id}`,
+      sala: (id) => nomesSala.get(id) ?? `#${id}`,
+    }),
+    [cursoId, nomesProfessor, nomesCurso, nomesSala],
+  );
 
-  const fatiaDaAula = (a: Aula) =>
-    fatias.find((f) => f.disciplina_id === a.disciplinaId && f.professor_id === a.professorId);
+  const fatiaDaAula = useCallback(
+    (a: Aula) => fatias.find((f) => f.disciplina_id === a.disciplinaId && f.professor_id === a.professorId),
+    [fatias],
+  );
 
-  /** Aulas deste curso que já violam regra dura — dado antigo ou cadastro que mudou. */
+  /**
+   * Aulas deste curso que já violam regra dura — dado antigo ou cadastro que
+   * mudou —, com os motivos já em texto. A aula sem fatia (o professor deixou
+   * de lecionar a disciplina) também entra: não há regra a perguntar, mas ela
+   * não devia estar na grade.
+   */
   const violacoes = useMemo(() => {
     if (!ctx) return [];
-    return doCurso.flatMap((a) => {
+    return doCurso.flatMap((a): { aula: Aula; motivos: string[] }[] => {
       const f = fatiaDaAula(a);
-      if (!f) return [];
-      const motivos = violacoesDaAula(ctx, oc, regrasDe(f), a);
+      if (!f) return [{ aula: a, motivos: [AULA_ORFA] }];
+      const motivos = violacoesDaAula(ctx, oc, regrasDe(f), a).map((m) => descrever(m, nomes));
       return motivos.length ? [{ aula: a, motivos }] : [];
     });
-    // fatiaDaAula depende de `fatias`
-  }, [ctx, doCurso, oc, regrasDe, fatias]);
+  }, [ctx, doCurso, oc, regrasDe, fatiaDaAula, nomes]);
 
   return {
+    /** Ainda não há carga inteira deste curso (a primeira, ou logo depois de trocar de curso). */
+    carregando: cursoCarregado !== cursoId,
     periodos,
     periodo,
     setPeriodo,

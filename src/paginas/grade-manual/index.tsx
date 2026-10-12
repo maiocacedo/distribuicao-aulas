@@ -1,9 +1,20 @@
-import { useEffect, useState } from "react";
-import { transacao, type Instrucao } from "../../db";
-import { Erro, Vazio, mensagemErro } from "../../componentes/legado";
-import { useConfirmar } from "../../componentes/confirmacao";
+import { useCallback, useEffect, useState } from "react";
+import type { Instrucao } from "../../db";
+import { DIAS } from "../../tipos";
+import { Alerta } from "@/componentes/alerta";
+import { CabecalhoPagina } from "@/componentes/cabecalho-pagina";
+import { useConfirmar } from "@/componentes/confirmacao";
+import { EstadoVazio } from "@/componentes/estado-vazio";
+import { avisar } from "@/componentes/toasts";
+import { Button } from "@/componentes/ui/button";
+import { mensagemErro } from "@/lib/erros";
+import { historico } from "../../grade";
+import { BotaoDesfazer } from "../../grade/BotaoDesfazer";
+import { desfazerEAvisar } from "../../grade/desfazer";
+import { useHistorico } from "../../grade/useHistorico";
 import { descrever } from "../../regras/descrever";
 import { escolherSala, impedimento, salasPossiveis } from "../../regras/impedimentos";
+import * as acoes from "./acoes";
 import { Diagnostico } from "./Diagnostico";
 import { Malha } from "./Malha";
 import { Pendencias } from "./Pendencias";
@@ -12,6 +23,7 @@ import { chave, idAula, idFatia, usarGrade, type Aula, type Fatia } from "./usar
 export default function GradeManual({ cursoId }: { cursoId: number }) {
   const confirmar = useConfirmar();
   const {
+    carregando,
     periodos,
     periodo,
     setPeriodo,
@@ -29,13 +41,28 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
     fatiaDaAula,
     violacoes,
   } = usarGrade(cursoId);
-  const [trocando, setTrocando] = useState<string | null>(null);
+  const { versao } = useHistorico();
   const [escolhida, setEscolhida] = useState<string | null>(null);
+  // Falha de carga: a tela não tem como seguir. Falha de gravação é toast.
   const [erro, setErro] = useState("");
 
+  const recarregar = useCallback(
+    () =>
+      carregar().then(
+        () => setErro(""),
+        (e) => setErro(String(e)),
+      ),
+    [carregar],
+  );
+
+  // Carrega ao abrir, ao trocar de curso (`carregar` muda com ele) e depois de
+  // cada desfazer (`versao`), venha ele do botão, do toast ou do Ctrl+Z.
   useEffect(() => {
-    carregar().catch((e) => setErro(String(e)));
-  }, [carregar]);
+    void recarregar();
+  }, [recarregar, versao]);
+
+  // A pendência escolhida é do curso em que foi escolhida.
+  useEffect(() => setEscolhida(null), [cursoId]);
 
   // Esc solta a pendência escolhida: sair de um modo é sempre a mesma tecla.
   useEffect(() => {
@@ -58,35 +85,49 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
     return m ? descrever(m, nomes) : null;
   }
 
-  async function alocar(dia: number, hora: number) {
+  /**
+   * O caminho único de toda escrita da tela: pelo histórico (é o que a torna
+   * desfazível), com recarga depois, dê certo ou não — se falhou, o que está na
+   * tela pode não ser mais o que o banco guarda.
+   *
+   * `feito` é o aviso das ações que pedem um: ganha o botão "Desfazer" só se a
+   * ação entrou no histórico. A que cruza com uma escrita de cadastro fica
+   * gravada sem entrar nele, e um "Desfazer" ali não teria o que desfazer.
+   */
+  async function gravar(rotulo: string, instrucoes: Instrucao[], feito?: string) {
+    try {
+      await historico.executarNaGrade(cursoId, rotulo, instrucoes);
+    } catch (e) {
+      avisar.erro(mensagemErro(e, "A aula"));
+      await recarregar();
+      return;
+    }
+    if (feito) {
+      if (historico.estado().podeDesfazer) avisar.desfazer(feito, () => void desfazerEAvisar());
+      else avisar.sucesso(feito);
+    }
+    await recarregar();
+  }
+
+  async function alocarEm(dia: number, hora: number) {
     if (!fatiaEscolhida || periodo == null || !ctx) return;
-    const motivo = motivoDe(fatiaEscolhida, dia, hora);
-    if (motivo) return setErro(motivo);
-    setErro("");
+    // Célula impedida não aloca; o motivo já está escrito nela.
+    if (motivoDe(fatiaEscolhida, dia, hora)) return;
     // A sala da aula vizinha da mesma fatia, para o bloco não trocar de sala.
     const vizinha = [hora - 1, hora + 1]
       .map((h) => daGrade.get(chave(dia, h)))
       .find((a) => a && idAula(a) === idFatia(fatiaEscolhida));
     const sala = escolherSala(ctx, oc, regrasDe(fatiaEscolhida), dia, hora, vizinha?.salaId ?? null) ?? null;
-    try {
-      await transacao([
-        {
-          sql: `INSERT INTO alocacoes (curso_id, periodo, dia, hora, disciplina_id, professor_id, sala_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          params: [cursoId, periodo, dia, hora, fatiaEscolhida.disciplina_id, fatiaEscolhida.professor_id, sala],
-        },
-      ]);
-      await carregar();
-    } catch (e) {
-      setErro(mensagemErro(e, "A aula"));
-      await carregar();
-    }
+    await gravar(`Alocar ${fatiaEscolhida.disciplina_curta}`, [
+      acoes.alocar(cursoId, periodo, dia, hora, fatiaEscolhida, sala),
+    ]);
   }
 
   /**
    * Salas que servem à aula e estão livres naquele horário (a dela inclusive).
-   * A sala atual entra sempre: se o cadastro mudou e ela saiu do requisito, o
-   * seletor sem ela mostraria outra como se fosse a atual.
+   * A situação atual entra sempre, mesmo fora do requisito (a sala saiu dele,
+   * ou a aula ficou sem sala numa disciplina que exige): sem ela o seletor
+   * mostraria outra opção como se fosse a atual.
    */
   function salasParaTroca(a: Aula): { id: number | null; rotulo: string }[] {
     const f = fatiaDaAula(a);
@@ -104,73 +145,33 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
     if (a.salaId != null && !possiveis.some((s) => s.id === a.salaId))
       opcoes.unshift({ id: a.salaId, rotulo: `${nomes.sala(a.salaId)} (atual, fora do requisito)` });
     if (!regras.exigeSala) opcoes.push({ id: null, rotulo: "Sem sala" });
+    else if (a.salaId == null) opcoes.unshift({ id: null, rotulo: "Sem sala (atual, fora do requisito)" });
     return opcoes;
   }
 
-  async function trocarSala(a: Aula, salaId: number | null) {
-    setTrocando(null);
+  async function trocarSalaDe(a: Aula, salaId: number | null) {
     if (salaId === a.salaId) return;
-    setErro("");
-    try {
-      await transacao([
-        {
-          sql: "UPDATE alocacoes SET sala_id = ? WHERE curso_id = ? AND periodo = ? AND dia = ? AND hora = ?",
-          params: [salaId, cursoId, a.periodo, a.dia, a.hora],
-        },
-      ]);
-      await carregar();
-    } catch (e) {
-      setErro(mensagemErro(e, "A aula"));
-      await carregar();
-    }
+    await gravar(`Trocar a sala de ${a.disciplina}`, [acoes.trocarSala(a, salaId)]);
   }
 
-  /**
-   * Fixar protege a aula do gerador — e também do clique que remove, senão
-   * bastaria um clique errado para perder o que se quis preservar.
-   */
-  async function alternarFixada(dia: number, hora: number) {
-    const aula = daGrade.get(chave(dia, hora));
-    if (!aula || periodo == null) return;
-    setErro("");
-    try {
-      await transacao([
-        {
-          sql: `UPDATE alocacoes SET fixada = ?
-                 WHERE curso_id = ? AND periodo = ? AND dia = ? AND hora = ?`,
-          params: [aula.fixada ? 0 : 1, cursoId, periodo, dia, hora],
-        },
-      ]);
-      await carregar();
-    } catch (e) {
-      setErro(mensagemErro(e, "A aula"));
-    }
+  /** Fixar protege a aula do gerador, do "Limpar período" e do botão de remover. */
+  async function alternarFixada(a: Aula) {
+    await gravar(`${a.fixada ? "Soltar" : "Fixar"} ${a.disciplina}`, [acoes.fixar(a, !a.fixada)]);
   }
 
-  async function remover(dia: number, hora: number) {
-    if (periodo == null) return;
-    const aula = daGrade.get(chave(dia, hora));
-    if (aula?.fixada) {
-      setErro("Esta aula está fixada. Clique com o botão direito para soltá-la.");
-      return;
-    }
-    setErro("");
-    try {
-      await transacao([
-        {
-          sql: "DELETE FROM alocacoes WHERE curso_id = ? AND periodo = ? AND dia = ? AND hora = ?",
-          params: [cursoId, periodo, dia, hora],
-        },
-      ]);
-      await carregar();
-    } catch (e) {
-      setErro(mensagemErro(e, "A aula"));
-    }
+  /** Só o botão da aula chama, e na aula fixada ele está desabilitado. */
+  async function removerAula(a: Aula) {
+    await gravar(
+      `Remover ${a.disciplina}`,
+      [acoes.remover(a)],
+      `${a.disciplina} removida de ${DIAS[a.dia]} ${codigoDe(a.hora)}`,
+    );
   }
 
   async function limparPeriodo() {
     if (periodo == null) return;
-    const fixadas = [...daGrade.values()].filter((a) => a.fixada).length;
+    const doPeriodo = [...daGrade.values()];
+    const fixadas = doPeriodo.filter((a) => a.fixada).length;
     // Fixar protege a aula do gerador; limpar à mão também não a leva (B8).
     if (
       !(await confirmar({
@@ -181,24 +182,22 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
       }))
     )
       return;
-    const instrucoes: Instrucao[] = [
-      { sql: "DELETE FROM alocacoes WHERE curso_id = ? AND periodo = ? AND fixada = 0", params: [cursoId, periodo] },
-    ];
-    try {
-      await transacao(instrucoes);
-      await carregar();
-    } catch (e) {
-      setErro(mensagemErro(e, "A grade"));
-    }
+    await gravar(
+      `Limpar o ${periodo}º período`,
+      [acoes.limpar(cursoId, periodo)],
+      `${doPeriodo.length - fixadas} aula(s) apagadas do ${periodo}º período`,
+    );
   }
 
-  if (periodos.length === 0) {
+  // Enquanto carrega, o que há é de outro curso (ou nada): trocar de curso não
+  // remonta a página, e as aulas do curso anterior não podem ficar à mostra,
+  // nem clicáveis, sob o nome do novo.
+  if (carregando || periodos.length === 0) {
     return (
       <>
-        <header className="cabecalho-pagina">
-          <h1>Grade horária</h1>
-        </header>
-        <Vazio>Cadastre os períodos do curso primeiro.</Vazio>
+        <CabecalhoPagina titulo="Grade horária" />
+        <Alerta tom="erro">{erro}</Alerta>
+        {carregando ? null : <EstadoVazio>Cadastre os períodos do curso primeiro.</EstadoVazio>}
       </>
     );
   }
@@ -211,34 +210,53 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
   const fechadas = fatiasDoPeriodo.filter(
     (f) => (alocadas.get(idFatia(f)) ?? 0) >= f.aulas,
   ).length;
+  // Por que "Limpar período" não tem o que fazer. Vazio = tem.
+  const nadaALimpar =
+    daGrade.size === 0
+      ? "Não há aulas neste período."
+      : [...daGrade.values()].every((a) => a.fixada)
+        ? "As aulas deste período estão fixadas."
+        : "";
 
   return (
     <>
-      <header className="cabecalho-pagina">
-        <div>
-          <h1>Grade horária</h1>
-          <p className="sub">
-            {faltando === 0
-              ? "Todas as aulas deste período estão alocadas."
-              : `${faltando} aula(s) deste período ainda por alocar.`}
-          </p>
-        </div>
-        <div className="acoes-cabecalho">
-          <button className="perigo" onClick={limparPeriodo} disabled={[...daGrade.values()].every((a) => a.fixada)}>
-            Limpar período
-          </button>
-        </div>
-      </header>
+      <CabecalhoPagina
+        titulo="Grade horária"
+        sub={
+          faltando === 0
+            ? "Todas as aulas deste período estão alocadas."
+            : `${faltando} aula(s) deste período ainda por alocar.`
+        }
+      >
+        <BotaoDesfazer />
+        {/* O botão desabilitado não recebe foco nem pouso: o motivo fica à
+            vista, ao lado, em vez de numa dica que ninguém alcança. */}
+        {nadaALimpar && (
+          <span id="motivo-limpar-periodo" className="self-center text-xs text-tx3">
+            {nadaALimpar}
+          </span>
+        )}
+        <Button
+          variant="outline"
+          className="text-destructive"
+          disabled={!!nadaALimpar}
+          aria-describedby={nadaALimpar ? "motivo-limpar-periodo" : undefined}
+          onClick={() => void limparPeriodo()}
+        >
+          Limpar período
+        </Button>
+      </CabecalhoPagina>
 
-      <Erro>{erro}</Erro>
+      <Alerta tom="erro">{erro}</Alerta>
 
-      {violacoes.length > 0 && <Diagnostico violacoes={violacoes} codigoDe={codigoDe} nomes={nomes} />}
+      {violacoes.length > 0 && <Diagnostico violacoes={violacoes} codigoDe={codigoDe} />}
 
       <div className="abas-periodo">
         {periodos.map((p) => (
           <button
             key={p.numero}
-            className={p.numero === periodo ? "ativo" : ""}
+            type="button"
+            aria-pressed={p.numero === periodo}
             onClick={() => {
               setPeriodo(p.numero);
               setEscolhida(null);
@@ -252,7 +270,9 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
         </span>
       </div>
 
-      <div className="painel-duplo largo">
+      {/* Os dois painéis têm a mesma altura: a nota do rodapé das pendências
+          fica ancorada embaixo, e não flutuando no meio da tela. */}
+      <div className="grid grid-cols-[264px_1fr] items-stretch gap-[14px]">
         <Pendencias
           fatiasDoPeriodo={fatiasDoPeriodo}
           fechadas={fechadas}
@@ -273,13 +293,12 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
           daGrade={daGrade}
           fatiaEscolhida={fatiaEscolhida}
           motivoDe={motivoDe}
-          trocando={trocando}
-          setTrocando={setTrocando}
+          exigeSala={(a) => !!fatiaDaAula(a)?.exige_sala}
           salasParaTroca={salasParaTroca}
-          trocarSala={trocarSala}
-          remover={remover}
-          alocar={alocar}
-          alternarFixada={alternarFixada}
+          aoAlocar={(dia, hora) => void alocarEm(dia, hora)}
+          aoRemover={(a) => void removerAula(a)}
+          aoFixar={(a) => void alternarFixada(a)}
+          aoTrocarSala={(a, salaId) => void trocarSalaDe(a, salaId)}
         />
       </div>
     </>

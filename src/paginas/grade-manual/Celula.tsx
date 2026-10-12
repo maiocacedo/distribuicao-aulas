@@ -1,40 +1,59 @@
+import { Lock, LockOpen, X } from "lucide-react";
+import { useId } from "react";
+import { BotaoIcone } from "@/componentes/botao-icone";
+import { Seletor, type Opcao } from "@/componentes/seletor";
 import { DIAS } from "../../tipos";
 import { curto } from "../../regras/descrever";
-import { chave, type Aula, type Fatia } from "./usarGrade";
+import type { Aula, Fatia } from "./usarGrade";
 
 interface Props {
   dia: number;
-  hora: number;
   codigo: string;
   aula: Aula | undefined;
   motivo: string | null;
   fatiaEscolhida: Fatia | null;
   foraDoTurno: boolean;
-  trocando: string | null;
-  setTrocando: (celula: string | null) => void;
-  salasParaTroca: (a: Aula) => { id: number | null; rotulo: string }[];
-  trocarSala: (a: Aula, salaId: number | null) => void;
-  remover: (dia: number, hora: number) => void;
-  alocar: (dia: number, hora: number) => void;
-  alternarFixada: (dia: number, hora: number) => void;
+  /** A disciplina da aula exige sala (falso para a aula sem fatia). */
+  exigeSala: boolean;
+  /** As salas que a aula pode trocar pela dela. Vazia = nada a escolher. */
+  salas: Opcao<number | null>[];
+  aoAlocar: () => void;
+  aoRemover: () => void;
+  aoFixar: () => void;
+  aoTrocarSala: (salaId: number | null) => void;
 }
 
+/**
+ * Os botões da aula cabem no canto da célula: 20 px, com o ícone de 12 px. O
+ * anel de foco vai para dentro porque a célula corta o que passa da borda dela.
+ */
+const BOTAO_DA_AULA = "size-5 -outline-offset-2 [&_svg]:size-3";
+
+/**
+ * O gatilho do `Seletor` nasce com o desenho do `Input`. Aqui ele é texto na
+ * linha do professor: sem caixa, sem seta, na altura da linha. Vai em
+ * utilitários porque é com eles que o gatilho se desenha, e o `grade.css` perde
+ * para eles; lá fica só o sublinhado pontilhado, que diz que dá para trocar.
+ */
+const SALA_NA_LINHA =
+  "trocar-sala inline-flex h-auto gap-0 rounded-none border-0 bg-transparent px-0 text-[10px] [&>svg]:hidden";
+
 export function Celula({
-  dia: d,
-  hora,
+  dia,
   codigo,
   aula,
   motivo,
   fatiaEscolhida,
   foraDoTurno,
-  trocando,
-  setTrocando,
-  salasParaTroca,
-  trocarSala,
-  remover,
-  alocar,
-  alternarFixada,
+  exigeSala,
+  salas,
+  aoAlocar,
+  aoRemover,
+  aoFixar,
+  aoTrocarSala,
 }: Props) {
+  const idDoTexto = useId();
+  const rotulo = `${DIAS[dia]}, ${codigo}`;
   const classe = aula
     ? aula.fixada
       ? "ocupada travada"
@@ -46,73 +65,93 @@ export function Celula({
       : foraDoTurno
         ? "fora"
         : "neutra";
+  const classes = `celula ${classe} ${foraDoTurno ? "contraturno" : ""}`;
+
+  if (!aula) {
+    // O nome do botão é o horário (o contrato dos testes e o que um leitor de
+    // tela precisa para saber onde está); o que a célula diz — o motivo do
+    // impedimento, ou "Alocar" — entra como descrição.
+    const impedida = motivo != null;
+    return (
+      <button
+        type="button"
+        aria-label={rotulo}
+        aria-describedby={motivo || fatiaEscolhida ? idDoTexto : undefined}
+        // Impedida não aceita a pendência e diz por quê: `aria-disabled`, que
+        // mantém a célula alcançável, em vez de um clique que não faz nada.
+        aria-disabled={impedida || undefined}
+        className={classes}
+        onClick={impedida ? undefined : aoAlocar}
+      >
+        {motivo ? (
+          <span id={idDoTexto} className="motivo">
+            {motivo}
+          </span>
+        ) : fatiaEscolhida ? (
+          <span id={idDoTexto} className="alocar">
+            Alocar
+          </span>
+        ) : null}
+      </button>
+    );
+  }
+
+  // A aula sem sala numa disciplina que exige sala mostra "sem sala": é por
+  // ali que se corrige.
+  const mostraSala = aula.salaId != null || exigeSala;
   return (
     <div
-      aria-label={`${DIAS[d]}, ${codigo}`}
-      className={`celula ${classe} ${foraDoTurno ? "contraturno" : ""}`}
-      onClick={() =>
-        aula ? remover(d, hora) : alocar(d, hora)
-      }
-      onContextMenu={(ev) => {
-        ev.preventDefault();
-        if (aula) alternarFixada(d, hora);
+      role="group"
+      aria-label={rotulo}
+      className={classes}
+      onContextMenu={(e) => {
+        // A lista de salas é desenhada fora da célula, mas os eventos dela sobem
+        // pela árvore do React até aqui: o botão direito sobre a lista não fixa.
+        if (!e.currentTarget.contains(e.target as Node)) return;
+        e.preventDefault();
+        aoFixar();
       }}
     >
-      {aula ? (
-        <>
-          <span className="nome">{aula.disciplina}</span>
-          <span className="meta">
-            {curto(aula.professor)}
-            {aula.sala ? " · " : ""}
-            {aula.sala &&
-              (trocando === chave(d, hora) ? (
-                <select
-                  aria-label="Sala"
-                  autoFocus
-                  value={aula.salaId ?? ""}
-                  onClick={(ev) => ev.stopPropagation()}
-                  onChange={(ev) => trocarSala(aula, ev.target.value === "" ? null : Number(ev.target.value))}
-                  onBlur={() => setTrocando(null)}
-                >
-                  {salasParaTroca(aula).map((s) => (
-                    <option key={s.id ?? "sem"} value={s.id ?? ""}>
-                      {s.rotulo}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <button
-                  type="button"
-                  className="trocar-sala"
-                  aria-label={`Trocar sala de ${aula.disciplina}`}
-                  title="Trocar a sala"
-                  onClick={(ev) => {
-                    ev.stopPropagation();
-                    setTrocando(chave(d, hora));
-                  }}
-                >
-                  {aula.sala}
-                </button>
-              ))}
-          </span>
-          {aula.fixada ? <Cadeado /> : null}
-          {foraDoTurno ? <span className="ponto" /> : null}
-        </>
-      ) : motivo ? (
-        <span className="motivo">{motivo}</span>
-      ) : fatiaEscolhida ? (
-        <span className="alocar">Alocar</span>
-      ) : null}
+      <span className="nome">{aula.disciplina}</span>
+      <span className="meta">
+        {curto(aula.professor)}
+        {mostraSala && " · "}
+        {mostraSala &&
+          (salas.length > 0 ? (
+            <Seletor
+              rotulo={`Trocar sala de ${aula.disciplina}`}
+              className={SALA_NA_LINHA}
+              valor={aula.salaId}
+              opcoes={salas}
+              exibir={aula.sala ?? "sem sala"}
+              aoMudar={aoTrocarSala}
+            />
+          ) : (
+            // Aula sem fatia: não há requisito de sala a consultar, nada a escolher.
+            aula.sala
+          ))}
+      </span>
+      {/* O cadeado fica por último, no canto: na aula fixada ele é o estado e
+          está sempre à vista, e o "Remover" aparece ao lado sem tirá-lo do lugar. */}
+      <span className="controles">
+        <BotaoIcone
+          rotulo="Remover aula"
+          icone={X}
+          perigo
+          desabilitado={!!aula.fixada}
+          motivo="Solte o cadeado para remover"
+          aoClicar={aoRemover}
+          className={BOTAO_DA_AULA}
+        />
+        <BotaoIcone
+          rotulo={aula.fixada ? "Soltar" : "Fixar"}
+          icone={aula.fixada ? Lock : LockOpen}
+          aoClicar={aoFixar}
+          // Fixada e em repouso, o cadeado é estado, não alerta: sem cor própria.
+          className={aula.fixada ? `${BOTAO_DA_AULA} text-tx3` : BOTAO_DA_AULA}
+        />
+      </span>
+      {foraDoTurno && <span className="ponto" />}
     </div>
-  );
-}
-
-/** Cadeado da aula travada: estado, não alerta — por isso sem cor própria. */
-function Cadeado() {
-  return (
-    <svg className="cadeado" width="9" height="11" viewBox="0 0 9 11" aria-label="fixada">
-      <rect x="0.5" y="4.5" width="8" height="6" rx="1" fill="none" stroke="currentColor" />
-      <path d="M2.5 4.5V3a2 2 0 0 1 4 0v1.5" fill="none" stroke="currentColor" />
-    </svg>
   );
 }

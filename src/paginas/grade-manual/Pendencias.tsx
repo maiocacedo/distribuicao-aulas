@@ -26,7 +26,7 @@ export function Pendencias({
   padroes,
 }: Props) {
   return (
-    <div className="pendencias">
+    <section aria-label="Pendências" className="pendencias">
       <div className="titulo-painel">
         <strong>Pendências</strong>
         <span>
@@ -42,14 +42,13 @@ export function Pendencias({
             const completa = feitas >= f.aulas;
             return (
               <li key={idFatia(f)}>
+                {/* A escolhida é o `aria-pressed`: o desenho (fundo e contorno)
+                    sai dele no `grade.css`, sem uma classe que possa divergir. */}
                 <button
+                  type="button"
                   aria-pressed={escolhida === idFatia(f)}
-                  className={`fatia ${escolhida === idFatia(f) ? "ativo" : ""} ${
-                    completa ? "completa" : ""
-                  }`}
-                  onClick={() =>
-                    setEscolhida(escolhida === idFatia(f) ? null : idFatia(f))
-                  }
+                  className={`fatia ${completa ? "completa" : ""}`}
+                  onClick={() => setEscolhida(escolhida === idFatia(f) ? null : idFatia(f))}
                 >
                   <span className="linha1">
                     <span className="nome">{f.disciplina_curta}</span>
@@ -87,6 +86,6 @@ export function Pendencias({
           ? `Clique num horário apto para alocar ${fatiaEscolhida.disciplina_curta}. Esc cancela a seleção.`
           : "Selecione uma pendência e clique num horário livre."}
       </p>
-    </div>
+    </section>
   );
 }

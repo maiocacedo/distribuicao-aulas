@@ -18,6 +18,7 @@ import { Toaster } from "@/componentes/ui/sonner";
 import { TooltipProvider } from "@/componentes/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { consultar } from "./db";
+import { historico } from "./grade";
 import type { Curso } from "./tipos";
 import Cursos from "./paginas/Cursos";
 import Disciplinas from "./paginas/disciplinas";
@@ -116,7 +117,7 @@ const GRUPOS: { titulo: string; paginas: Pagina[] }[] = [
         id: "grade-manual",
         rotulo: "Manual",
         icone: CalendarRange,
-        legado: true,
+        legado: false,
         componente: (p) => <GradeManual cursoId={p.cursoId} />,
       },
       {
@@ -159,6 +160,12 @@ function App() {
   useEffect(() => {
     carregarCursos().catch((e) => setErro(String(e)));
   }, [carregarCursos]);
+
+  // O histórico guarda a grade de um curso: trocar de curso o zera, para o
+  // desfazer nunca agir sobre uma grade que não está na tela.
+  useEffect(() => {
+    historico.limpar();
+  }, [cursoId]);
 
   if (erro) {
     return (

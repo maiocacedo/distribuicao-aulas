@@ -11,13 +11,12 @@ interface Props {
   daGrade: Map<string, Aula>;
   fatiaEscolhida: Fatia | null;
   motivoDe: (f: Fatia, dia: number, hora: number) => string | null;
-  trocando: string | null;
-  setTrocando: (celula: string | null) => void;
+  exigeSala: (a: Aula) => boolean;
   salasParaTroca: (a: Aula) => { id: number | null; rotulo: string }[];
-  trocarSala: (a: Aula, salaId: number | null) => void;
-  remover: (dia: number, hora: number) => void;
-  alocar: (dia: number, hora: number) => void;
-  alternarFixada: (dia: number, hora: number) => void;
+  aoAlocar: (dia: number, hora: number) => void;
+  aoRemover: (a: Aula) => void;
+  aoFixar: (a: Aula) => void;
+  aoTrocarSala: (a: Aula, salaId: number | null) => void;
 }
 
 export function Malha({
@@ -28,13 +27,12 @@ export function Malha({
   daGrade,
   fatiaEscolhida,
   motivoDe,
-  trocando,
-  setTrocando,
+  exigeSala,
   salasParaTroca,
-  trocarSala,
-  remover,
-  alocar,
-  alternarFixada,
+  aoAlocar,
+  aoRemover,
+  aoFixar,
+  aoTrocarSala,
 }: Props) {
   // As linhas da grade, com as faixas de turno intercaladas. A fronteira entre
   // turnos é estrutura, não cor: uma faixa rotulada interrompe a malha, porque
@@ -82,27 +80,22 @@ export function Malha({
               </div>
               {Array.from({ length: dias }, (_, d) => {
                 const aula = daGrade.get(chave(d, l.h.indice));
-                const motivo = fatiaEscolhida
-                  ? motivoDe(fatiaEscolhida, d, l.h.indice)
-                  : null;
-                const foraDoTurno = l.h.turno !== turnoDoPeriodo;
+                const motivo = fatiaEscolhida && !aula ? motivoDe(fatiaEscolhida, d, l.h.indice) : null;
                 return (
                   <Celula
                     key={d}
                     dia={d}
-                    hora={l.h.indice}
                     codigo={l.h.codigo}
                     aula={aula}
                     motivo={motivo}
                     fatiaEscolhida={fatiaEscolhida}
-                    foraDoTurno={foraDoTurno}
-                    trocando={trocando}
-                    setTrocando={setTrocando}
-                    salasParaTroca={salasParaTroca}
-                    trocarSala={trocarSala}
-                    remover={remover}
-                    alocar={alocar}
-                    alternarFixada={alternarFixada}
+                    foraDoTurno={l.h.turno !== turnoDoPeriodo}
+                    exigeSala={aula ? exigeSala(aula) : false}
+                    salas={aula ? salasParaTroca(aula).map((s) => ({ valor: s.id, rotulo: s.rotulo })) : []}
+                    aoAlocar={() => aoAlocar(d, l.h.indice)}
+                    aoRemover={() => aula && aoRemover(aula)}
+                    aoFixar={() => aula && aoFixar(aula)}
+                    aoTrocarSala={(salaId) => aula && aoTrocarSala(aula, salaId)}
                   />
                 );
               })}
@@ -124,6 +117,7 @@ export function Malha({
         <span>
           <i className="sw fora" /> Fora do turno do período
         </span>
+        <span className="dica">Clique numa pendência e depois num horário para alocar.</span>
       </div>
     </section>
   );

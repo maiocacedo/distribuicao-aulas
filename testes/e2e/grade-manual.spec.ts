@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures";
-import { celula, contar, escolher, escolhida, irPara } from "./paginas";
+import { celula, contar, escolher, irPara } from "./paginas";
 
 const BASE = `
   INSERT INTO periodos (curso_id, numero, turno) VALUES (1, 1, 'manha');
@@ -45,8 +45,7 @@ test.describe("sala", () => {
     );
     await page.reload();
     await irPara(page, "Manual");
-    await page.getByRole("button", { name: "Trocar sala de Cálculo" }).click();
-    await escolher(page.getByRole("combobox", { name: "Sala" }), "A01 (aceitável)");
+    await escolher(page.getByRole("combobox", { name: "Trocar sala de Cálculo" }), "A01 (aceitável)");
     await expect.poll(() => contar(banco, "SELECT sala_id FROM alocacoes WHERE disciplina_id = 1")).toBe(1);
     expect(contar(banco, "SELECT COUNT(*) FROM alocacoes")).toBe(1);
   });
@@ -64,10 +63,10 @@ test.describe("sala fora do requisito", () => {
 
   test("a troca mostra a sala atual e a leva para o laboratório", async ({ page, banco }) => {
     await irPara(page, "Manual");
-    await page.getByRole("button", { name: "Trocar sala de Química" }).click();
-    const sala = page.getByRole("combobox", { name: "Sala" });
-    await expect.poll(() => escolhida(sala)).toBe("A01 (atual, fora do requisito)");
-    await escolher(sala, "Lab 1");
+    const sala = page.getByRole("combobox", { name: "Trocar sala de Química" });
+    await sala.click();
+    await expect(page.getByRole("option", { name: "A01 (atual, fora do requisito)" })).toHaveAttribute("data-state", "checked");
+    await page.getByRole("option", { name: "Lab 1", exact: true }).click();
     await expect.poll(() => contar(banco, "SELECT sala_id FROM alocacoes WHERE disciplina_id = 1")).toBe(2);
   });
 });
@@ -124,5 +123,44 @@ test.describe("avisos da pendência", () => {
   test("avisa dois blocos no mesmo dia", async ({ page }) => {
     await irPara(page, "Manual");
     await expect(page.getByText("dois blocos no mesmo dia")).toBeVisible();
+  });
+});
+
+test.describe("aula sem sala em disciplina que exige sala", () => {
+  test.use({
+    semMassa: true,
+    semente: `${BASE}
+      INSERT INTO salas (id, nome, tipo, capacidade) VALUES (1, 'A01', 'Sala de Aula', 40);
+      INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais) VALUES (1, 1, 'Cálculo', 1, 2);
+      INSERT INTO disciplina_professores (disciplina_id, professor_id, aulas) VALUES (1, 1, 2);
+      INSERT INTO alocacoes (curso_id, periodo, dia, hora, disciplina_id, professor_id, sala_id) VALUES (1, 1, 0, 0, 1, 1, NULL);`,
+  });
+
+  test("a célula oferece onde corrigir", async ({ page, banco }) => {
+    await irPara(page, "Manual");
+    const sala = page.getByRole("combobox", { name: "Trocar sala de Cálculo" });
+    await expect(sala).toContainText("sem sala");
+    await escolher(sala, "A01");
+    await expect.poll(() => contar(banco, "SELECT sala_id FROM alocacoes WHERE disciplina_id = 1")).toBe(1);
+  });
+});
+
+test.describe("aula órfã", () => {
+  test.use({
+    semMassa: true,
+    semente: `${BASE}
+      INSERT INTO professores (id, nome) VALUES (2, 'Bruno Lima');
+      INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais, exige_sala) VALUES (1, 1, 'Cálculo', 1, 2, 0);
+      INSERT INTO disciplina_professores (disciplina_id, professor_id, aulas) VALUES (1, 1, 2), (1, 2, 2);
+      INSERT INTO alocacoes (curso_id, periodo, dia, hora, disciplina_id, professor_id) VALUES (1, 1, 0, 0, 1, 2);
+      PRAGMA foreign_keys = OFF;
+      DELETE FROM disciplina_professores WHERE professor_id = 2;
+      PRAGMA foreign_keys = ON;`,
+  });
+
+  test("entra no diagnóstico", async ({ page }) => {
+    await irPara(page, "Manual");
+    await page.getByText("1 aula(s) deste curso violam regra dura").click();
+    await expect(page.getByText(/este professor não leciona mais a disciplina/)).toBeVisible();
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { aulaOcupada } from "../../testes/suporte/regras";
-import { curto, descrever, type Nomes } from "./descrever";
+import { AULA_ORFA, curto, descrever, type Nomes } from "./descrever";
 
 const nomes: Nomes = {
   cursoAtual: 1,
@@ -42,5 +42,9 @@ describe("descrever", () => {
     expect(descrever({ regra: "D3-sem-sala" }, nomes)).toBe("Nenhuma sala aceitável livre");
     expect(descrever({ regra: "sala-invalida", salaId: null }, nomes)).toBe("Aula sem sala");
     expect(descrever({ regra: "sala-invalida", salaId: 1 }, nomes)).toBe("Sala A01 fora do requisito");
+  });
+
+  it("descreve a aula órfã", () => {
+    expect(AULA_ORFA).toBe("este professor não leciona mais a disciplina");
   });
 });

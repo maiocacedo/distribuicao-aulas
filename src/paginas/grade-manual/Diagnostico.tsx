@@ -1,26 +1,27 @@
+import { Alerta } from "@/componentes/alerta";
 import { DIAS } from "../../tipos";
-import { descrever, type Nomes } from "../../regras/descrever";
-import type { Motivo } from "../../regras/tipos";
 import type { Aula } from "./usarGrade";
 
 interface Props {
-  violacoes: { aula: Aula; motivos: Motivo[] }[];
+  /** Os motivos já chegam em texto: a aula órfã não tem regra a descrever. */
+  violacoes: { aula: Aula; motivos: string[] }[];
   codigoDe: (indice: number) => string;
-  nomes: Nomes;
 }
 
-export function Diagnostico({ violacoes, codigoDe, nomes }: Props) {
+export function Diagnostico({ violacoes, codigoDe }: Props) {
   return (
-    <details className="aviso diagnostico">
-      <summary>{violacoes.length} aula(s) deste curso violam regra dura</summary>
-      <ul>
-        {violacoes.map(({ aula, motivos }) => (
-          <li key={`${aula.periodo}:${aula.dia}:${aula.hora}`}>
-            {aula.periodo}º · {DIAS[aula.dia]} {codigoDe(aula.hora)} · <strong>{aula.disciplina}</strong>:{" "}
-            {motivos.map((m) => descrever(m, nomes)).join("; ")}
-          </li>
-        ))}
-      </ul>
-    </details>
+    <Alerta tom="aviso">
+      <details className="diagnostico">
+        <summary>{violacoes.length} aula(s) deste curso violam regra dura</summary>
+        <ul>
+          {violacoes.map(({ aula, motivos }) => (
+            <li key={`${aula.periodo}:${aula.dia}:${aula.hora}`}>
+              {aula.periodo}º · {DIAS[aula.dia]} {codigoDe(aula.hora)} · <strong>{aula.disciplina}</strong>:{" "}
+              {motivos.join("; ")}
+            </li>
+          ))}
+        </ul>
+      </details>
+    </Alerta>
   );
 }
