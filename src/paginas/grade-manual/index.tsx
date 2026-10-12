@@ -1,4 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  pointerWithin,
+  useSensor,
+  useSensors,
+  type Announcements,
+  type DragEndEvent,
+  type DragStartEvent,
+  type Modifier,
+} from "@dnd-kit/core";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Instrucao } from "../../db";
 import { DIAS } from "../../tipos";
 import { Alerta } from "@/componentes/alerta";
@@ -8,17 +20,59 @@ import { EstadoVazio } from "@/componentes/estado-vazio";
 import { avisar } from "@/componentes/toasts";
 import { Button } from "@/componentes/ui/button";
 import { mensagemErro } from "@/lib/erros";
+import { cn } from "@/lib/utils";
 import { historico } from "../../grade";
+import { arrastoEmCurso, marcarArrasto } from "../../grade/arrasto";
 import { BotaoDesfazer } from "../../grade/BotaoDesfazer";
 import { desfazerEAvisar } from "../../grade/desfazer";
 import { useHistorico } from "../../grade/useHistorico";
-import { descrever } from "../../regras/descrever";
+import { curto, descrever } from "../../regras/descrever";
 import { escolherSala, impedimento, salasPossiveis } from "../../regras/impedimentos";
+import type { Ocupacao } from "../../regras/ocupacao";
 import * as acoes from "./acoes";
+import type { Alvo, Carga } from "./arrasto";
 import { Diagnostico } from "./Diagnostico";
 import { Malha } from "./Malha";
 import { Pendencias } from "./Pendencias";
 import { chave, idAula, idFatia, usarGrade, type Aula, type Fatia } from "./usarGrade";
+
+/** O dnd-kit descreve, em inglês, um arrasto por teclado. Aqui ele é só de ponteiro. */
+const SEM_INSTRUCOES = { draggable: "" };
+
+/**
+ * Pendura o cartão no ponteiro, abaixo e à direita dele. Deixado onde a origem
+ * estava, ele taparia o destino — é na célula sob o ponteiro que está escrito
+ * se ela aceita a aula e por que não — e, como a pendência é mais larga que o
+ * cartão, quem a pega pela direita o veria andar a um palmo do ponteiro.
+ */
+const pendurarNoPonteiro: Modifier = ({ activatorEvent, draggingNodeRect, transform }) => {
+  if (!draggingNodeRect || !(activatorEvent instanceof PointerEvent)) return transform;
+  return {
+    ...transform,
+    x: transform.x + activatorEvent.clientX - draggingNodeRect.left + 12,
+    y: transform.y + activatorEvent.clientY - draggingNodeRect.top + 12,
+  };
+};
+const NO_PONTEIRO = [pendurarNoPonteiro];
+
+/**
+ * Depois do Esc que cancela o arrasto, o botão do mouse continua apertado, e
+ * soltá-lo sobre a origem seria um clique nela: a pendência que se desistiu de
+ * arrastar acabaria escolhida. O dnd-kit só engole o clique do arrasto que
+ * termina ao soltar; o do cancelado é engolido aqui, até o botão subir.
+ */
+function engolirOCliqueDeSoltar() {
+  const engolir = (e: MouseEvent) => e.stopPropagation();
+  const parar = () => {
+    // O clique, se houver, vem logo depois de o botão subir, na mesma leva.
+    setTimeout(() => document.removeEventListener("click", engolir, { capture: true }));
+    window.removeEventListener("pointerup", parar, { capture: true });
+    window.removeEventListener("pointercancel", parar, { capture: true });
+  };
+  document.addEventListener("click", engolir, { capture: true });
+  window.addEventListener("pointerup", parar, { capture: true });
+  window.addEventListener("pointercancel", parar, { capture: true });
+}
 
 export default function GradeManual({ cursoId }: { cursoId: number }) {
   const confirmar = useConfirmar();
@@ -30,6 +84,7 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
     horarios,
     horariosTodos,
     fatias,
+    aulas,
     ctx,
     padroes,
     carregar,
@@ -76,21 +131,57 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
       if (e.defaultPrevented) return;
       if (e.key === "Escape") setEscolhida(null);
     };
+    // O Esc que cancela um arrasto também é só dele. O dnd-kit cancela ao ouvir
+    // a tecla no documento, mas não marca o evento: quem marca é este ouvinte,
+    // na captura da janela, que roda antes — depois de o dnd-kit cancelar, já
+    // não daria para saber que havia um arrasto.
+    const escDoArrasto = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || !arrastoEmCurso()) return;
+      e.preventDefault();
+      engolirOCliqueDeSoltar();
+    };
     window.addEventListener("keydown", esc);
-    return () => window.removeEventListener("keydown", esc);
+    window.addEventListener("keydown", escDoArrasto, { capture: true });
+    return () => {
+      window.removeEventListener("keydown", esc);
+      window.removeEventListener("keydown", escDoArrasto, { capture: true });
+    };
   }, []);
+
+  // O arrasto só começa depois de 6 px: antes disso é clique.
+  const sensores = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  const [arrasto, setArrasto] = useState<Carga | null>(null);
+  // Sair da tela no meio de um arrasto não pode deixar o teclado travado.
+  useEffect(() => () => marcarArrasto(false), []);
 
   const fatiasDoPeriodo = fatias.filter((f) => f.periodo === periodo && f.ofertada);
   const fatiaEscolhida = fatias.find((f) => idFatia(f) === escolhida) ?? null;
 
+  // O que pinta as células é a fatia em mãos: a arrastada, senão a escolhida.
+  const fatiaEmMaos = arrasto?.fatia ?? fatiaEscolhida;
+  const arrastandoAula = arrasto?.tipo === "aula";
+  // A aula em mãos, como a carga mais recente a conhece: a ocupação compara
+  // pelo objeto, e o da hora de pegar fica velho se uma recarga chega no meio.
+  const aulaEmMaos = arrasto?.tipo === "aula" ? daGrade.get(chave(arrasto.aula.dia, arrasto.aula.hora)) : undefined;
+  // Ao mover, a aula não disputa lugar consigo mesma (o professor dela, a sala
+  // dela, o dia que ela já ocupa).
+  const ocupacaoEmMaos = useMemo(
+    () => (aulaEmMaos ? acoes.semAOrigem(cursoId, aulas, aulaEmMaos) : oc),
+    [aulaEmMaos, aulas, cursoId, oc],
+  );
+
   const dias = ctx?.dias ?? 6;
   const codigoDe = (indice: number) => horariosTodos.find((h) => h.indice === indice)?.codigo ?? String(indice);
 
-  /** Por que esta célula não aceita a fatia escolhida. `null` = aceita. */
-  function motivoDe(f: Fatia, dia: number, hora: number): string | null {
-    if ((alocadas.get(idFatia(f)) ?? 0) >= f.aulas) return `${f.aulas} de ${f.aulas} aulas já alocadas`;
+  /**
+   * Por que esta célula não aceita a fatia. `null` = aceita. `movendo` é a aula
+   * que muda de lugar: ela já está entre as alocadas, e a disciplina fechada
+   * continua fechada depois; a `ocupacao`, nesse caso, vem sem ela.
+   */
+  function motivoDe(f: Fatia, dia: number, hora: number, ocupacao: Ocupacao, movendo: boolean): string | null {
+    if (!movendo && (alocadas.get(idFatia(f)) ?? 0) >= f.aulas) return `${f.aulas} de ${f.aulas} aulas já alocadas`;
     if (!ctx) return null;
-    const m = impedimento(ctx, oc, regrasDe(f), dia, hora);
+    const m = impedimento(ctx, ocupacao, regrasDe(f), dia, hora);
     return m ? descrever(m, nomes) : null;
   }
 
@@ -148,23 +239,41 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
     }
   }
 
-  function alocarEm(dia: number, hora: number): Promise<boolean> {
+  /** A fatia é a escolhida (clique no horário) ou a arrastada (solta nele). */
+  function alocarEm(f: Fatia, dia: number, hora: number): Promise<boolean> {
     if (periodo == null) return Promise.resolve(false);
-    return nasCelulas([celulaDe(periodo, dia, hora)], () => alocar(dia, hora));
+    return nasCelulas([celulaDe(periodo, dia, hora)], () => alocar(f, dia, hora));
   }
 
-  async function alocar(dia: number, hora: number): Promise<boolean> {
-    if (!fatiaEscolhida || periodo == null || !ctx) return false;
-    // Célula impedida não aloca; o motivo já está escrito nela.
-    if (motivoDe(fatiaEscolhida, dia, hora)) return false;
-    // A sala da aula vizinha da mesma fatia, para o bloco não trocar de sala.
+  /**
+   * A sala da aula vizinha da mesma fatia, para o bloco não trocar de sala.
+   * `menos` é a aula que está saindo do lugar: ela não é vizinha de si mesma.
+   */
+  function salaVizinha(f: Fatia, dia: number, hora: number, menos?: Aula): number | null {
     const vizinha = [hora - 1, hora + 1]
       .map((h) => daGrade.get(chave(dia, h)))
-      .find((a) => a && idAula(a) === idFatia(fatiaEscolhida));
-    const sala = escolherSala(ctx, oc, regrasDe(fatiaEscolhida), dia, hora, vizinha?.salaId ?? null) ?? null;
-    return gravar(`Alocar ${fatiaEscolhida.disciplina_curta}`, [
-      acoes.alocar(cursoId, periodo, dia, hora, fatiaEscolhida, sala),
-    ]);
+      .find((a) => a && a !== menos && idAula(a) === idFatia(f));
+    return vizinha?.salaId ?? null;
+  }
+
+  async function alocar(f: Fatia, dia: number, hora: number): Promise<boolean> {
+    if (periodo == null || !ctx) return false;
+    // Célula impedida não aloca; o motivo já está escrito nela.
+    if (motivoDe(f, dia, hora, oc, false)) return false;
+    const sala = escolherSala(ctx, oc, regrasDe(f), dia, hora, salaVizinha(f, dia, hora)) ?? null;
+    return gravar(`Alocar ${f.disciplina_curta}`, [acoes.alocar(cursoId, periodo, dia, hora, f, sala)]);
+  }
+
+  /**
+   * Leva a aula a outro horário do mesmo período. Trava as duas células: de
+   * onde ela sai e aonde chega. A sala vai junto se continua livre lá.
+   */
+  function moverAula(aula: Aula, f: Fatia, dia: number, hora: number, ocupacao: Ocupacao): Promise<boolean> {
+    if (!ctx) return Promise.resolve(false);
+    const sala = acoes.salaAoMover(ctx, ocupacao, regrasDe(f), aula, dia, hora, salaVizinha(f, dia, hora, aula));
+    return nasCelulas([celulaDaAula(aula), celulaDe(aula.periodo, dia, hora)], () =>
+      gravar(`Mover ${aula.disciplina}`, [acoes.mover(aula, dia, hora, sala)]),
+    );
   }
 
   /**
@@ -222,6 +331,63 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
       ),
     );
   }
+
+  function aoComecar(e: DragStartEvent) {
+    marcarArrasto(true);
+    setArrasto(e.active.data.current as Carga);
+  }
+
+  function encerrarArrasto() {
+    marcarArrasto(false);
+    setArrasto(null);
+  }
+
+  async function aoSoltar(e: DragEndEvent) {
+    // A carga como a origem a conhece agora, e não como era ao pegar: uma
+    // recarga no meio do arrasto troca os objetos das aulas, e a origem que
+    // deixou de existir (a aula saiu de lá por outro caminho) não tem carga —
+    // o dnd-kit entrega `undefined` ou um objeto vazio.
+    const carga = e.active.data.current as Carga | undefined;
+    const alvo = e.over?.data.current as Alvo | undefined;
+    encerrarArrasto();
+    if (!carga?.tipo || !alvo || periodo == null || !ctx) return;
+    // O que está em mãos é do período em que foi pego.
+    if (carga.fatia.periodo !== periodo) return;
+
+    if (alvo.tipo === "pendencias") {
+      if (carga.tipo === "aula") await removerAula(carga.aula);
+      return;
+    }
+
+    const movendo = carga.tipo === "aula";
+    if (movendo && carga.aula.dia === alvo.dia && carga.aula.hora === alvo.hora) return;
+    const ocupacao = movendo ? acoes.semAOrigem(cursoId, aulas, carga.aula) : oc;
+    // Soltar numa célula impedida não grava; o motivo, que estava escrito nela
+    // enquanto a aula passava por cima, vai no aviso.
+    const motivo = motivoDe(carga.fatia, alvo.dia, alvo.hora, ocupacao, movendo);
+    if (motivo) return avisar.aviso(motivo);
+
+    if (movendo) await moverAula(carga.aula, carga.fatia, alvo.dia, alvo.hora, ocupacao);
+    else await alocarEm(carga.fatia, alvo.dia, alvo.hora);
+  }
+
+  // O arrasto é só de ponteiro, mas quem usa leitor de tela com mouse ouve o
+  // que o dnd-kit anuncia — por padrão em inglês, com os ids internos.
+  const anuncios: Announcements = {
+    onDragStart: ({ active }) => {
+      const carga = active.data.current as Carga | undefined;
+      if (!carga?.tipo) return undefined;
+      return `Arrastando ${carga.tipo === "aula" ? carga.aula.disciplina : carga.fatia.disciplina_curta}`;
+    },
+    onDragOver: ({ over }) => {
+      const alvo = over?.data.current as Alvo | undefined;
+      if (!alvo) return undefined;
+      return alvo.tipo === "pendencias" ? "Sobre as pendências" : `Sobre ${DIAS[alvo.dia]}, ${codigoDe(alvo.hora)}`;
+    },
+    // O que aconteceu ao soltar aparece na grade e, quando há o que dizer, num aviso.
+    onDragEnd: () => undefined,
+    onDragCancel: () => "Arrasto cancelado",
+  };
 
   async function limparPeriodo() {
     if (periodo == null) return;
@@ -326,37 +492,63 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
         </span>
       </div>
 
-      {/* Os dois painéis têm a mesma altura: a nota do rodapé das pendências
-          fica ancorada embaixo, e não flutuando no meio da tela. */}
-      <div className="grid grid-cols-[264px_1fr] items-stretch gap-[14px]">
-        <Pendencias
-          fatiasDoPeriodo={fatiasDoPeriodo}
-          fechadas={fechadas}
-          alocadas={alocadas}
-          escolhida={escolhida}
-          setEscolhida={setEscolhida}
-          fatiaEscolhida={fatiaEscolhida}
-          ctx={ctx}
-          daGrade={daGrade}
-          padroes={padroes}
-        />
+      {/* O destino é o que está sob o ponteiro (`pointerWithin`), não o que o
+          cartão toca: a pendência é mais larga que uma célula e encostaria nas
+          vizinhas. */}
+      <DndContext
+        sensors={sensores}
+        collisionDetection={pointerWithin}
+        accessibility={{ announcements: anuncios, screenReaderInstructions: SEM_INSTRUCOES }}
+        onDragStart={aoComecar}
+        onDragEnd={(e) => void aoSoltar(e)}
+        onDragCancel={encerrarArrasto}
+      >
+        {/* Os dois painéis têm a mesma altura: a nota do rodapé das pendências
+            fica ancorada embaixo, e não flutuando no meio da tela. */}
+        <div className={cn("grid grid-cols-[264px_1fr] items-stretch gap-[14px]", arrasto && "em-arrasto")}>
+          <Pendencias
+            fatiasDoPeriodo={fatiasDoPeriodo}
+            fechadas={fechadas}
+            alocadas={alocadas}
+            escolhida={escolhida}
+            setEscolhida={setEscolhida}
+            fatiaEscolhida={fatiaEscolhida}
+            arrastandoAula={arrastandoAula}
+            ctx={ctx}
+            daGrade={daGrade}
+            padroes={padroes}
+          />
 
-        <Malha
-          horarios={horarios}
-          dias={dias}
-          periodo={periodo}
-          turnoDoPeriodo={turnoDoPeriodo}
-          daGrade={daGrade}
-          fatiaEscolhida={fatiaEscolhida}
-          motivoDe={motivoDe}
-          exigeSala={(a) => !!fatiaDaAula(a)?.exige_sala}
-          salasParaTroca={salasParaTroca}
-          aoAlocar={alocarEm}
-          aoRemover={removerAula}
-          aoFixar={(a) => void alternarFixada(a)}
-          aoTrocarSala={(a, salaId) => void trocarSalaDe(a, salaId)}
-        />
-      </div>
+          <Malha
+            horarios={horarios}
+            dias={dias}
+            periodo={periodo}
+            turnoDoPeriodo={turnoDoPeriodo}
+            daGrade={daGrade}
+            fatiaEmMaos={fatiaEmMaos}
+            motivoDe={(f, dia, hora) => motivoDe(f, dia, hora, ocupacaoEmMaos, arrastandoAula)}
+            fatiaDaAula={fatiaDaAula}
+            salasParaTroca={salasParaTroca}
+            aoAlocar={(dia, hora) => (fatiaEscolhida ? alocarEm(fatiaEscolhida, dia, hora) : Promise.resolve(false))}
+            aoRemover={removerAula}
+            aoFixar={(a) => void alternarFixada(a)}
+            aoTrocarSala={(a, salaId) => void trocarSalaDe(a, salaId)}
+          />
+        </div>
+
+        {/* O cartão que segue o ponteiro. Solto, ele some: o resultado aparece
+            na grade, e a animação de volta à origem contaria o contrário. */}
+        <DragOverlay dropAnimation={null} modifiers={NO_PONTEIRO}>
+          {arrasto && (
+            <div className="celula ocupada arrastando">
+              <span className="nome">
+                {arrasto.tipo === "aula" ? arrasto.aula.disciplina : arrasto.fatia.disciplina_curta}
+              </span>
+              <span className="meta">{curto(arrasto.fatia.professor)}</span>
+            </div>
+          )}
+        </DragOverlay>
+      </DndContext>
     </>
   );
 }

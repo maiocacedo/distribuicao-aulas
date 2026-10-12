@@ -9,9 +9,10 @@ interface Props {
   periodo: number | null;
   turnoDoPeriodo: string | undefined;
   daGrade: Map<string, Aula>;
-  fatiaEscolhida: Fatia | null;
+  /** A pendência escolhida ou o que está sendo arrastado: é o que pinta as células vazias. */
+  fatiaEmMaos: Fatia | null;
   motivoDe: (f: Fatia, dia: number, hora: number) => string | null;
-  exigeSala: (a: Aula) => boolean;
+  fatiaDaAula: (a: Aula) => Fatia | undefined;
   salasParaTroca: (a: Aula) => { id: number | null; rotulo: string }[];
   aoAlocar: (dia: number, hora: number) => Promise<boolean>;
   aoRemover: (a: Aula) => Promise<boolean>;
@@ -25,9 +26,9 @@ export function Malha({
   periodo,
   turnoDoPeriodo,
   daGrade,
-  fatiaEscolhida,
+  fatiaEmMaos,
   motivoDe,
-  exigeSala,
+  fatiaDaAula,
   salasParaTroca,
   aoAlocar,
   aoRemover,
@@ -80,17 +81,20 @@ export function Malha({
               </div>
               {Array.from({ length: dias }, (_, d) => {
                 const aula = daGrade.get(chave(d, l.h.indice));
-                const motivo = fatiaEscolhida && !aula ? motivoDe(fatiaEscolhida, d, l.h.indice) : null;
+                const fatia = aula ? fatiaDaAula(aula) : undefined;
+                const motivo = fatiaEmMaos && !aula ? motivoDe(fatiaEmMaos, d, l.h.indice) : null;
                 return (
                   <Celula
                     key={d}
                     dia={d}
+                    hora={l.h.indice}
                     codigo={l.h.codigo}
                     aula={aula}
+                    fatia={fatia}
                     motivo={motivo}
-                    fatiaEscolhida={fatiaEscolhida}
+                    fatiaEmMaos={fatiaEmMaos}
                     foraDoTurno={l.h.turno !== turnoDoPeriodo}
-                    exigeSala={aula ? exigeSala(aula) : false}
+                    exigeSala={!!fatia?.exige_sala}
                     salas={aula ? salasParaTroca(aula).map((s) => ({ valor: s.id, rotulo: s.rotulo })) : []}
                     aoAlocar={() => aoAlocar(d, l.h.indice)}
                     aoRemover={() => (aula ? aoRemover(aula) : Promise.resolve(false))}
@@ -117,7 +121,7 @@ export function Malha({
         <span>
           <i className="sw fora" /> Fora do turno do período
         </span>
-        <span className="dica">Clique numa pendência e depois num horário para alocar.</span>
+        <span className="dica">Arraste uma pendência para um horário, ou clique nela e depois no horário.</span>
       </div>
     </section>
   );

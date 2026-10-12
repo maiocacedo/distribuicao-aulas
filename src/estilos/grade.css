@@ -588,6 +588,90 @@
   right: 44px;
 }
 
+/* --- arrastar: a pendência vai a um horário, a aula muda de horário ou
+   volta ao painel. Nenhum destes estados é só cor: mudam a borda (firme,
+   tracejada) e o que está escrito. --- */
+
+/* O cursor sai do mesmo sinal que liga o arrasto: a aula fixada e a pendência
+   fechada não se pegam. */
+.celula.arrastavel,
+.pendencias button.fatia:not(.completa) {
+  cursor: grab;
+}
+
+/* Com algo em mãos, o que está embaixo não reage ao ponteiro: sem isto as
+   aulas por onde o cartão passa mostrariam os botões delas, e o cursor mudaria
+   a cada célula. O destino é achado pela posição do ponteiro, não por evento. */
+.em-arrasto {
+  cursor: grabbing;
+}
+
+.em-arrasto * {
+  pointer-events: none;
+}
+
+/* O cartão que segue o ponteiro. Largura fixa: a pendência é mais larga que
+   uma célula, e em mãos as duas têm o tamanho de uma aula. */
+.celula.ocupada.arrastando {
+  width: 140px;
+  border-radius: var(--r);
+  box-shadow:
+    inset 0 0 0 1.5px var(--accLine),
+    0 6px 16px var(--shadow);
+  cursor: grabbing;
+}
+
+/* De onde a aula saiu, enquanto está em mãos: rebaixada e tracejada, sem
+   transparência — dá para ler o que havia ali e saber para onde ela volta. */
+.celula.ocupada.origem {
+  background: var(--inset);
+  box-shadow: none;
+  outline: 1px dashed var(--lineS);
+  outline-offset: -3px;
+}
+
+.celula.origem .nome,
+.celula.origem .meta {
+  color: var(--tx3);
+}
+
+/* A célula vazia sob o ponteiro: a borda firme e mais grossa toma o lugar do
+   tracejado. Na impedida, da cor do motivo que ela já traz escrito. */
+.celula.sobre {
+  outline: 2px solid var(--acc);
+  outline-offset: -2px;
+}
+
+.celula.impedida.sobre {
+  outline-color: var(--neg);
+}
+
+/* O painel com uma aula por cima: soltar ali a tira da grade. O tracejado
+   contorna o painel e a frase toma o lugar da nota do rodapé (que sai sem
+   deixar de ocupar espaço: nada muda de tamanho sob o ponteiro). */
+.pendencias.soltar-aqui {
+  position: relative;
+  box-shadow: none;
+  outline: 1.5px dashed var(--neg);
+  outline-offset: -1.5px;
+}
+
+.pendencias.soltar-aqui .nota-painel.rodape {
+  visibility: hidden;
+}
+
+.pendencias.soltar-aqui::after {
+  content: "Solte aqui para remover";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--neg);
+}
+
 /* --- legenda --- */
 
 .painel-grade .legenda {

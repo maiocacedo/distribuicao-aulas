@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { ESTILO_DESABILITADO } from "@/componentes/botao-icone";
 import { Button } from "@/componentes/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/componentes/ui/tooltip";
+import { arrastoEmCurso } from "./arrasto";
 import { desfazerEAvisar } from "./desfazer";
 import { useHistorico } from "./useHistorico";
 
@@ -30,6 +31,8 @@ export function BotaoDesfazer() {
       // Fixar uma aula, abrir "Limpar período" e Ctrl+Z soltaria a aula por
       // trás do diálogo, e confirmar apagaria a que o usuário não via.
       if (dialogoAberto()) return;
+      // No meio de um arrasto, desfazer mudaria a grade por baixo da mão.
+      if (arrastoEmCurso()) return;
       e.preventDefault();
       // Tecla presa repete o evento: sem isto, segurar Ctrl+Z desfaria a pilha inteira.
       if (e.repeat) return;

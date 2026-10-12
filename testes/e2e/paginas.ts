@@ -69,6 +69,59 @@ export function linhaCom(page: Page, texto: string): Locator {
   return page.getByRole("row").filter({ has: page.getByText(texto, { exact: true }) });
 }
 
+/**
+ * Arrasta com o mouse de verdade. O arrasto só começa depois de alguns pixels
+ * de movimento, então o ponteiro anda em passos e passa duas vezes pelo destino.
+ */
+export async function arrastar(page: Page, origem: Locator, destino: Locator) {
+  const de = await origem.boundingBox();
+  const para = await destino.boundingBox();
+  if (!de || !para) throw new Error("arrastar: origem ou destino fora da tela");
+  await page.mouse.move(de.x + de.width / 2, de.y + de.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(de.x + de.width / 2 + 12, de.y + de.height / 2 + 12, { steps: 4 });
+  await page.mouse.move(para.x + para.width / 2, para.y + para.height / 2, { steps: 12 });
+  await page.mouse.move(para.x + para.width / 2 + 1, para.y + para.height / 2 + 1);
+  await page.mouse.up();
+}
+
+type JanelaSegura = { __seguras: (() => void)[] | null };
+
+/**
+ * Segura a resposta de toda consulta cujo SQL contém `trecho`, até o teste
+ * soltar. A ponte responde na hora; é assim que se monta uma corrida entre
+ * duas cargas da grade. `soltar(1)` solta a mais antiga; `soltar()` solta
+ * todas e deixa de segurar.
+ */
+export async function segurarConsultas(page: Page, trecho: string) {
+  await page.evaluate((trecho) => {
+    type Interno = { invoke: (cmd: string, args?: { query?: unknown }) => Promise<unknown> };
+    const w = window as unknown as JanelaSegura & { __TAURI_INTERNALS__: Interno };
+    const invocar = w.__TAURI_INTERNALS__.invoke;
+    w.__seguras = [];
+    w.__TAURI_INTERNALS__.invoke = async (cmd, args) => {
+      const resposta = await invocar(cmd, args);
+      const seguras = w.__seguras;
+      if (seguras && cmd === "plugin:sql|select" && String(args?.query).includes(trecho))
+        await new Promise<void>((solta) => seguras.push(solta));
+      return resposta;
+    };
+  }, trecho);
+  return {
+    seguras: () => page.evaluate(() => (window as unknown as JanelaSegura).__seguras?.length ?? 0),
+    soltar: (quantas?: number) =>
+      page.evaluate((quantas) => {
+        const w = window as unknown as JanelaSegura;
+        const seguras = w.__seguras ?? [];
+        if (quantas == null) w.__seguras = null;
+        seguras.splice(0, quantas ?? seguras.length).forEach((solta) => solta());
+      }, quantas),
+  };
+}
+
+/** A consulta das aulas, no meio da carga da grade. */
+export const AULAS_DA_GRADE = "FROM alocacoes a";
+
 export function contar(banco: DatabaseSync, sql: string, ...params: unknown[]): number {
   const linha = banco.prepare(sql).get(...params.map(converter)) as Record<string, number>;
   return Number(Object.values(linha)[0]);

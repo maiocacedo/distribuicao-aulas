@@ -1,17 +1,24 @@
+import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { Lock, LockOpen, X } from "lucide-react";
-import { useId, useLayoutEffect, useRef } from "react";
+import { useCallback, useId, useLayoutEffect, useRef } from "react";
 import { BotaoIcone } from "@/componentes/botao-icone";
 import { Seletor, type Opcao } from "@/componentes/seletor";
 import { DIAS } from "../../tipos";
 import { curto } from "../../regras/descrever";
+import type { Alvo, Carga } from "./arrasto";
 import type { Aula, Fatia } from "./usarGrade";
 
 interface Props {
   dia: number;
+  /** O índice do horário; `codigo` é o nome dele ("M1"). */
+  hora: number;
   codigo: string;
   aula: Aula | undefined;
+  /** A fatia da aula. Sem ela (aula órfã) não há regra a perguntar, e a aula não se arrasta. */
+  fatia: Fatia | undefined;
   motivo: string | null;
-  fatiaEscolhida: Fatia | null;
+  /** A pendência escolhida ou o que está sendo arrastado: é o que pinta a célula vazia. */
+  fatiaEmMaos: Fatia | null;
   foraDoTurno: boolean;
   /** A disciplina da aula exige sala (falso para a aula sem fatia). */
   exigeSala: boolean;
@@ -41,10 +48,12 @@ const SALA_NA_LINHA =
 
 export function Celula({
   dia,
+  hora,
   codigo,
   aula,
+  fatia,
   motivo,
-  fatiaEscolhida,
+  fatiaEmMaos,
   foraDoTurno,
   exigeSala,
   salas,
@@ -58,18 +67,62 @@ export function Celula({
   const devolverFoco = useRef(false);
   const emCurso = useRef(0);
   const rotulo = `${DIAS[dia]}, ${codigo}`;
+
+  // Só a célula vazia recebe o que se arrasta: não há troca entre duas aulas.
+  const { setNodeRef: ligarAlvo, isOver } = useDroppable({
+    id: `celula:${dia}-${hora}`,
+    data: { tipo: "celula", dia, hora } satisfies Alvo,
+    disabled: !!aula,
+  });
+  // A aula fixada não sai do lugar, e a órfã não tem fatia que diga aonde pode
+  // ir. Só `listeners`, sem os `attributes` do dnd-kit: eles dariam ao grupo
+  // papel de botão, parada de Tab e o anúncio de um arrasto por teclado que
+  // não existe.
+  const arrastavel = !!aula && !aula.fixada && !!fatia;
+  const { setNodeRef: ligarOrigem, listeners, isDragging } = useDraggable({
+    id: `aula:${dia}-${hora}`,
+    data: aula && fatia ? ({ tipo: "aula", aula, fatia } satisfies Carga) : undefined,
+    disabled: !arrastavel,
+  });
+  // Estáveis: uma função nova a cada desenho faria o React desligar e religar
+  // o elemento, e o dnd-kit voltaria a medi-lo.
+  const ligarVazia = useCallback(
+    (el: HTMLElement | null) => {
+      raiz.current = el;
+      ligarAlvo(el);
+    },
+    [ligarAlvo],
+  );
+  const ligarOcupada = useCallback(
+    (el: HTMLElement | null) => {
+      raiz.current = el;
+      ligarOrigem(el);
+    },
+    [ligarOrigem],
+  );
+
   const classe = aula
     ? aula.fixada
       ? "ocupada travada"
       : "ocupada"
-    : fatiaEscolhida
+    : fatiaEmMaos
       ? motivo
         ? "impedida"
         : "apta"
       : foraDoTurno
         ? "fora"
         : "neutra";
-  const classes = `celula ${classe} ${foraDoTurno ? "contraturno" : ""}`;
+  const classes = [
+    "celula",
+    classe,
+    foraDoTurno && "contraturno",
+    arrastavel && "arrastavel",
+    // De onde a aula saiu, enquanto está em mãos; e a vazia sob o ponteiro.
+    isDragging && "origem",
+    isOver && "sobre",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   /**
    * Alocar troca o botão da célula vazia pelo grupo da ocupada, e remover faz
@@ -103,9 +156,7 @@ export function Celula({
     const impedida = motivo != null;
     return (
       <button
-        ref={(el) => {
-          raiz.current = el;
-        }}
+        ref={ligarVazia}
         type="button"
         aria-label={rotulo}
         aria-describedby={idDoTexto}
@@ -121,7 +172,7 @@ export function Celula({
           <span id={idDoTexto} className="motivo">
             {motivo}
           </span>
-        ) : fatiaEscolhida ? (
+        ) : fatiaEmMaos ? (
           <span id={idDoTexto} className="alocar">
             Alocar
           </span>
@@ -141,9 +192,8 @@ export function Celula({
   const mostraSala = aula.salaId != null || exigeSala;
   return (
     <div
-      ref={(el) => {
-        raiz.current = el;
-      }}
+      ref={ligarOcupada}
+      {...listeners}
       role="group"
       // Focável só por código: o foco que a ação devolve (ver `agindo`).
       tabIndex={-1}
@@ -163,22 +213,27 @@ export function Celula({
         {mostraSala && " · "}
         {mostraSala &&
           (salas.length > 0 ? (
-            <Seletor
-              rotulo={`Trocar sala de ${aula.disciplina}`}
-              className={SALA_NA_LINHA}
-              valor={aula.salaId}
-              opcoes={salas}
-              exibir={aula.sala ?? "sem sala"}
-              aoMudar={aoTrocarSala}
-            />
+            // O gesto que começa na sala é do seletor (ele abre ao apertar), e
+            // não o começo de um arrasto da aula.
+            <span onPointerDown={(e) => e.stopPropagation()}>
+              <Seletor
+                rotulo={`Trocar sala de ${aula.disciplina}`}
+                className={SALA_NA_LINHA}
+                valor={aula.salaId}
+                opcoes={salas}
+                exibir={aula.sala ?? "sem sala"}
+                aoMudar={aoTrocarSala}
+              />
+            </span>
           ) : (
             // Aula sem fatia: não há requisito de sala a consultar, nada a escolher.
             aula.sala
           ))}
       </span>
       {/* O cadeado fica por último, no canto: na aula fixada ele é o estado e
-          está sempre à vista, e o "Remover" aparece ao lado sem tirá-lo do lugar. */}
-      <span className="controles">
+          está sempre à vista, e o "Remover" aparece ao lado sem tirá-lo do lugar.
+          Apertar um botão é clicá-lo, não pegar a aula. */}
+      <span className="controles" onPointerDown={(e) => e.stopPropagation()}>
         <BotaoIcone
           rotulo="Remover aula"
           icone={X}

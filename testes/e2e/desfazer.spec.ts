@@ -1,6 +1,5 @@
-import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
-import { celula, contar, irPara, responderConfirmacoes } from "./paginas";
+import { AULAS_DA_GRADE, celula, contar, irPara, responderConfirmacoes, segurarConsultas } from "./paginas";
 
 const SEMENTE = `
   INSERT INTO periodos (curso_id, numero, turno) VALUES (1, 1, 'manha');
@@ -337,43 +336,6 @@ test("dois cliques seguidos em Alocar gravam uma aula e não dão erro", async (
   expect(await page.locator("[data-sonner-toast]").count()).toBe(0);
   expect(total(banco)).toBe(3);
 });
-
-type JanelaSegura = { __seguras: (() => void)[] | null };
-
-/**
- * Segura a resposta de toda consulta cujo SQL contém `trecho`, até o teste
- * soltar. A ponte responde na hora; é assim que se monta uma corrida entre
- * duas cargas da grade. `soltar(1)` solta a mais antiga; `soltar()` solta
- * todas e deixa de segurar.
- */
-async function segurarConsultas(page: Page, trecho: string) {
-  await page.evaluate((trecho) => {
-    type Interno = { invoke: (cmd: string, args?: { query?: unknown }) => Promise<unknown> };
-    const w = window as unknown as JanelaSegura & { __TAURI_INTERNALS__: Interno };
-    const invocar = w.__TAURI_INTERNALS__.invoke;
-    w.__seguras = [];
-    w.__TAURI_INTERNALS__.invoke = async (cmd, args) => {
-      const resposta = await invocar(cmd, args);
-      const seguras = w.__seguras;
-      if (seguras && cmd === "plugin:sql|select" && String(args?.query).includes(trecho))
-        await new Promise<void>((solta) => seguras.push(solta));
-      return resposta;
-    };
-  }, trecho);
-  return {
-    seguras: () => page.evaluate(() => (window as unknown as JanelaSegura).__seguras?.length ?? 0),
-    soltar: (quantas?: number) =>
-      page.evaluate((quantas) => {
-        const w = window as unknown as JanelaSegura;
-        const seguras = w.__seguras ?? [];
-        if (quantas == null) w.__seguras = null;
-        seguras.splice(0, quantas ?? seguras.length).forEach((solta) => solta());
-      }, quantas),
-  };
-}
-
-/** A consulta das aulas, no meio da carga da grade. */
-const AULAS_DA_GRADE = "FROM alocacoes a";
 
 test("a célula continua travada até a tela mostrar a ação, mesmo com a carga dela superada", async ({ page, banco }) => {
   await irPara(page, "Manual");
