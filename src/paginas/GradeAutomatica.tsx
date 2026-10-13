@@ -64,25 +64,27 @@ interface Gerado {
 const MOTIVO = "motivo-grade-automatica";
 
 /**
- * A célula "Gerada" do comparativo. A cor sozinha não diz se melhorou: a seta
- * (▲ melhorou, ▼ piorou, = igual) é a forma, e o texto só para o leitor de tela
- * diz a mesma coisa em palavras.
+ * A palavra depois do número, em largura fixa (a de "melhor", na fonte de
+ * largura fixa da coluna): os números das linhas continuam um embaixo do outro.
+ */
+const PALAVRA = "inline-block w-[6ch] text-left";
+
+/**
+ * A célula "Gerada" do comparativo: o número novo e, escrito, se ele é melhor,
+ * pior ou igual ao da grade atual. A cor só acompanha a palavra. "Melhor" é da
+ * medida, não do número: em buracos, o que desce é melhor.
  */
 function Gerada({ antes, depois, menorEhMelhor }: { antes: number; depois: number; menorEhMelhor: boolean }) {
   if (depois === antes)
     return (
       <span>
-        <span aria-hidden="true">= </span>
-        {depois}
-        <span className="sr-only">, igual</span>
+        {depois} <span className={PALAVRA}>igual</span>
       </span>
     );
   const melhorou = (depois < antes) === menorEhMelhor;
   return (
     <span className={melhorou ? "font-semibold text-primary" : "font-semibold text-destructive"}>
-      <span aria-hidden="true">{melhorou ? "▲" : "▼"} </span>
-      {depois}
-      <span className="sr-only">{melhorou ? ", melhorou" : ", piorou"}</span>
+      {depois} <span className={PALAVRA}>{melhorou ? "melhor" : "pior"}</span>
     </span>
   );
 }
@@ -168,9 +170,9 @@ export default function GradeAutomatica({
   function gerar() {
     if (!carga) return;
     setErro("");
-    // O resultado de antes sai: com ele à mostra, "Aplicar" gravaria uma grade
-    // que a tela já está substituindo.
-    setGerado(null);
+    // O resultado de antes fica à vista até o novo chegar (sem ele a página
+    // encolhe e volta a crescer), mas parado: "Aplicar" e "Descartar" ficam
+    // desabilitados enquanto se gera, e `aplicar` confere de novo.
     setAplicadoEm(null);
     setGerando(true);
     // Um quadro antes de bloquear: sem isto o "gerando…" nunca chega à tela,
@@ -188,7 +190,8 @@ export default function GradeAutomatica({
   }
 
   async function aplicar() {
-    if (!resultado || !carga) return;
+    // Gerando, o resultado à mostra é o que está sendo substituído.
+    if (!resultado || !carga || gerando) return;
     // Aplicar duas vezes: durante a confirmação, um segundo pedido recusa o
     // primeiro (é do `confirmar`); depois dela, o botão fica parado até o fim.
     try {
@@ -281,8 +284,16 @@ export default function GradeAutomatica({
   const depois = resultado ? medir(problema, resultado.alocacoes) : null;
   // Por que "Gerar grade" não age. O botão desabilitado não recebe foco nem
   // pouso: o motivo fica à vista, ao lado, e antes dos botões, para não os
-  // empurrar quando aparece. "Gerando…" já diz o seu no próprio rótulo.
-  const motivo = aplicando ? "Aplicando a grade…" : semFatias ? "Não há o que distribuir." : "";
+  // empurrar quando aparece. É também o motivo de "Aplicar" e "Descartar",
+  // lá embaixo, enquanto se aplica ou se gera.
+  const motivo = aplicando
+    ? "Aplicando a grade…"
+    : gerando
+      ? "Gerando a grade…"
+      : semFatias
+        ? "Não há o que distribuir."
+        : "";
+  const parado = aplicando || gerando;
 
   const linha = (rotulo: string, a: number, d: number | undefined, menorEhMelhor = true) => (
     <TableRow key={rotulo}>
@@ -375,10 +386,7 @@ export default function GradeAutomatica({
               </Table>
 
               <p className="mb-3 max-w-[68ch] text-xs leading-normal text-tx2">
-                Resolvido em {resultado.milissegundos} ms, {resultado.passos} tentativas de posicionamento.{" "}
-                {/* Só para quem vê as setas: lida em voz alta, a frase sai com o
-                    nome dos glifos, e cada célula já diz "melhorou" ou "piorou". */}
-                <span aria-hidden="true">Em Gerada: ▲ melhor, ▼ pior e = igual à grade atual.</span>
+                Resolvido em {resultado.milissegundos} ms, {resultado.passos} tentativas de posicionamento.
               </p>
 
               {resultado.faltantes.length > 0 && (
@@ -399,14 +407,14 @@ export default function GradeAutomatica({
               )}
 
               <div className="mt-3 flex items-center gap-2">
-                <Button onClick={() => void aplicar()} disabled={aplicando} aria-describedby={aplicando ? MOTIVO : undefined}>
+                <Button onClick={() => void aplicar()} disabled={parado} aria-describedby={parado ? MOTIVO : undefined}>
                   {aplicando ? "Aplicando…" : "Aplicar esta grade"}
                 </Button>
                 <Button
                   variant="outline"
                   onClick={() => setGerado(null)}
-                  disabled={aplicando}
-                  aria-describedby={aplicando ? MOTIVO : undefined}
+                  disabled={parado}
+                  aria-describedby={parado ? MOTIVO : undefined}
                 >
                   Descartar
                 </Button>

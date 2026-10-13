@@ -35,12 +35,14 @@ mexer em estilo. O spec do desenho é
   ela não é arrastada nem removida, e "Limpar período" e o gerador a respeitam.
   Esc cancela o arrasto ou solta a pendência escolhida.
 - **Desfazer.** As duas grades têm o botão "Desfazer" (com a dica "Desfazer:
-  …") e o atalho Ctrl+Z, que valem para toda ação da grade. Remover uma aula,
-  limpar o período e aplicar a grade gerada abrem também um aviso com o mesmo
-  botão. O histórico é de um curso e dura a sessão: trocar de curso, ou gravar
+  …") e o atalho Ctrl+Z, que valem para toda ação da grade. Remover ou mover uma
+  aula, limpar o período e aplicar a grade gerada abrem também um aviso com o
+  mesmo botão. O histórico é de um curso e dura a sessão: trocar de curso, ou gravar
   qualquer coisa fora da grade (professor, sala, disciplina, indisponibilidade,
   regra), o zera.
-- **Grade automática.** "Gerar grade" mostra o resultado sem gravar nada;
+- **Grade automática.** "Gerar grade" mostra o resultado sem gravar nada, com
+  um comparativo que diz, em cada medida, se a grade gerada é melhor, pior ou
+  igual à atual;
   "Aplicar esta grade" grava, entra no histórico (dá para desfazer) e oferece
   "Abrir a grade manual".
 

@@ -74,10 +74,15 @@ export function Pendencias({
           ))}
         </ul>
       )}
+      {/* A última frase ensina o gesto que nada mais na tela mostra: o painel
+          só diz "Solte aqui para remover" com a aula já por cima dele. Com a
+          pendência escolhida a nota não repete o nome dela (está destacada
+          logo acima): com ele, a nota passaria de duas linhas. */}
       <p className="nota-painel rodape">
         {fatiaEscolhida
-          ? `Clique num horário apto para alocar ${fatiaEscolhida.disciplina_curta}. Esc cancela a seleção.`
-          : "Selecione uma pendência e clique num horário livre."}
+          ? "Clique num horário apto para alocar. Esc cancela a seleção."
+          : "Selecione uma pendência e clique num horário livre."}{" "}
+        Arraste uma aula para cá para removê-la.
       </p>
     </section>
   );

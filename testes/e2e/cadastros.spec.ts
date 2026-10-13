@@ -401,6 +401,23 @@ test.describe("padrões de bloco", () => {
     await expect(page.getByText(/Escreva o padrão como/)).toHaveCount(0);
   });
 
+  test("com a divisão vazia, Adicionar padrão fica desabilitado e o motivo está escrito ao lado", async ({ page }) => {
+    await irPara(page, "Regras");
+    const adicionar = page.getByRole("button", { name: "Adicionar padrão" });
+    const motivo = page.getByRole("main").getByText("Digite a divisão do padrão", { exact: true });
+    await expect(adicionar).toBeDisabled();
+    await expect(motivo).toBeVisible();
+    await expect(adicionar).toHaveAccessibleDescription("Digite a divisão do padrão");
+    const campo = page.getByLabel("Divisão do novo padrão");
+    await campo.fill("2+2");
+    await expect(adicionar).toBeEnabled();
+    await expect(motivo).toHaveCount(0);
+    await expect(adicionar).toHaveAccessibleDescription("");
+    await campo.fill("  ");
+    await expect(adicionar).toBeDisabled();
+    await expect(motivo).toBeVisible();
+  });
+
   test("o chip do padrão se chama pelo que o clique faz, e o \"salvo\" é anunciado", async ({ page, banco }) => {
     await responderConfirmacoes(page);
     await irPara(page, "Regras");

@@ -37,6 +37,16 @@ Não há migração de banco nem mudança no lado Rust.
 | Etiqueta de tipo de sala (A1) | A etiqueta "só <tipo de sala>" é desenhada na coluna Marcas de Disciplinas, para quem exige um tipo de sala | usuário, 2026-10-12 |
 | Filtros sem valor (B1) | Tipo ganha "Sem tipo" e Turno forçado ganha "Segue o período" | usuário, 2026-10-12 |
 | Confirmação de sala (D1) | Quando as aulas só perdem a sala, a confirmação diz "Outras N aula(s) ficam sem sala." | usuário, 2026-10-12 |
+| Comparativo da grade gerada (F2) | Sem setas: depois do número novo vem a palavra "melhor", "pior" ou "igual", visível; a cor só acompanha (acento, negativo, neutro). "Melhor" é da medida: menos buracos é melhor. A legenda das setas saiu. Substitui a decisão 56 | usuário, 2026-10-13 |
+| Gerar de novo (G1) | O resultado anterior fica à vista até o novo chegar, com "Aplicar esta grade" e "Descartar" parados e o motivo "Gerando a grade…" à vista. Continua atrelado ao curso, e não se aplica enquanto se gera | usuário, 2026-10-13 |
+| "Aplicar" com 0 aulas (H1) | "Aplicar esta grade" continua habilitado quando a grade gerada não tem aula nenhuma | usuário, 2026-10-13 |
+| Erro de gravação em Regras (I2) | Vai para toast de erro, como nas outras telas. Na página ficam só a falha de carga e a de recarga | usuário, 2026-10-13 |
+| "Adicionar padrão" desabilitado (J2) | Com a divisão vazia o botão fica desabilitado e o motivo, "Digite a divisão do padrão", fica escrito ao lado | usuário, 2026-10-13 |
+| Toast ao mover (K2) | Mover uma aula abre o toast "<disciplina> movida para <Dia> <código>", com "Desfazer", como remover e limpar | usuário, 2026-10-13 |
+| Remover por arrasto (L1) | A nota do rodapé das pendências ensina o gesto: "Arraste uma aula para cá para removê-la." Com pendência escolhida a nota deixa de repetir o nome dela, para caber em duas linhas | usuário, 2026-10-13 |
+| Foco depois de arrastar (M1) | Continua indo para o início da página; entra na tarefa de teclado nas malhas | usuário, 2026-10-13 |
+| Cartão arrastado (N1) | Continua 12 px abaixo e à direita do ponteiro | usuário, 2026-10-13 |
+| Sala ao mover (O2) | A aula mantém a própria sala, se ela serve e está livre no destino; não passa para a da vizinha | usuário, 2026-10-13 |
 | Teclado e leitor de tela nas malhas (C1 + E1) | Ficam para UMA tarefa própria, depois deste subprojeto, tratando as duas malhas juntas: Indisponibilidades (células sem foco nem teclado; "×" e "•" não chegam ao leitor de tela) e grade manual (setas em vez de 72 paradas de Tab) | usuário, 2026-10-12 |
 
 ### Em aberto
@@ -187,7 +197,8 @@ O usuário aprovou a parte 1 do desenho e pediu para seguir sem pausas. Estas s�
     captura clara de "Automática" ainda difere na execução completa. O que resta da causa
     não foi isolado; os itens da barra seguem em posição fracionária.
 56. **Na grade automática, ▲ significa melhor e ▼ pior** nas comparações entre a grade
-    gerada e a atual.
+    gerada e a atual. *Substituída pela decisão F2 do usuário (2026-10-13): a palavra no
+    lugar da seta.*
 57. **"Gerar grade" fica desabilitado, com o motivo à vista,** quando o curso não tem fatias
     (disciplina com professor atribuído).
 58. **O resultado gerado fica atrelado ao curso:** só aparece no curso para o qual foi

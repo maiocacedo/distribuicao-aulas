@@ -475,9 +475,9 @@ test.describe("grade gerada", () => {
     await page.getByRole("button", { name: "Gerar grade" }).click();
     const aulas = page.getByRole("row", { name: /Aulas alocadas/ }).getByRole("cell");
     await expect(aulas.nth(1)).toHaveText(String(semOPrimeiro), { timeout: 30_000 });
-    // Mais aulas é melhor: a seta diz, em texto, e não só pela cor.
-    await expect(aulas.nth(2)).toContainText(`${total}`);
-    await expect(aulas.nth(2)).toContainText("melhorou");
+    // Mais aulas é melhor: a palavra diz, e não só a cor. Sem seta nem legenda.
+    await expect(aulas.nth(2)).toHaveText(`${total} melhor`);
+    expect(await page.getByRole("main").getByText(/[▲▼]|Em Gerada/).count()).toBe(0);
   });
 
   test("sem mudança, o comparativo diz igual", async ({ page }) => {
@@ -486,9 +486,38 @@ test.describe("grade gerada", () => {
     await gerarEAplicar(page);
     await page.getByRole("button", { name: "Gerar grade" }).click();
     const aulas = page.getByRole("row", { name: /Aulas alocadas/ }).getByRole("cell");
-    await expect(aulas.nth(2)).toContainText("igual", { timeout: 30_000 });
-    // A legenda das setas é para quem as vê: as células já dizem o mesmo em palavras.
-    await expect(page.getByText("Em Gerada:")).toHaveAttribute("aria-hidden", "true");
+    await expect(aulas.nth(2)).toHaveText(/^\d+ igual$/, { timeout: 30_000 });
+  });
+
+  test("gerar de novo deixa o resultado anterior à vista, sem poder ser aplicado, até o novo chegar", async ({ page }) => {
+    await irPara(page, "Automática");
+    await page.getByRole("button", { name: "Gerar grade" }).click();
+    await expect(page.getByRole("button", { name: "Aplicar esta grade" })).toBeEnabled({ timeout: 30_000 });
+    // A geração ocupa o fio da interface: de fora não dá para olhar no meio
+    // dela. Um observador na página anota o que a tela mostra a cada desenho
+    // em que o botão diz "Gerando…".
+    await page.evaluate(() => {
+      const w = window as unknown as { __durante: { resultado: boolean; aplicar: boolean | null; descartar: boolean | null; motivo: string }[] };
+      w.__durante = [];
+      const botao = (texto: string) => [...document.querySelectorAll("button")].find((b) => b.textContent === texto);
+      new MutationObserver(() => {
+        if (!botao("Gerando…")) return;
+        w.__durante.push({
+          resultado: [...document.querySelectorAll("h2")].some((h) => h.textContent === "Resultado"),
+          aplicar: botao("Aplicar esta grade")?.disabled ?? null,
+          descartar: botao("Descartar")?.disabled ?? null,
+          motivo: document.getElementById("motivo-grade-automatica")?.textContent ?? "",
+        });
+      }).observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true });
+    });
+    await page.getByRole("button", { name: "Gerar grade" }).click();
+    await expect(page.getByRole("button", { name: "Aplicar esta grade" })).toBeEnabled({ timeout: 30_000 });
+    const durante = await page.evaluate(() => (window as unknown as { __durante: unknown[] }).__durante);
+    expect(durante.length).toBeGreaterThan(0);
+    for (const amostra of durante)
+      expect(amostra).toEqual({ resultado: true, aplicar: true, descartar: true, motivo: "Gerando a grade…" });
+    // Terminada a geração, o motivo sai.
+    expect(await page.getByText("Gerando a grade…").count()).toBe(0);
   });
 
   test("enquanto aplica, os botões ficam parados e dizem por quê; terminando, um Ctrl+Z desfaz tudo", async ({ page, banco }) => {

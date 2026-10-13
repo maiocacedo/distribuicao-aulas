@@ -227,6 +227,7 @@ export default function Instituicao() {
   }
 
   const divisao = partes(novoPadrao);
+  const semDivisao = !novoPadrao.trim();
 
   return (
     <div className="max-w-[780px]">
@@ -380,9 +381,21 @@ export default function Instituicao() {
             opcoes={OPCOES_DE_NOTA}
             aoMudar={setCustoPadrao}
           />
-          <Button variant="outline" onClick={() => void acrescentarPadrao()} disabled={!novoPadrao.trim()}>
+          <Button
+            variant="outline"
+            onClick={() => void acrescentarPadrao()}
+            disabled={semDivisao}
+            aria-describedby={semDivisao ? "motivo-adicionar-padrao" : undefined}
+          >
             Adicionar padrão
           </Button>
+          {/* O botão desabilitado não recebe foco nem pouso: o motivo fica à
+              vista, ao lado, em vez de numa dica que ninguém alcança. */}
+          {semDivisao && (
+            <span id="motivo-adicionar-padrao" className="text-xs text-tx2">
+              Digite a divisão do padrão
+            </span>
+          )}
           {divisao && <span className="self-center text-xs text-tx3">{divisao.reduce((s, x) => s + x, 0)} aulas</span>}
         </div>
         {/* `role="alert"`: com o Enter o foco já está no campo, e a descrição

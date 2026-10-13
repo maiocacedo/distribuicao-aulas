@@ -210,12 +210,15 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
    * `feito` é o aviso das ações que pedem um: ganha o botão "Desfazer" só se a
    * ação entrou no histórico. A que cruza com uma escrita de cadastro fica
    * gravada sem entrar nele, e um "Desfazer" ali não teria o que desfazer.
+   * Sem linha tocada não há aviso: a aula já não era a que a tela mostrava
+   * (ver `ONDE` em `acoes.ts`), e "removida" ou "movida" seria mentira.
    *
    * `sujeito` é de quem a mensagem de falha fala: a aula, ou o período inteiro.
    */
   async function gravar(rotulo: string, instrucoes: Instrucao[], feito?: string, sujeito = "A aula"): Promise<boolean> {
+    let tocadas: number;
     try {
-      await historico.executarNaGrade(cursoId, rotulo, instrucoes);
+      tocadas = (await historico.executarNaGrade(cursoId, rotulo, instrucoes)).rowsAffected;
     } catch (e) {
       avisar.erro(mensagemErro(e, sujeito));
       await recarregar();
@@ -223,7 +226,7 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
     }
     // O histórico já publicou (o toast de desfazer anterior fechou) antes de
     // este abrir: o novo não é fechado pela ação que o gerou.
-    if (feito) {
+    if (feito && tocadas > 0) {
       if (historico.estado().podeDesfazer) avisar.desfazer(feito, () => void desfazerEAvisar());
       else avisar.sucesso(feito);
     }
@@ -304,7 +307,11 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
     }
     const sala = acoes.salaAoMover(ctx, ocupacao, regrasDe(f), aula, dia, hora, salaVizinha(f, dia, hora, aula));
     return nasCelulas([celulaDaAula(aula), celulaDe(aula.periodo, dia, hora)], () =>
-      gravar(`Mover ${aula.disciplina}`, [acoes.mover(aula, dia, hora, sala)]),
+      gravar(
+        `Mover ${aula.disciplina}`,
+        [acoes.mover(aula, dia, hora, sala)],
+        `${aula.disciplina} movida para ${DIAS[dia]} ${codigoDe(hora)}`,
+      ),
     );
   }
 

@@ -142,6 +142,18 @@ test.describe("aula", () => {
     expect(contar(banco, "SELECT COUNT(*) FROM alocacoes")).toBe(1);
   });
 
+  test("mover abre o aviso com Desfazer, e o botão do aviso devolve a aula", async ({ page, banco }) => {
+    await irPara(page, "Manual");
+    await arrastar(page, celula(page, "Segunda", "M1"), celula(page, "Quinta", "M3"));
+    const aviso = page.locator("[data-sonner-toast]", { hasText: "Cálculo movida para Quinta M3" });
+    await expect(aviso).toBeVisible();
+    expect(onde(banco, 3, 2)).toBe(1);
+    await aviso.getByRole("button", { name: "Desfazer" }).click();
+    await expect.poll(() => onde(banco, 0, 0)).toBe(1);
+    expect(onde(banco, 3, 2)).toBe(0);
+    await expect(page.getByText("Desfeito: Mover Cálculo")).toBeVisible();
+  });
+
   test("mover desfaz com Ctrl+Z", async ({ page, banco }) => {
     await irPara(page, "Manual");
     await arrastar(page, celula(page, "Segunda", "M1"), celula(page, "Quinta", "M3"));
@@ -159,6 +171,15 @@ test.describe("aula", () => {
 
   test("sobre as pendências, o anúncio diz que soltar ali remove", async ({ page, banco }) => {
     await irPara(page, "Manual");
+    // A nota do rodapé ensina o gesto, com ou sem pendência escolhida.
+    const nota = page.getByRole("region", { name: "Pendências" }).locator(".nota-painel.rodape");
+    await expect(nota).toContainText("Arraste uma aula para cá para removê-la.");
+    const pendencia = page.getByRole("button", { name: /Cálculo/ });
+    await pendencia.click();
+    await expect(pendencia).toHaveAttribute("aria-pressed", "true");
+    await expect(nota).toContainText("Arraste uma aula para cá para removê-la.");
+    await page.keyboard.press("Escape");
+    await expect(pendencia).toHaveAttribute("aria-pressed", "false");
     await pegar(page, celula(page, "Segunda", "M1"), page.getByRole("region", { name: "Pendências" }));
     await expect(anuncio(page)).toHaveText("Sobre as pendências: solte para remover");
     await page.mouse.up();
@@ -278,7 +299,10 @@ test.describe("aula, com a carga parada", () => {
     await consultas.soltar();
     await expect(celula(page, "Quinta", "M3")).toContainText("Cálculo");
     await expect(celula(page, "Segunda", "M1")).not.toContainText("Cálculo");
-    expect(await page.locator("[data-sonner-toast]").count()).toBe(0);
+    // Um aviso só, o do mover: os dois cliques ignorados não deram erro nem aviso.
+    const avisos = page.locator("[data-sonner-toast]");
+    await expect(avisos.filter({ hasText: "Cálculo movida para Quinta M3" })).toBeVisible();
+    expect(await avisos.count()).toBe(1);
     expect(contar(banco, "SELECT COUNT(*) FROM alocacoes")).toBe(1);
     // O topo do histórico é o mover: um Ctrl+Z devolve a aula à origem.
     await page.keyboard.press("Control+z");
@@ -375,7 +399,7 @@ test.describe("duas aulas", () => {
     expect(await page.locator("[data-sonner-toast]").count()).toBe(0);
   });
 
-  test("mover fecha o aviso de desfazer que estava aberto", async ({ page, banco }) => {
+  test("mover fecha o aviso de desfazer que estava aberto e abre o dele", async ({ page, banco }) => {
     await irPara(page, "Manual");
     const avisos = page.locator("[data-sonner-toast]");
     await arrastar(page, celula(page, "Terça", "M2"), page.getByRole("region", { name: "Pendências" }));
@@ -384,7 +408,9 @@ test.describe("duas aulas", () => {
     await expect.poll(() => onde(banco, 3, 2)).toBe(1);
     // O prazo do aviso é de 10 s: esperar menos que isso não passa por ele ter vencido.
     await expect(avisos.filter({ hasText: "removida de" })).toHaveCount(0, { timeout: 3_000 });
-    expect(await avisos.getByRole("button", { name: "Desfazer" }).count()).toBe(0);
+    // O "Desfazer" que sobra é o do mover: é a ação do topo do histórico.
+    await expect(avisos.filter({ hasText: "movida para Quinta M3" })).toBeVisible();
+    expect(await avisos.getByRole("button", { name: "Desfazer" }).count()).toBe(1);
   });
 
   test("soltar numa célula impedida não move e avisa o motivo", async ({ page, banco }) => {
@@ -458,7 +484,10 @@ test.describe("mover não conflita consigo mesma", () => {
     await arrastar(page, celula(page, "Segunda", "M1"), celula(page, "Quinta", "M3"));
     await expect(celula(page, "Quinta", "M3")).toContainText("Cálculo");
     expect(contar(banco, "SELECT COUNT(*) FROM alocacoes")).toBe(1);
-    expect(await page.locator("[data-sonner-toast]").count()).toBe(0);
+    // Só o aviso do mover: a pendência fechada não chegou a ser arrastada.
+    const avisos = page.locator("[data-sonner-toast]");
+    await expect(avisos.filter({ hasText: "movida para Quinta M3" })).toBeVisible();
+    expect(await avisos.count()).toBe(1);
   });
 });
 
