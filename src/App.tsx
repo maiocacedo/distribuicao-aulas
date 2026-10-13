@@ -128,6 +128,9 @@ const TODAS = [...GRUPOS.flatMap((g) => g.paginas), PAGINA_CURSOS];
 
 function App() {
   const [cursos, setCursos] = useState<Curso[]>([]);
+  // Enquanto a lista não chega, a caixa do curso fica em branco: "nenhum curso"
+  // só é verdade depois de ler o banco.
+  const [cursosLidos, setCursosLidos] = useState(false);
   const [cursoId, setCursoId] = useState<number | null>(null);
   const [pagina, setPagina] = useState<string>("periodos");
   const [erro, setErro] = useState<string | null>(null);
@@ -137,6 +140,7 @@ function App() {
       "SELECT * FROM cursos ORDER BY nome COLLATE NOCASE",
     );
     setCursos(lista);
+    setCursosLidos(true);
     setCursoId((atual) =>
       atual != null && lista.some((c) => c.id === atual) ? atual : (lista[0]?.id ?? null),
     );
@@ -213,7 +217,7 @@ function App() {
               className="h-auto min-h-[1.4286em] w-full border-0 bg-transparent px-0 py-0 text-sm font-semibold leading-[1.4286] hover:bg-transparent"
               valor={cursoId}
               opcoes={cursos.map((c) => ({ valor: c.id as number | null, rotulo: c.nome }))}
-              exibir={cursos.length === 0 ? "nenhum curso" : undefined}
+              exibir={cursosLidos && cursos.length === 0 ? "nenhum curso" : undefined}
               aoMudar={(id) => setCursoId(id)}
               desabilitado={cursos.length === 0}
             />
