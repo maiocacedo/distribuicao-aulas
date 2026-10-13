@@ -24,9 +24,26 @@ const TELAS: { id: string; rotulo: string; pronta: (p: Page) => Locator }[] = [
  * tabela, botão ou célula) e é o mesmo ponto em todos os testes, com ou sem
  * diálogo aberto (nele, cai sobre o fundo escurecido). Ficou local ao spec: os
  * e2e não precisam disso.
+ *
+ * Antes de fotografar, repinta a barra lateral. Os itens dela ficam em posição
+ * fracionária (alturas de 17,84 e 26,66 px acima deles), e a caixa do curso
+ * muda de altura quando a lista de cursos chega, logo depois de abrir a página:
+ * os ícones são rasterizados na posição antiga e, em cerca de um quarto das
+ * execuções, a camada fica com esse desenho velho (1 a 5 níveis de cor em
+ * alguns pixels de três ícones), que não se corrige sozinho: fica igual por
+ * quanto tempo se espere. Mudar a barra para posições inteiras seria a correção
+ * de verdade, em `src/App.tsx`; aqui, esconder e mostrar a barra força o
+ * desenho final, o mesmo da referência, sem tocar no que é fotografado.
  */
 async function capturar(page: Page, nome: string, opcoes: { fullPage?: boolean } = {}) {
   await page.mouse.move(1390, 890);
+  await page.evaluate(() => {
+    const barra = document.querySelector<HTMLElement>("nav");
+    if (!barra) return;
+    barra.style.display = "none";
+    void barra.offsetHeight; // aplica o estilo antes de devolver
+    barra.style.removeProperty("display");
+  });
   await expect(page).toHaveScreenshot(nome, opcoes);
 }
 
