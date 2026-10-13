@@ -3,11 +3,10 @@
  * tokens do tema — os estados de célula usam listras, tracejado e cadeado, que
  * nenhum componente pronto cobre. Valem as três regras do `tema.css`.
  *
- * Estas regras nasceram dentro de `.legado`, que devolvia às telas o que o
- * navegador dá e o reset do Tailwind tira. Fora dele, o que o desenho espera e
- * o reset desfaz é declarado aqui: `border-collapse` e `border-spacing` da
- * tabela, o peso de `th` (o navegador dá negrito), o `font-style` do `em`, o
- * `cursor` e o `border-radius` dos botões. O resto que o `.legado` repunha
+ * O reset do Tailwind tira o que o navegador dá a tabela, `th`, `em` e botão, e
+ * o desenho conta com isso. Por isso este arquivo declara `border-collapse` e
+ * `border-spacing` da tabela, o peso de `th` (o navegador dá negrito), o
+ * `font-style` do `em`, o `cursor` e o `border-radius` dos botões. O resto
  * (borda e fundo de botão, `padding` de célula, centro de `th`, herança de
  * fonte e cor) o reset já deixa como o desenho quer: não declare de novo.
  * A linha do espaçador entre turnos tem `cursor: default`: a célula herda o
@@ -146,14 +145,12 @@
 
 /* ------------------------------------------------------------ grade manual */
 
-/* O que estas regras tinham do `.legado` e precisou vir junto:
-   - os botões (abas de período, pendência) herdavam da regra `button` antiga
-     o raio, o cursor e o texto de 12,5 px — o aviso da pendência é em `em` e
-     depende desse tamanho;
-   - o painel da malha era um `section`, e a regra antiga de `section` é que
-     lhe dava fundo, contorno e raio;
-   - a lista do diagnóstico tinha o marcador do navegador, que o reset tira;
-   - a célula vazia virou `button`, e o navegador centra o texto de botão.
+/* O que estas regras declaram porque o elemento não o traz sozinho:
+   - os botões (abas de período, pendência) levam raio, cursor e texto de
+     12,5 px — o aviso da pendência é em `em` e depende desse tamanho;
+   - o painel da malha é um `section`, que não tem fundo, contorno nem raio;
+   - a lista do diagnóstico precisa do marcador, que o reset tira;
+   - a célula vazia é um `button`, e o navegador centra o texto de botão.
    O que o reset já dá não foi declarado de novo (medido antes e depois, e
    tirando uma declaração por vez): `margin` e `list-style` de lista e de
    parágrafo, fundo e contorno de botão, o peso do `strong` do título. */

@@ -29,7 +29,8 @@ Professores e salas são da instituição, e um professor ou uma sala **não est
 em dois lugares no mesmo horário em curso nenhum** (D2, D3). O gerador monta um
 curso por vez e trata as aulas dos outros cursos como ocupação fixa. A grade
 manual mostra quem ocupa o horário ("A. Souza em Beta (1º)") e lista, num
-diagnóstico, as aulas gravadas antes desta regra que a violam.
+diagnóstico, as aulas gravadas antes desta regra que a violam e a aula cujo
+professor não leciona mais a disciplina.
 
 O compromisso de um professor fora de qualquer curso continua sendo a
 **indisponibilidade** dele: declara-se os horários uma vez e todo curso os
@@ -306,13 +307,15 @@ isso passar em silêncio:
   imediato. Se a disciplina não exige mais sala, a aula fica sem sala; se exige,
   recebe uma sala válida e livre, preferindo a da aula vizinha do mesmo professor.
   Só quando não há sala livre a aula entra na confirmação de apagar. Se só houve
-  reatribuições, não há diálogo.
+  reatribuições, não há diálogo; um aviso diz quantas aulas mudaram de sala e
+  quantas eram fixadas.
 - **Mudar o tipo de uma sala** reatribui as aulas atingidas — as que estão nela e
   cuja disciplina exige um tipo diferente do novo (D7) — em **todos os cursos**,
   porque a sala é da instituição: cada uma recebe outra sala válida e livre no
   mesmo horário, pela mesma regra da edição de disciplina. Só as que não acharem
   sala entram na confirmação de apagar, que lista curso, período, dia, horário e
-  disciplina. Se só houve reatribuições, não há diálogo; cancelar não muda nada.
+  disciplina. Se só houve reatribuições, não há diálogo; um aviso diz quantas
+  aulas mudaram de sala e quantas eram fixadas. Cancelar não muda nada.
 - **Baixar `max_dias_semana`** abaixo dos dias que o professor já usa é recusado,
   com explicação: não há como escolher sozinho qual dia sai.
 

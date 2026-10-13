@@ -16,13 +16,13 @@
  * Claro e escuro remapeiam os mesmos papéis. A geometria não muda.
  */
 
-/* A ordem das camadas é o que deixa o CSS antigo conviver: ele vence o reset
-   do Tailwind e perde para os utilitários. */
-@layer theme, base, legado, components, utilities;
+/* A ordem das camadas decide quem vence sem depender de especificidade:
+   `components` (o `grade.css`) vence o reset de `base` e perde para os
+   utilitários, que ajustam um ponto de uso sem briga. */
+@layer theme, base, components, utilities;
 
 @import "tailwindcss" source("../");
 @import "tw-animate-css";
-@import "./legado.css" layer(legado);
 @import "./grade.css" layer(components);
 
 :root {

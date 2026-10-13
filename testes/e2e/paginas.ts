@@ -43,24 +43,14 @@ export async function responderConfirmacoes(
   return mensagens;
 }
 
-const nativo = async (campo: Locator) => (await campo.evaluate((el) => el.tagName)) === "SELECT";
-
-/** Escolhe uma opção pelo texto que o usuário vê. Serve ao `<select>` nativo e ao seletor novo. */
+/** Escolhe uma opção do seletor pelo texto que o usuário vê. */
 export async function escolher(campo: Locator, opcao: string | RegExp) {
-  if (await nativo(campo)) {
-    const textos = (await campo.locator("option").allTextContents()).map((t) => t.trim());
-    const i = textos.findIndex((t) => (typeof opcao === "string" ? t === opcao : opcao.test(t)));
-    if (i < 0) throw new Error(`opção não encontrada: ${opcao} em [${textos.join(" | ")}]`);
-    await campo.selectOption({ index: i });
-    return;
-  }
   await campo.click();
   await campo.page().getByRole("option", { name: opcao, exact: typeof opcao === "string" }).click();
 }
 
 /** O texto da opção escolhida. */
 export async function escolhida(campo: Locator): Promise<string> {
-  if (await nativo(campo)) return ((await campo.locator("option:checked").textContent()) ?? "").trim();
   return ((await campo.textContent()) ?? "").trim();
 }
 

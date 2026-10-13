@@ -37,12 +37,6 @@ type Pagina = {
   id: string;
   rotulo: string;
   icone: LucideIcon;
-  /**
-   * Tela ainda não convertida: é desenhada dentro de `.legado`, que devolve às
-   * telas antigas o CSS que elas esperam. A marca sai página a página; a casca
-   * nunca fica dentro do `.legado`.
-   */
-  legado: boolean;
   componente: (p: Props) => React.ReactNode;
 };
 
@@ -59,14 +53,12 @@ const GRUPOS: { titulo: string; paginas: Pagina[] }[] = [
         id: "periodos",
         rotulo: "Períodos",
         icone: Layers,
-        legado: false,
         componente: (p) => <Periodos cursoId={p.cursoId} />,
       },
       {
         id: "disciplinas",
         rotulo: "Disciplinas",
         icone: BookOpen,
-        legado: false,
         componente: (p) => <Disciplinas cursoId={p.cursoId} />,
       },
     ],
@@ -78,10 +70,9 @@ const GRUPOS: { titulo: string; paginas: Pagina[] }[] = [
         id: "professores",
         rotulo: "Professores",
         icone: Users,
-        legado: false,
         componente: () => <Professores />,
       },
-      { id: "salas", rotulo: "Salas", icone: DoorOpen, legado: false, componente: () => <Salas /> },
+      { id: "salas", rotulo: "Salas", icone: DoorOpen, componente: () => <Salas /> },
     ],
   },
   {
@@ -91,21 +82,18 @@ const GRUPOS: { titulo: string; paginas: Pagina[] }[] = [
         id: "indisponibilidades",
         rotulo: "Indisponibilidades",
         icone: CalendarX,
-        legado: false,
         componente: () => <Indisponibilidades />,
       },
       {
         id: "tipos",
         rotulo: "Tipos de disciplina",
         icone: Tags,
-        legado: false,
         componente: () => <Tipos />,
       },
       {
         id: "regras",
         rotulo: "Regras",
         icone: CalendarCog,
-        legado: false,
         componente: () => <Instituicao />,
       },
     ],
@@ -117,14 +105,12 @@ const GRUPOS: { titulo: string; paginas: Pagina[] }[] = [
         id: "grade-manual",
         rotulo: "Manual",
         icone: CalendarRange,
-        legado: false,
         componente: (p) => <GradeManual cursoId={p.cursoId} />,
       },
       {
         id: "grade-automatica",
         rotulo: "Automática",
         icone: Sparkles,
-        legado: false,
         componente: (p) => <GradeAutomatica cursoId={p.cursoId} aoNavegar={p.aoNavegar} />,
       },
     ],
@@ -135,7 +121,6 @@ const PAGINA_CURSOS: Pagina = {
   id: "cursos",
   rotulo: "Gerenciar cursos",
   icone: GraduationCap,
-  legado: false,
   componente: (p) => <Cursos aoMudarLista={p.aoMudarCursos} />,
 };
 
@@ -248,16 +233,14 @@ function App() {
           ))}
         </nav>
 
-        {/* O mesmo preenchimento do `main` antigo (20 20 40): as telas que
-            ainda são legado não mudam de lugar. */}
+        {/* `min-w-0`: sem ele a coluna `1fr` não encolhe abaixo do conteúdo e
+            uma tela larga alargaria a janela em vez de rolar dentro da coluna. */}
         <main className="min-w-0 px-5 pb-10 pt-5">
           {semCurso && atual.id !== "cursos" ? (
             <>
               <h1 className="text-xl font-bold">Nenhum curso</h1>
               <p className="mt-2 text-tx2">Crie um curso em "Gerenciar cursos" para começar.</p>
             </>
-          ) : atual.legado ? (
-            <div className="legado">{conteudo}</div>
           ) : (
             conteudo
           )}

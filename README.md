@@ -12,6 +12,36 @@ Sucessor do programa em JavaFX que vive em
 React + TypeScript (Vite) numa janela Tauri v2, com SQLite local via
 `tauri-plugin-sql`. O banco é um arquivo, copiável de uma máquina para outra.
 
+A interface é feita com Tailwind CSS v4 e componentes do shadcn/ui (sobre
+Radix), tabelas com TanStack Table (v8), arrastar e soltar com dnd-kit, ícones
+do lucide-react e avisos (toasts) com Sonner. `src/estilos/tema.css` é a fonte
+dos tokens (cores, tipografia, raios, claro e escuro) e das três regras do
+design: identidade nunca é cor; nenhum estado depende só de cor; desabilitado
+rebaixa texto e borda, nunca `opacity` no bloco. Leia o cabeçalho dele antes de
+mexer em estilo. O spec do desenho é
+`docs/superpowers/specs/2026-10-11-refatoracao-visual-design.md`.
+
+## O que a interface faz
+
+- **Disciplinas e Salas** têm busca e filtros por coluna, com um chip por valor
+  marcado e "Limpar filtros". Em Disciplinas os filtros são Período, Tipo
+  (inclui "Sem tipo"), Optativa, Ofertada e Turno forçado (inclui "Segue o
+  período"), e a busca olha também os professores da disciplina. Em Salas, o
+  filtro é por Tipo.
+- **Grade manual.** Para alocar, arraste uma pendência para uma célula ou
+  escolha a pendência e clique na célula. Para mover, arraste a aula para outra
+  célula. Para remover, use o botão "Remover aula" ou arraste a aula para o
+  painel de pendências. O cadeado (ou o botão direito sobre a aula) fixa a aula:
+  ela não é arrastada nem removida, e "Limpar período" e o gerador a respeitam.
+  Esc cancela o arrasto ou solta a pendência escolhida.
+- **Desfazer.** As duas grades têm o botão "Desfazer" (com a dica "Desfazer:
+  …"), o atalho Ctrl+Z e, depois de cada ação, um aviso com o mesmo botão. O
+  histórico é de um curso: trocar de curso, ou alterar um cadastro que invalida
+  aulas, o zera.
+- **Grade automática.** "Gerar grade" mostra o resultado sem gravar nada;
+  "Aplicar esta grade" grava, entra no histórico (dá para desfazer) e oferece
+  "Abrir a grade manual".
+
 ## Antes de começar
 
 Além do Node.js (22.13 ou mais novo), o lado Tauri compila Rust de verdade, então
@@ -94,6 +124,10 @@ npm run bench:solver   # compara solvers em cenários × sementes
 | `scripts/migrar.py` | Converte o banco do programa antigo. Uso pontual. |
 | `src/db.ts` | Conexão com o SQLite e utilitários de consulta. |
 | `src/tipos.ts` | Tipos do domínio, espelhando o esquema. |
+| `src/estilos/` | `tema.css` (tokens, camadas e as três regras do design) e `grade.css` (as malhas: Indisponibilidades e grade manual). |
+| `src/componentes/` | Componentes próprios (diálogo de formulário, confirmação, tabela, filtros, seletor, avisos); `ui/` guarda os do shadcn. |
+| `src/paginas/` | Uma tela por arquivo (ou pasta, quando é grande). |
+| `src/grade/` | O histórico de desfazer das grades e o botão que o usa. |
 | `src/regras/` | Regras duras de célula, compartilhadas pelo gerador e pela grade manual. |
 | `src/solver/` | O gerador automático e o auditor independente (`conferir.ts`). |
 | `src-tauri/` | Lado Rust: plugin SQL, migrações e o comando `transacao`, a única escrita do app. |

@@ -301,3 +301,33 @@ test.describe("limpar período", () => {
     await expect(limpar).toBeEnabled();
   });
 });
+
+test.describe("Esc na confirmação de Limpar período", () => {
+  test.use({
+    semMassa: true,
+    semente: `${BASE}
+      INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais, exige_sala) VALUES (1, 1, 'Cálculo', 1, 4, 0);
+      INSERT INTO disciplina_professores (disciplina_id, professor_id, aulas) VALUES (1, 1, 4);
+      INSERT INTO alocacoes (curso_id, periodo, dia, hora, disciplina_id, professor_id) VALUES (1, 1, 0, 0, 1, 1);`,
+  });
+
+  // O Esc que fecha o diálogo é só dele: o Radix o marca como tratado, e o
+  // ouvinte da grade, que solta a pendência, respeita a marca.
+  test("fecha só o diálogo, mantém a pendência escolhida e não apaga nada; o seguinte a solta", async ({
+    page,
+    banco,
+  }) => {
+    await irPara(page, "Manual");
+    const pendencia = page.getByRole("button", { name: /Cálculo/ });
+    await pendencia.click();
+    await expect(pendencia).toHaveAttribute("aria-pressed", "true");
+    await page.getByRole("button", { name: "Limpar período" }).click();
+    await expect(page.getByRole("alertdialog")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    await expect(pendencia).toHaveAttribute("aria-pressed", "true");
+    expect(contar(banco, "SELECT COUNT(*) FROM alocacoes")).toBe(1);
+    await page.keyboard.press("Escape");
+    await expect(pendencia).toHaveAttribute("aria-pressed", "false");
+  });
+});

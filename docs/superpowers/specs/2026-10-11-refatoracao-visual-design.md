@@ -1,8 +1,8 @@
 # Subprojeto 2 — Refatoração visual
 
-Data: 2026-10-11 · Branch: `refatoracao-visual` · Status: decisões de produto e a parte 1
-do desenho aprovadas; o usuário autorizou seguir sem pausas até a execução (ver
-"Decisões tomadas sem o usuário")
+Data: 2026-10-11 · Branch: `refatoracao-visual` · Status: implementado; as decisões de
+produto e a parte 1 do desenho foram aprovadas, e o usuário autorizou seguir sem pausas
+até a execução (ver "Decisões tomadas sem o usuário")
 
 ## Objetivo
 
@@ -32,6 +32,12 @@ Não há migração de banco nem mudança no lado Rust.
 | Fonte | Segoe UI do sistema; nada empacotado | parte 1 do desenho |
 | Rede de segurança visual | Capturas de tela no Playwright, com referência no git, rodando só localmente | parte 1 do desenho |
 | Quebra de arquivos | `Disciplinas.tsx` e `GradeManual.tsx` são divididas ao serem convertidas; as demais telas só mudam o necessário | parte 1 do desenho |
+| "Remover" do último curso | Continua clicável e avisa por toast, como antes; desabilitar com o motivo na dica fica para depois, se o usuário pedir | usuário, 2026-10-11 |
+| Barra de rolagem no tema escuro | Escura, porque o `:root` declara `color-scheme: light dark` (decisão 31). Aprovada | usuário, 2026-10-11 |
+| Etiqueta de tipo de sala (A1) | A etiqueta "só <tipo de sala>" é desenhada na coluna Marcas de Disciplinas, para quem exige um tipo de sala | usuário, 2026-10-12 |
+| Filtros sem valor (B1) | Tipo ganha "Sem tipo" e Turno forçado ganha "Segue o período" | usuário, 2026-10-12 |
+| Confirmação de sala (D1) | Quando as aulas só perdem a sala, a confirmação diz "Outras N aula(s) ficam sem sala." | usuário, 2026-10-12 |
+| Teclado e leitor de tela nas malhas (C1 + E1) | Ficam para UMA tarefa própria, depois deste subprojeto, tratando as duas malhas juntas: Indisponibilidades (células sem foco nem teclado; "×" e "•" não chegam ao leitor de tela) e grade manual (setas em vez de 72 paradas de Tab) | usuário, 2026-10-12 |
 
 ### Decisões tomadas sem o usuário (revisar)
 
@@ -104,6 +110,77 @@ O usuário aprovou a parte 1 do desenho e pediu para seguir sem pausas. Estas s�
 24. **O `package-lock.json` pendente** (`source-map-js` 1.2.2) entrou num commit próprio
     no início do branch.
 25. **O spec não passou por revisão do usuário antes do plano**, a pedido dele.
+26. **Capturas com tolerância mínima de cor** (`threshold: 0.01`). Com zero, um ícone da
+    barra oscilava um ou dois níveis no antisserrilhamento entre execuções; uma troca de 16
+    níveis num token ainda derruba as 13 capturas do tema.
+27. **O Tailwind varre só `src/`.** Varrendo tudo, ele lia os planos em Markdown e gerava
+    uns 150 utilitários sem uso.
+28. **A cor do poço no tema é `bg-poco`.** `bg-inset` colidia com o `ring-inset` nativo do
+    Tailwind.
+29. **Botão de perigo com `text-primary-foreground`**, não branco: o negativo do tema escuro
+    é claro e o branco dava 2,4:1.
+30. **Altura de linha `normal` na base**, como nas telas antigas. O padrão do Tailwind (1,5)
+    deixava toda tela convertida mais alta que a referência.
+31. **`color-scheme: light dark` na raiz.** No tema escuro a barra de rolagem da janela
+    passa a ser escura; as capturas não a veem. O usuário viu e aprovou.
+32. **`Seletor` no desenho do `Input`** (fundo de poço), como eram `input` e `select` nos
+    formulários antigos. O da barra lateral sobrescreve no ponto de uso.
+33. **O foco volta ao elemento de origem** ao fechar diálogo de formulário e confirmação. A
+    linha da tabela é identificada pelo `id` do registro, para o foco não cair no botão de
+    outra linha depois de uma remoção.
+34. **`BotaoIcone` desabilitado usa `aria-disabled` e `motivo`**: continua alcançável pelo
+    teclado e a dica explica por quê. Com `perigo`, é sempre da cor de negativo, como era.
+35. **Formulários com `noValidate`.** A bolha nativa do navegador passava na frente da
+    mensagem do campo; toda restrição de campo tem validação própria.
+36. **Estado vazio de busca ou filtro** diz "Nenhuma <coisa> encontrada." e oferece "Limpar
+    busca e filtros" (o botão da barra de filtros chama-se "Limpar filtros").
+37. **Toast de reatribuição de sala sempre que há aula reatribuída**, também quando a mesma
+    gravação apagou outras.
+38. **Campo de busca com 30 px de altura**, não 28: é a altura da tela antiga, e a
+    identidade prevaleceu sobre a regra de densidade (ver a decisão 40).
+39. **Ilha `.legado` no formulário de Tipos**, enquanto o requisito de sala e as
+    propriedades da disciplina eram compartilhados com Disciplinas. Saiu quando Disciplinas
+    foi convertida.
+40. **Altura de controle é a do componente (28 px).** Só a busca do cabeçalho tem 30 px;
+    controle em linha de tabela ou célula usa o que couber. Nunca se iguala o pixel de um
+    campo nativo antigo.
+41. **Botão de texto desabilitado diz o motivo em texto visível ao lado** ("Remover o
+    último", "Nova disciplina", "Limpar período"); botão de ícone o diz na dica, continuando
+    alcançável pelo teclado.
+42. **Período do contraturno vazio é recusado.** Antes valia 0.
+43. **Indisponibilidades separa falha de gravação (toast) de falha de recarga (erro na
+    página).**
+44. **"Salvar" do editor de Disciplinas não fica desabilitado** quando as fatias não fecham:
+    a recusa aparece ao salvar, no grupo, com foco. Duas mensagens de validação novas
+    substituem o que o navegador barrava.
+45. **O diálogo de formulário traz o erro para a vista** quando o formulário é mais alto que
+    a janela.
+46. **Histórico com fila e época.** `executarNaGrade` e `desfazer` rodam um por vez; uma
+    ação que cruza com cadastro ou troca de curso fica gravada, mas não é desfazível.
+47. **Só o toast mais recente oferece "Desfazer".** O anterior fecha quando o histórico
+    muda.
+48. **Ctrl+Z é ignorado** com diálogo aberto, com a tecla presa e durante um arrasto.
+49. **O foco volta à célula** depois de alocar ou remover pelo teclado.
+50. **Ação repetida na mesma célula é ignorada** enquanto a anterior não terminou.
+51. **Na grade manual, "Remover aula" vem antes do cadeado**, e os controles aparecem no
+    pouso do mouse e no foco do teclado.
+52. **Opção "(atual, fora do requisito)" entra na lista de salas** quando a sala atual não
+    serve mais, para o seletor não ficar vazio.
+53. **O arrasto da página termina por ouvintes próprios** (fim do ponteiro e Esc, na
+    janela), sem depender do par de callbacks do dnd-kit, e é cancelado se a janela perde o
+    foco. Assim um arrasto que começa e não termina nunca deixa a tela presa.
+54. **Ao soltar, a carga da aula é conferida** contra a do começo do arrasto: se a grade
+    mudou no meio (um desfazer, uma recarga), o soltar não grava. A troca de curso cancela o
+    arrasto.
+55. **A captura visual repinta a barra lateral antes da foto**, contra o ícone rasterizado
+    em posição antiga. A causa, a caixa do curso que muda de altura, não foi corrigida e
+    fica como pendência.
+56. **Na grade automática, ▲ significa melhor e ▼ pior** nas comparações entre a grade
+    gerada e a atual.
+57. **"Gerar grade" fica desabilitado, com o motivo à vista,** quando o curso não tem fatias
+    (disciplina com professor atribuído).
+58. **O resultado gerado fica atrelado ao curso:** só aparece no curso para o qual foi
+    gerado, para "Aplicar esta grade" nunca gravar a grade de um curso em outro.
 
 ## As três regras do design
 

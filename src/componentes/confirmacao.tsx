@@ -74,9 +74,6 @@ export function ProvedorDeConfirmacao({ children }: { children: ReactNode }) {
           // `aria-describedby`; passá-lo vazio desliga o aviso.
           <AlertDialogContent
             {...(pedido.descricao ? {} : { "aria-describedby": undefined })}
-            // O `Modal` antigo escuta Esc na janela; sem isto, cancelar a
-            // confirmação com Esc fecharia também o formulário por baixo.
-            onEscapeKeyDown={(e) => e.stopPropagation()}
             // O Radix só devolve o foco a um `AlertDialogTrigger`, e este
             // diálogo é aberto por promessa: sem isto o foco cairia no `body`,
             // e recusar o descarte de um formulário tiraria o foco dele. Se a

@@ -30,7 +30,7 @@ describe("binário real", () => {
     await ir("Professores");
     for (const nome of ["Ana Souza", "Bruno Lima"]) {
       await $("button=Novo professor").click();
-      await $(".modal input").setValue(nome);
+      await $('[role="dialog"] input').setValue(nome);
       await $("button=Salvar").click();
       await expect($(`td*=${nome}`)).toBeDisplayed();
     }
@@ -43,13 +43,13 @@ describe("binário real", () => {
     // Sem sala cadastrada, o requisito padrão ("qualquer sala") deixaria a célula impedida.
     await ir("Salas");
     await $("button=Nova sala").click();
-    await $(".modal input").setValue("A01");
+    await $('[role="dialog"] input').setValue("A01");
     await $("button=Salvar").click();
     await expect($("td*=A01")).toBeDisplayed();
 
     await ir("Disciplinas");
     await $("button=Nova disciplina").click();
-    await $(".modal input").setValue("Cálculo");
+    await $('[role="dialog"] input').setValue("Cálculo");
     await $("button=Adicionar professor").click();
     await $("button=Salvar").click();
 
@@ -60,8 +60,10 @@ describe("binário real", () => {
 
     await ir("Disciplinas");
     await (await $("tr*=Cálculo")).$('button[aria-label="Editar"]').click();
-    await $(".linha-fatia select").selectByVisibleText("Bruno Lima");
+    // O seletor é o do shadcn: abre-se o gatilho e escolhe-se a opção pelo texto.
+    await $('[aria-label="Professor da fatia 1"]').click();
+    await $('[role="option"]*=Bruno Lima').click();
     await $("button=Salvar").click();
-    await expect($(".alerta")).toHaveText(expect.stringContaining("está em uso"));
+    await expect($('[role="dialog"] [role="alert"]')).toHaveText(expect.stringContaining("está em uso"));
   });
 });
