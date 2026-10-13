@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures";
-import { AULAS_DA_GRADE, celula, contar, irPara, responderConfirmacoes, segurarConsultas } from "./paginas";
+import { AULAS_DA_GRADE, celula, contar, escolher, irPara, responderConfirmacoes, segurarConsultas } from "./paginas";
 
 const SEMENTE = `
   INSERT INTO periodos (curso_id, numero, turno) VALUES (1, 1, 'manha');
@@ -385,5 +385,144 @@ test.describe("dois períodos", () => {
     await expect.poll(() => contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE periodo = 2")).toBe(1);
     await consultas.soltar();
     await expect(celula(page, "Segunda", "M1")).toContainText("Física");
+  });
+});
+
+test.describe("grade gerada", () => {
+  // Estes usam a massa, que a SEMENTE do arquivo dispensa.
+  test.use({ semMassa: false, semente: "" });
+
+  const TOTAL_DO_CURSO =
+    "SELECT SUM(dp.aulas) FROM disciplina_professores dp JOIN disciplinas d ON d.id = dp.disciplina_id WHERE d.curso_id = 1";
+  const ALOCADAS = "SELECT COUNT(*) FROM alocacoes WHERE curso_id = 1";
+
+  /** Tira o 1º período da grade (a massa é toda resolúvel) e devolve quantas aulas sobram. */
+  async function esvaziarOPrimeiro(page: import("@playwright/test").Page, banco: import("node:sqlite").DatabaseSync) {
+    banco.exec("DELETE FROM alocacoes WHERE curso_id = 1 AND periodo = 1");
+    await page.reload();
+    return contar(banco, ALOCADAS);
+  }
+
+  async function gerarEAplicar(page: import("@playwright/test").Page) {
+    await page.getByRole("button", { name: "Gerar grade" }).click();
+    await page.getByRole("button", { name: "Aplicar esta grade" }).click({ timeout: 30_000 });
+    await expect(page.getByText("Grade aplicada.")).toBeVisible();
+  }
+
+  test("aplicar, abrir a grade manual pelo botão e desfazer lá", async ({ page, banco }) => {
+    await responderConfirmacoes(page);
+    // A massa é totalmente resolúvel: a grade gerada coloca todas as aulas.
+    const total = contar(banco, TOTAL_DO_CURSO);
+    const semOPrimeiro = await esvaziarOPrimeiro(page, banco);
+    expect(semOPrimeiro).toBeLessThan(total);
+
+    await irPara(page, "Automática");
+    await gerarEAplicar(page);
+    await expect.poll(() => contar(banco, ALOCADAS)).toBe(total);
+
+    await page.getByRole("button", { name: "Abrir a grade manual" }).click();
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Grade horária");
+    await page.getByRole("main").getByRole("button", { name: "Desfazer" }).click();
+    await expect.poll(() => contar(banco, ALOCADAS)).toBe(semOPrimeiro);
+  });
+
+  test("Ctrl+Z na própria tela devolve o antes, e o comparativo parte dele", async ({ page, banco }) => {
+    await responderConfirmacoes(page);
+    const total = contar(banco, TOTAL_DO_CURSO);
+    const semOPrimeiro = await esvaziarOPrimeiro(page, banco);
+
+    await irPara(page, "Automática");
+    await gerarEAplicar(page);
+    // O toast oferece o desfazer da ação que acabou de entrar no histórico.
+    await expect(page.locator("[data-sonner-toast]").getByRole("button", { name: "Desfazer" })).toBeVisible();
+    await expect.poll(() => contar(banco, ALOCADAS)).toBe(total);
+
+    await page.keyboard.press("Control+z");
+    await expect.poll(() => contar(banco, ALOCADAS)).toBe(semOPrimeiro);
+    // O aviso falava da grade que acabou de sair.
+    await expect(page.getByText("Grade aplicada.")).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Gerar grade" }).click();
+    const aulas = page.getByRole("row", { name: /Aulas alocadas/ }).getByRole("cell");
+    await expect(aulas.nth(1)).toHaveText(String(semOPrimeiro), { timeout: 30_000 });
+    // Mais aulas é melhor: a seta diz, em texto, e não só pela cor.
+    await expect(aulas.nth(2)).toContainText(`${total}`);
+    await expect(aulas.nth(2)).toContainText("melhorou");
+  });
+
+  test("sem mudança, o comparativo diz igual", async ({ page }) => {
+    await responderConfirmacoes(page);
+    await irPara(page, "Automática");
+    await gerarEAplicar(page);
+    await page.getByRole("button", { name: "Gerar grade" }).click();
+    const aulas = page.getByRole("row", { name: /Aulas alocadas/ }).getByRole("cell");
+    await expect(aulas.nth(2)).toContainText("igual", { timeout: 30_000 });
+  });
+
+  test("enquanto aplica, os botões ficam parados e dizem por quê; terminando, um Ctrl+Z desfaz tudo", async ({ page, banco }) => {
+    await responderConfirmacoes(page);
+    const semOPrimeiro = await esvaziarOPrimeiro(page, banco);
+    await irPara(page, "Automática");
+    await page.getByRole("button", { name: "Gerar grade" }).click();
+    const aplicar = page.getByRole("button", { name: "Aplicar esta grade" });
+    await aplicar.waitFor({ timeout: 30_000 });
+
+    // O "antes" do histórico é a primeira leitura da aplicação: segurá-la é parar no meio dela.
+    const consultas = await segurarConsultas(page, "SELECT * FROM alocacoes WHERE curso_id = ?");
+    await aplicar.click();
+    await expect.poll(consultas.seguras).toBe(1);
+    const aplicando = page.getByRole("button", { name: "Aplicando…" });
+    await expect(aplicando).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Descartar" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Gerar grade" })).toBeDisabled();
+    // O motivo está escrito, à vista, e ligado aos três botões.
+    await expect(page.getByRole("main").getByText("Aplicando a grade…")).toBeVisible();
+    for (const botao of [aplicando, page.getByRole("button", { name: "Descartar" }), page.getByRole("button", { name: "Gerar grade" })])
+      await expect(botao).toHaveAccessibleDescription("Aplicando a grade…");
+    // Um segundo clique, que o botão desabilitado não deixa passar, não grava nada.
+    await aplicando.evaluate((el: HTMLElement) => el.click());
+    expect(contar(banco, ALOCADAS)).toBe(semOPrimeiro);
+
+    await consultas.soltar();
+    await expect(page.getByText("Grade aplicada.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Gerar grade" })).toBeEnabled();
+    expect(await page.getByText("Aplicando a grade…").count()).toBe(0);
+    // Uma ação no histórico: um Ctrl+Z devolve o antes, e o botão fica sem o que desfazer.
+    await page.keyboard.press("Control+z");
+    await expect.poll(() => contar(banco, ALOCADAS)).toBe(semOPrimeiro);
+    await expect(page.getByRole("main").getByRole("button", { name: "Desfazer" })).toHaveAttribute("aria-disabled", "true");
+  });
+});
+
+test.describe("grade gerada, troca de curso", () => {
+  test.use({
+    semMassa: true,
+    semente: `
+      UPDATE cursos SET nome = 'Alfa' WHERE id = 1;
+      INSERT INTO cursos (id, nome) VALUES (2, 'Beta');
+      INSERT INTO periodos (curso_id, numero, turno) VALUES (1, 1, 'manha'), (2, 1, 'manha');
+      INSERT INTO professores (id, nome) VALUES (1, 'Ana Souza'), (2, 'Bruno Lima');
+      INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais, exige_sala) VALUES (1, 1, 'Cálculo', 1, 2, 0), (2, 2, 'Física', 1, 2, 0);
+      INSERT INTO disciplina_professores (disciplina_id, professor_id, aulas) VALUES (1, 1, 2), (2, 2, 2);`,
+  });
+
+  test("a grade gerada para um curso não fica à mostra, nem se aplica, no outro", async ({ page, banco }) => {
+    await responderConfirmacoes(page);
+    await irPara(page, "Automática");
+    await page.getByRole("button", { name: "Gerar grade" }).click();
+    await expect(page.getByRole("button", { name: "Aplicar esta grade" })).toBeVisible({ timeout: 30_000 });
+
+    // A carga do curso novo fica parada: é o intervalo em que a tela ainda tinha o resultado do antigo.
+    const consultas = await segurarConsultas(page, "SELECT * FROM alocacoes WHERE curso_id = ?");
+    await escolher(page.getByRole("navigation").getByRole("combobox", { name: "Curso" }), "Beta");
+    await expect.poll(consultas.seguras).toBe(1);
+    // Com a lista de cursos aberta, o resto da página sai da árvore de acessibilidade: espera ela fechar,
+    // senão a contagem seria zero por isso e o teste passaria com o defeito.
+    await expect(page.getByRole("listbox")).toHaveCount(0);
+    expect(await page.getByRole("button", { name: "Aplicar esta grade" }).count()).toBe(0);
+    await consultas.soltar();
+    await expect(page.getByRole("button", { name: "Gerar grade" })).toBeEnabled();
+    expect(await page.getByRole("button", { name: "Aplicar esta grade" }).count()).toBe(0);
+    expect(contar(banco, "SELECT COUNT(*) FROM alocacoes")).toBe(0);
   });
 });

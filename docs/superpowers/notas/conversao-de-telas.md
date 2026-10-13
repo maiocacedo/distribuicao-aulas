@@ -129,7 +129,7 @@ O botão do caso 2 tem nome diferente do "Limpar filtros" da barra (os dois apar
 - Coluna de texto derivado (etiquetas, rótulo composto): `accessorFn` que devolve o texto mostrado, para ordenar pelo que o usuário lê.
 - Dado da lista inteira de que a ação de linha precisa (total de registros): leve na própria linha (`n_cursos`), para as colunas não dependerem de `linhas` e continuarem estáveis.
 - Ilha `.legado` num diálogo novo (componente ainda antigo): `<div className="legado -mb-3">`; o `-mb-3` desfaz a margem de 12 px do último bloco antigo, que o item de flex não colapsa.
-- Limpeza do `legado.css`: o `grep` por classe também pega componente morto em `legado.tsx`; pode-o primeiro. Dentro de `.legado` só restam `GradeAutomatica.tsx` e `Vazio`/`Erro`; não há mais `input`, `textarea`, `fieldset`, `label` nem `<select>` nativo.
+- Limpeza do `legado.css`: o `grep` por classe também pega componente morto em `legado.tsx`; pode-o primeiro. Com a grade automática convertida nenhuma página é `legado: true`; do `legado.css` só restam o preâmbulo (`revert`), a base de `.legado` e as regras universais (`*`, `:focus-visible`), e `legado.tsx` não tem mais quem o importe: tudo isso sai na tarefa 17.
 - Para as grades: a confirmação de aulas apagadas e o toast de troca de sala já têm texto e padrão em `Salas` e em `disciplinas/index.tsx`; `motivosParaMostrar` (`disciplinas/salvar.ts`) é pura, se a grade precisar descrever motivos.
 - Arquivos em CRLF no disco: script que edita por substituição lê com `newline=""` e normaliza. Ao medir um diálogo, espere a animação de entrada (~600 ms).
 - CLI do shadcn importa `cn` do pacote npm `cn`: troque o import por `@/lib/utils`, `git checkout package.json package-lock.json`, confira `tema.css` e `components.json`.
@@ -199,7 +199,7 @@ Tabela com desenho próprio (Indisponibilidades; a grade manual vem a seguir) mo
 - **O que é preciso declarar:** `border-collapse: separate` e `border-spacing` (o reset põe `collapse`; malha com vão entre células precisa de `separate`), `font-weight` de `th` (o navegador dá negrito), `font-style: normal` em `em`, `cursor: pointer` e `border-radius` de botão.
 - **Descubra por ablação, não por lista:** tire uma declaração por vez do `grade.css` e compare a medida (`getBoundingClientRect` + `getComputedStyle`, claro e escuro, seletores por estrutura para valer antes e depois). O que não muda a medida sai.
 - **A captura tem de ver o que vai ser mexido.** A de Indisponibilidades não mostrava a malha (nenhum professor escolhido); foi preciso uma captura com professor escolhido, gerada com o código antigo ANTES de converter.
-- **Ainda no legado, por causa da grade automática:** `.sub` (`CabecalhoPagina` com `sub`) e `.acoes-secao` (`mt-3 flex items-center gap-2`). Saem quando ela sair. `.painel-duplo` já saiu: virou `grid grid-cols-[264px_1fr] items-stretch gap-[14px]` na grade manual.
+- `.sub` virou o `sub` do `CabecalhoPagina` e `.acoes-secao`, `mt-3 flex items-center gap-2`. `.painel-duplo` virou `grid grid-cols-[264px_1fr] items-stretch gap-[14px]` na grade manual.
 - **Medir botão do shadcn:** o `transition-colors` faz a cor sair intermediária se a medida vier logo depois de o botão deixar de ser `disabled`. Espere uns 500 ms.
 - **Item ativo de lista de seleção:** `<button aria-pressed>` com `bg-acc-bg font-semibold text-primary`, sem variante de hover no ativo; fundo, cor e peso, então não depende só de cor.
 - **Dois erros de carga, cada um limpo pela sua carga** (`erro` da lista e das contagens, `erroDoProfessor` da malha): limpar um no fim da carga do outro esconde um erro ainda verdadeiro. Gravação que passa e recarga que falha depois é erro de página, não toast de gravação: `try` só em volta da gravação.
@@ -234,3 +234,12 @@ Telegráfico; o exemplo vivo é `src/paginas/grade-manual/`.
 2. Meça a tela antiga com um spec temporário em `testes/e2e/` (`getBoundingClientRect` e `getComputedStyle` de título, busca, botões, cabeçalhos e duas linhas), gravando um JSON fora do repositório. Converta, meça de novo e compare os números: eles dizem o que está errado; a captura só diz que está.
 3. `npm run test:visual -- -g "<tela>" --update-snapshots`, abra as duas imagens novas contra as antigas e anote no relatório cada diferença e o motivo.
 4. `npm run test:visual` inteiro: as outras telas passam sem regerar. Se uma diferir, abra o diff e corrija o código. Apague o spec temporário antes do commit.
+
+## Grade automática (tarefa 15)
+
+- **Aplicar pelo histórico.** `historico.executarNaGrade(cursoId, "Aplicar a grade gerada", instrucoes)`; as instruções só tocam `alocacoes` do curso. Toast `avisar.desfazer("Grade aplicada", desfazerEAvisar)` só com `historico.estado().podeDesfazer` (e o curso ainda o mesmo), senão `avisar.sucesso`. O aviso da página, `<Alerta tom="sucesso">Grade aplicada. <Button variant="link">Abrir a grade manual</Button></Alerta>`, sai quando algo recarrega a tela (desfazer, troca de curso).
+- **Tela com uma ação só: sem a maquinaria da grade manual.** Basta atrelar o que se leu e o que se gerou ao curso (`{ cursoId, … }`, lido pelo curso da tela): trocar de curso não remonta a página, e o resultado do curso anterior ficava à mostra, aplicável, até a carga do novo terminar. Uma `ref` com o curso de agora e outra com o número da carga descartam o que chega atrasado.
+- **Melhorou, piorou, igual** sem cor sozinha: `▲`, `▼` e `=` na frente do número (`aria-hidden`) e o texto `sr-only` ", melhorou" / ", piorou" / ", igual" depois dele; uma linha de legenda no parágrafo de baixo. Aqui ▲ é melhor mesmo quando o número desce (buracos).
+- **Motivo de botão parado** num `span id` antes dos botões do cabeçalho, ligado por `aria-describedby` a todos os que ele explica ("Aplicando a grade…", "Não há o que distribuir.").
+- **Teste de contagem de botões com uma lista de `Seletor` aberta:** o Radix tira o resto da página da árvore de acessibilidade; espere `getByRole("listbox")` sumir antes de contar.
+- **Confirmação:** um segundo `confirmar` com o primeiro aberto recusa o primeiro; dois cliques seguidos em "Aplicar esta grade" não aplicam duas vezes.
