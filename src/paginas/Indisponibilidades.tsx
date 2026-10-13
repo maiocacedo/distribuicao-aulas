@@ -144,15 +144,17 @@ export default function Indisponibilidades() {
     definirMarcados(novo);
   }
 
+  /** O fim do arrasto: grava, numa transação só, o que ele pintou. */
+  function soltar() {
+    if (!arrastando.current) return;
+    arrastando.current = null;
+    // Gravar fora do updater do estado: no StrictMode o React chama o
+    // updater duas vezes, e cada chamada abria uma transação (B10).
+    void persistir(marcadosRef.current);
+  }
+
   // Soltar o botão em qualquer lugar encerra o arrasto e grava.
   useEffect(() => {
-    const soltar = () => {
-      if (!arrastando.current) return;
-      arrastando.current = null;
-      // Gravar fora do updater do estado: no StrictMode o React chama o
-      // updater duas vezes, e cada chamada abria uma transação (B10).
-      void persistir(marcadosRef.current);
-    };
     window.addEventListener("mouseup", soltar);
     return () => window.removeEventListener("mouseup", soltar);
   });
@@ -264,8 +266,13 @@ export default function Indisponibilidades() {
                                 arrastando.current = marcado ? "desmarcar" : "marcar";
                                 pintar(d, h.indice, arrastando.current);
                               }}
-                              onMouseEnter={() => {
-                                if (arrastando.current) pintar(d, h.indice, arrastando.current);
+                              onMouseEnter={(e) => {
+                                if (!arrastando.current) return;
+                                // O botão subiu fora da janela e o `mouseup` não
+                                // chegou: o arrasto acabou lá. Sem isto o ponteiro,
+                                // de volta, seguiria pintando sem botão apertado.
+                                if ((e.buttons & 1) === 0) return soltar();
+                                pintar(d, h.indice, arrastando.current);
                               }}
                             >
                               {aula ? "•" : marcado ? "×" : ""}

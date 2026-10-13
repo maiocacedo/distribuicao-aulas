@@ -210,12 +210,14 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
    * `feito` é o aviso das ações que pedem um: ganha o botão "Desfazer" só se a
    * ação entrou no histórico. A que cruza com uma escrita de cadastro fica
    * gravada sem entrar nele, e um "Desfazer" ali não teria o que desfazer.
+   *
+   * `sujeito` é de quem a mensagem de falha fala: a aula, ou o período inteiro.
    */
-  async function gravar(rotulo: string, instrucoes: Instrucao[], feito?: string): Promise<boolean> {
+  async function gravar(rotulo: string, instrucoes: Instrucao[], feito?: string, sujeito = "A aula"): Promise<boolean> {
     try {
       await historico.executarNaGrade(cursoId, rotulo, instrucoes);
     } catch (e) {
-      avisar.erro(mensagemErro(e, "A aula"));
+      avisar.erro(mensagemErro(e, sujeito));
       await recarregar();
       return false;
     }
@@ -235,6 +237,11 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
    * disso falharia ("Alocar" de novo dá `UNIQUE`) ou entraria duas vezes no
    * histórico (o segundo "antes" já não tem a aula, e desfazer não a traria de
    * volta). Células diferentes seguem livres.
+   *
+   * Alocar trava também a fatia (`fatia:…`, no mesmo conjunto): a contagem de
+   * aulas já alocadas é a da tela, e uma segunda alocação da mesma fatia em
+   * outra célula, antes da recarga, passaria por ela e deixaria a disciplina
+   * com mais aulas do que tem.
    */
   const emVoo = useRef(new Set<string>());
 
@@ -259,7 +266,7 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
   /** A fatia é a escolhida (clique no horário) ou a arrastada (solta nele). */
   function alocarEm(f: Fatia, dia: number, hora: number): Promise<boolean> {
     if (periodo == null) return Promise.resolve(false);
-    return nasCelulas([celulaDe(periodo, dia, hora)], () => alocar(f, dia, hora));
+    return nasCelulas([celulaDe(periodo, dia, hora), `fatia:${cursoId}:${idFatia(f)}`], () => alocar(f, dia, hora));
   }
 
   /**
@@ -284,9 +291,17 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
   /**
    * Leva a aula a outro horário do mesmo período. Trava as duas células: de
    * onde ela sai e aonde chega. A sala vai junto se continua livre lá.
+   *
+   * A aula fixada não se pega, mas pode ser fixada depois de pega (o botão
+   * direito, antes de o ponteiro andar o bastante para o arrasto começar): a
+   * guarda lê o cadeado da aula como ela está ao soltar.
    */
   function moverAula(aula: Aula, f: Fatia, dia: number, hora: number, ocupacao: Ocupacao): Promise<boolean> {
     if (!ctx) return Promise.resolve(false);
+    if (aula.fixada) {
+      avisar.aviso("Solte o cadeado para mover");
+      return Promise.resolve(false);
+    }
     const sala = acoes.salaAoMover(ctx, ocupacao, regrasDe(f), aula, dia, hora, salaVizinha(f, dia, hora, aula));
     return nasCelulas([celulaDaAula(aula), celulaDe(aula.periodo, dia, hora)], () =>
       gravar(`Mover ${aula.disciplina}`, [acoes.mover(aula, dia, hora, sala)]),
@@ -352,6 +367,9 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
   function aoComecar(e: DragStartEvent) {
     const carga = e.active.data.current as Carga;
     const fim = new AbortController();
+    // Um arrasto anterior que não tenha passado por `encerrarArrasto` deixaria
+    // os ouvintes dele na janela, sem ninguém mais para desligá-los.
+    pego.current?.fim.abort();
     pego.current = { carga, fim };
     marcarArrasto(true);
     setArrasto(carga);
@@ -369,6 +387,12 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
     // botão sobe lá fora, e na volta o primeiro clique soltaria a carga onde
     // o ponteiro estivesse.
     window.addEventListener("blur", cancelarArrasto, ate);
+    // Nem disto: o botão sobe fora da janela, que continua com o foco, e o
+    // `pointerup` não chega. Na volta o ponteiro anda sem botão apertado.
+    const semBotao = (ponteiro: PointerEvent) => {
+      if (ponteiro.buttons === 0) cancelarArrasto();
+    };
+    window.addEventListener("pointermove", semBotao, ate);
   }
 
   /**
@@ -441,8 +465,15 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
       const alvo = over?.data.current as Alvo | undefined;
       if (!alvo) return "";
       // O painel só recebe aula: para a pendência ele não é destino.
-      if (alvo.tipo === "pendencias") return carga?.tipo === "aula" ? "Sobre as pendências" : "";
-      return `Sobre ${DIAS[alvo.dia]}, ${codigoDe(alvo.hora)}`;
+      if (alvo.tipo === "pendencias") return carga?.tipo === "aula" ? "Sobre as pendências: solte para remover" : "";
+      const lugar = `Sobre ${DIAS[alvo.dia]}, ${codigoDe(alvo.hora)}`;
+      if (!carga?.tipo) return lugar;
+      // A célula impedida diz por quê, como está escrito nela: sem isto, quem
+      // não vê a malha saberia onde está, mas não que soltar ali não grava.
+      const movendo = carga.tipo === "aula";
+      const ocupacao = movendo ? acoes.semAOrigem(cursoId, aulas, carga.aula) : oc;
+      const motivo = motivoDe(carga.fatia, alvo.dia, alvo.hora, ocupacao, movendo);
+      return motivo ? `${lugar}: ${motivo}` : lugar;
     },
     // O que aconteceu ao soltar aparece na grade e, quando há o que dizer, num aviso.
     onDragEnd: () => "",
@@ -467,6 +498,7 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
       `Limpar o ${periodo}º período`,
       [acoes.limpar(cursoId, periodo)],
       `${doPeriodo.length - fixadas} aula(s) apagadas do ${periodo}º período`,
+      "O período",
     );
   }
 

@@ -153,6 +153,21 @@ test.describe("aula", () => {
     await expect(page.getByRole("button", { name: "Desfazer" }).last()).toBeVisible();
   });
 
+  test("sobre as pendências, o anúncio diz que soltar ali remove", async ({ page, banco }) => {
+    await irPara(page, "Manual");
+    await pegar(page, celula(page, "Segunda", "M1"), page.getByRole("region", { name: "Pendências" }));
+    await expect(anuncio(page)).toHaveText("Sobre as pendências: solte para remover");
+    await page.mouse.up();
+    await expect.poll(() => contar(banco, "SELECT COUNT(*) FROM alocacoes")).toBe(0);
+  });
+
+  test("os botões da aula são descritos pela disciplina dela", async ({ page }) => {
+    await irPara(page, "Manual");
+    const aula = celula(page, "Segunda", "M1");
+    await expect(aula).toHaveAccessibleName("Segunda, M1");
+    await expect(aula).toHaveAccessibleDescription("Cálculo");
+  });
+
   test("soltar na própria célula não faz nada", async ({ page, banco }) => {
     await irPara(page, "Manual");
     const origem = celula(page, "Segunda", "M1");
@@ -209,6 +224,35 @@ test.describe("aula", () => {
     await page.keyboard.press("Control+z");
     await expect.poll(() => onde(banco, 1, 1)).toBe(0);
   });
+
+  test("fixada com o botão direito depois de pega, a aula não se move, e o aviso diz por quê", async ({ page, banco }) => {
+    await irPara(page, "Manual");
+    const origem = celula(page, "Segunda", "M1");
+    const de = (await origem.boundingBox())!;
+    const para = (await celula(page, "Quinta", "M3").boundingBox())!;
+    // O botão esquerdo desce sobre a aula e, antes de o ponteiro andar os 6 px
+    // que começam o arrasto, o direito a fixa: o sensor já está com ela.
+    await page.mouse.move(de.x + 10, de.y + 10);
+    await page.mouse.down();
+    await page.mouse.down({ button: "right" });
+    await page.mouse.up({ button: "right" });
+    await expect.poll(() => fixadas(banco)).toBe(1);
+    await expect(origem.getByRole("button", { name: "Soltar" })).toBeVisible();
+    await page.mouse.move(de.x + 30, de.y + 30, { steps: 4 });
+    await page.mouse.move(para.x + para.width / 2, para.y + para.height / 2, { steps: 10 });
+    await expect(page.locator(".celula.arrastando")).toBeVisible();
+    await page.mouse.up();
+    await expect(page.locator("[data-sonner-toast]", { hasText: "Solte o cadeado para mover" })).toBeVisible();
+    expect(onde(banco, 0, 0)).toBe(1);
+    expect(onde(banco, 3, 2)).toBe(0);
+    // No histórico só a fixação, sem um "mover" que não moveu nada: desfeita
+    // ela, não sobra o que desfazer.
+    await page.keyboard.press("Control+z");
+    await expect(page.getByText("Desfeito: Fixar Cálculo")).toBeVisible();
+    await expect(page.getByRole("main").getByRole("button", { name: "Desfazer" })).toBeDisabled();
+    expect(onde(banco, 0, 0)).toBe(1);
+    expect(onde(banco, 3, 2)).toBe(0);
+  });
 });
 
 test.describe("aula, com a carga parada", () => {
@@ -236,6 +280,38 @@ test.describe("aula, com a carga parada", () => {
     await page.keyboard.press("Control+z");
     await expect.poll(() => onde(banco, 0, 0)).toBe(1);
     expect(contar(banco, "SELECT COUNT(*) FROM alocacoes")).toBe(1);
+  });
+});
+
+test.describe("a mesma pendência em duas células, com a carga parada", () => {
+  test.use({
+    semMassa: true,
+    semente: `
+      INSERT INTO periodos (curso_id, numero, turno) VALUES (1, 1, 'manha');
+      INSERT INTO professores (id, nome) VALUES (1, 'Ana Souza');
+      INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais, exige_sala) VALUES (1, 1, 'Cálculo', 1, 1, 0);
+      INSERT INTO disciplina_professores (disciplina_id, professor_id, aulas) VALUES (1, 1, 1);`,
+  });
+
+  test("o segundo clique, em outra célula, não aloca além das aulas da disciplina", async ({ page, banco }) => {
+    await irPara(page, "Manual");
+    const pendencia = page.getByRole("button", { name: /Cálculo/ });
+    await pendencia.click();
+    await expect(pendencia).toHaveAttribute("aria-pressed", "true");
+    const consultas = await segurarConsultas(page, AULAS_DA_GRADE);
+    await celula(page, "Segunda", "M1").click();
+    await expect.poll(consultas.seguras).toBe(1);
+    expect(contar(banco, "SELECT COUNT(*) FROM alocacoes")).toBe(1);
+    // A tela ainda é a de antes: 0 de 1 aula, e a outra célula continua apta.
+    await celula(page, "Terça", "M2").click();
+    await consultas.soltar();
+    await expect(celula(page, "Segunda", "M1")).toContainText("Cálculo");
+    // Marco: fixar a aula, pela mesma fila. Uma segunda alocação já estaria no
+    // banco quando esta chega.
+    await celula(page, "Segunda", "M1").click({ button: "right" });
+    await expect.poll(() => fixadas(banco)).toBe(1);
+    expect(contar(banco, "SELECT COUNT(*) FROM alocacoes")).toBe(1);
+    expect(onde(banco, 1, 1)).toBe(0);
   });
 });
 
@@ -313,6 +389,8 @@ test.describe("duas aulas", () => {
     await irPara(page, "Manual");
     await pegar(page, celula(page, "Segunda", "M1"), celula(page, "Quarta", "M1"));
     await expect(celula(page, "Quarta", "M1")).toContainText("A. Souza indisponível");
+    // Quem não vê a malha ouve o mesmo motivo que está escrito na célula.
+    await expect(anuncio(page)).toHaveText("Sobre Quarta, M1: A. Souza indisponível");
     await page.mouse.up();
     await expect(page.locator("[data-sonner-toast]", { hasText: "A. Souza indisponível" })).toBeVisible();
     await alternarCadeado(page, celula(page, "Segunda", "M1"), banco);
@@ -444,6 +522,30 @@ test.describe("o arrasto sempre termina", () => {
     expect(onde(banco, 1, 1)).toBe(0);
   });
 
+  test("o botão sobe fora da janela: o ponteiro que volta sem botão apertado cancela o arrasto, e nada é gravado", async ({ page, banco }) => {
+    await irPara(page, "Manual");
+    const pendencia = page.getByRole("button", { name: /Cálculo/ });
+    await pegar(page, pendencia, celula(page, "Terça", "M2"));
+    await expect(page.locator(".celula.arrastando")).toBeVisible();
+    // O `pointerup` ficou lá fora: o que a janela vê, na volta, é o ponteiro
+    // andando sem botão nenhum apertado.
+    await page.evaluate(() =>
+      document.dispatchEvent(
+        new PointerEvent("pointermove", { bubbles: true, pointerId: 1, pointerType: "mouse", isPrimary: true, buttons: 0, clientX: 700, clientY: 400 }),
+      ),
+    );
+    await expect(page.locator(".celula.arrastando")).toHaveCount(0);
+    await expect(celula(page, "Terça", "M2")).not.toContainText("Alocar");
+    // O primeiro clique depois disso não solta a carga onde o ponteiro estiver.
+    await page.mouse.up();
+    // Marco: uma alocação de verdade, pela mesma fila. Com a carga solta no
+    // clique, seriam duas aulas.
+    await arrastar(page, pendencia, celula(page, "Quinta", "M1"));
+    await expect(celula(page, "Quinta", "M1")).toContainText("Cálculo");
+    expect(contar(banco, "SELECT COUNT(*) FROM alocacoes")).toBe(1);
+    expect(onde(banco, 1, 1)).toBe(0);
+  });
+
   test("soltar a pendência sobre o painel de pendências não faz nada", async ({ page, banco }) => {
     await irPara(page, "Manual");
     const pendencia = page.getByRole("button", { name: /Cálculo/ });
@@ -471,6 +573,8 @@ test.describe("o arrasto sempre termina", () => {
     const painel = (await page.getByRole("region", { name: "Pendências" }).boundingBox())!;
     await pegar(page, pendencia, celula(page, "Terça", "M2"));
     await expect(anuncio(page)).toHaveText("Sobre Terça, M2");
+    // Em mãos, a pendência fica marcada como a origem, e só enquanto está em mãos.
+    await expect(pendencia).toHaveClass(/origem/);
     // Para a pendência o painel não é destino: ali não há o que anunciar.
     await page.mouse.move(painel.x + painel.width / 2, painel.y + painel.height / 2, { steps: 10 });
     await expect(anuncio(page)).toHaveText("");
@@ -480,6 +584,7 @@ test.describe("o arrasto sempre termina", () => {
     await page.mouse.up();
     await expect.poll(() => onde(banco, 3, 2)).toBe(1);
     await expect(anuncio(page)).toHaveText("");
+    await expect(pendencia).not.toHaveClass(/origem/);
   });
 });
 

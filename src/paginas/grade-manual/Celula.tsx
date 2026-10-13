@@ -115,7 +115,6 @@ export function Celula({
   const classes = [
     "celula",
     classe,
-    foraDoTurno && "contraturno",
     arrastavel && "arrastavel",
     // De onde a aula saiu, enquanto está em mãos; e a vazia sob o ponteiro.
     isDragging && "origem",
@@ -198,6 +197,9 @@ export function Celula({
       // Focável só por código: o foco que a ação devolve (ver `agindo`).
       tabIndex={-1}
       aria-label={rotulo}
+      // O nome do grupo é o horário; a descrição é a disciplina. Quem chega
+      // pelo Tab a "Remover aula" ou a "Fixar" ouve de qual aula eles são.
+      aria-describedby={idDoTexto}
       className={classes}
       onContextMenu={(e) => {
         // A lista de salas é desenhada fora da célula, mas os eventos dela sobem
@@ -207,7 +209,9 @@ export function Celula({
         aoFixar();
       }}
     >
-      <span className="nome">{aula.disciplina}</span>
+      <span id={idDoTexto} className="nome">
+        {aula.disciplina}
+      </span>
       <span className="meta">
         {curto(aula.professor)}
         {mostraSala && " · "}

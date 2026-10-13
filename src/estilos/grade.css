@@ -1,9 +1,10 @@
 /*
  * As malhas: Indisponibilidades e grade manual. Desenho próprio, sobre os
- * tokens do tema — os estados de célula usam listras, tracejado e cadeado, que
- * nenhum componente pronto cobre. Valem as três regras do `tema.css`.
+ * tokens do tema — os estados de célula usam listras, tracejado e rebaixo, que
+ * nenhum componente pronto cobre (o cadeado da aula fixada é um ícone, posto
+ * pela célula). Valem as três regras do `tema.css`.
  *
- * O reset do Tailwind tira o que o navegador dá a tabela, `th`, `em` e botão, e
+ * O reset do Tailwind tira o que o navegador dá à tabela, `th`, `em` e botão, e
  * o desenho conta com isso. Por isso este arquivo declara `border-collapse` e
  * `border-spacing` da tabela, o peso de `th` (o navegador dá negrito), o
  * `font-style` do `em`, o `cursor` e o `border-radius` dos botões. O resto
@@ -151,9 +152,8 @@
    - o painel da malha é um `section`, que não tem fundo, contorno nem raio;
    - a lista do diagnóstico precisa do marcador, que o reset tira;
    - a célula vazia é um `button`, e o navegador centra o texto de botão.
-   O que o reset já dá não foi declarado de novo (medido antes e depois, e
-   tirando uma declaração por vez): `margin` e `list-style` de lista e de
-   parágrafo, fundo e contorno de botão, o peso do `strong` do título. */
+   O que o reset já dá não se declara de novo: `margin` e `list-style` de lista
+   e de parágrafo, fundo e contorno de botão, o peso do `strong` do título. */
 
 .abas-periodo {
   display: flex;
@@ -428,8 +428,7 @@
 }
 
 /* 6 · fora do turno — escurecida, não avermelhada: tolerado não é erro */
-.celula.fora,
-.celula.contraturno.neutra {
+.celula.fora {
   background: var(--off);
 }
 
@@ -546,8 +545,8 @@
   opacity: 0;
 }
 
-/* O cadeado fechado da aula fixada é o estado dela: sempre à vista, no lugar
-   do desenho de cadeado que a célula tinha. */
+/* O cadeado fechado da aula fixada é o estado dela: fica sempre à vista, sem
+   depender do pouso nem do foco. */
 .celula.travada .controles > :last-child,
 .celula:hover .controles > *,
 .celula:has(:focus-visible) .controles > * {
@@ -630,6 +629,27 @@
 .celula.origem .nome,
 .celula.origem .meta {
   color: var(--tx3);
+}
+
+/* A pendência em mãos leva a mesma marca. Vem depois da escolhida, que tem a
+   mesma força: em mãos, o tracejado toma o lugar da tinta e do contorno dela. */
+.pendencias button.fatia.origem {
+  background: var(--inset);
+  box-shadow: none;
+  outline: 1px dashed var(--lineS);
+  outline-offset: -3px;
+}
+
+.pendencias button.fatia.origem .nome,
+.pendencias button.fatia.origem .prof,
+.pendencias button.fatia.origem .prog {
+  color: var(--tx3);
+}
+
+/* O tracejado é `outline` e, nesta camada, venceria o anel de foco do tema. */
+.pendencias button.fatia.origem:focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 2px;
 }
 
 /* A célula vazia sob o ponteiro: a borda firme e mais grossa toma o lugar do

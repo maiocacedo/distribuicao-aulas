@@ -9,18 +9,27 @@ const aula = (dia: number, hora: number, salaId: number | null, extra: Partial<A
 });
 
 describe("instruções", () => {
-  it("mover troca dia, hora e sala da aula certa", () => {
-    expect(mover(aula(0, 0, 1), 2, 3, 4)).toEqual({
-      sql: "UPDATE alocacoes SET dia = ?, hora = ?, sala_id = ? WHERE curso_id = ? AND periodo = ? AND dia = ? AND hora = ?",
-      params: [2, 3, 4, 1, 1, 0, 0],
+  // A aula é a que a tela mostrava: além do lugar, a disciplina e o professor.
+  // Se a célula já é de outra aula, a instrução não toca em nenhuma linha.
+  const ONDE = "WHERE curso_id = ? AND periodo = ? AND dia = ? AND hora = ? AND disciplina_id = ? AND professor_id = ?";
+  const chave = [1, 1, 0, 0, 7, 3];
+  const daTela = () => aula(0, 0, 1, { disciplinaId: 7, professorId: 3 });
+
+  it("mover troca dia, hora e sala da aula certa, se ela não está fixada", () => {
+    expect(mover(daTela(), 2, 3, 4)).toEqual({
+      sql: `UPDATE alocacoes SET dia = ?, hora = ?, sala_id = ? ${ONDE} AND fixada = 0`,
+      params: [2, 3, 4, ...chave],
     });
   });
 
-  it("remover, trocar sala e fixar miram a aula pela chave", () => {
-    const chave = [1, 1, 0, 0];
-    expect(remover(aula(0, 0, 1)).params).toEqual(chave);
-    expect(trocarSala(aula(0, 0, 1), null).params).toEqual([null, ...chave]);
-    expect(fixar(aula(0, 0, 1), true).params).toEqual([1, ...chave]);
+  it("remover leva a aula que a tela mostrava, se ela não está fixada", () => {
+    expect(remover(daTela())).toEqual({ sql: `DELETE FROM alocacoes ${ONDE} AND fixada = 0`, params: chave });
+  });
+
+  // Trocar a sala e fixar valem também para a aula fixada (soltar é fixar com 0).
+  it("trocar sala e fixar miram a aula que a tela mostrava, fixada ou não", () => {
+    expect(trocarSala(daTela(), null)).toEqual({ sql: `UPDATE alocacoes SET sala_id = ? ${ONDE}`, params: [null, ...chave] });
+    expect(fixar(daTela(), true)).toEqual({ sql: `UPDATE alocacoes SET fixada = ? ${ONDE}`, params: [1, ...chave] });
   });
 
   it("limpar poupa as fixadas", () => {

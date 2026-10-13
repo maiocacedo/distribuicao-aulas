@@ -121,29 +121,39 @@ export default function GradeAutomatica({
   // Cada carga leva um número: a que chega depois de outra mais nova não vale.
   const geracao = useRef(0);
 
+  /**
+   * Lê o problema e a grade do curso. Não rejeita: o erro é da carga e vai para
+   * a página por aqui, com a mesma guarda do resultado — a carga superada, ou a
+   * de um curso que já saiu da tela, não escreve nem o que leu nem a falha dela.
+   */
   const carregar = useCallback(async () => {
     const minha = ++geracao.current;
-    const problema = await carregarProblema(cursoId);
-    const atual = (
-      await consultar<{
-        periodo: number;
-        dia: number;
-        hora: number;
-        disciplina_id: number;
-        professor_id: number;
-        sala_id: number | null;
-      }>("SELECT * FROM alocacoes WHERE curso_id = ?", [cursoId])
-    ).map((a) => ({
-      periodo: a.periodo,
-      dia: a.dia,
-      hora: a.hora,
-      disciplinaId: a.disciplina_id,
-      professorId: a.professor_id,
-      salaId: a.sala_id,
-    }));
-    if (minha !== geracao.current || cursoId !== cursoAtual.current) return;
-    setLido({ cursoId, problema, atual });
-    setErro("");
+    const vale = () => minha === geracao.current && cursoId === cursoAtual.current;
+    try {
+      const problema = await carregarProblema(cursoId);
+      const atual = (
+        await consultar<{
+          periodo: number;
+          dia: number;
+          hora: number;
+          disciplina_id: number;
+          professor_id: number;
+          sala_id: number | null;
+        }>("SELECT * FROM alocacoes WHERE curso_id = ?", [cursoId])
+      ).map((a) => ({
+        periodo: a.periodo,
+        dia: a.dia,
+        hora: a.hora,
+        disciplinaId: a.disciplina_id,
+        professorId: a.professor_id,
+        salaId: a.sala_id,
+      }));
+      if (!vale()) return;
+      setLido({ cursoId, problema, atual });
+      setErro("");
+    } catch (e) {
+      if (vale()) setErro(String(e));
+    }
   }, [cursoId]);
 
   // Carrega ao abrir, ao trocar de curso e depois de cada desfazer (`versao`),
@@ -152,7 +162,7 @@ export default function GradeAutomatica({
   useEffect(() => {
     setGerado(null);
     setAplicadoEm(null);
-    carregar().catch((e) => setErro(String(e)));
+    void carregar();
   }, [carregar, versao]);
 
   function gerar() {
@@ -231,7 +241,7 @@ export default function GradeAutomatica({
         await historico.executarNaGrade(cursoId, "Aplicar a grade gerada", instrucoes);
       } catch (e) {
         avisar.erro(mensagemErro(e, "A grade"));
-        await carregar().catch((falha) => setErro(String(falha)));
+        await carregar();
         return;
       }
       // O histórico já publicou (o toast de desfazer anterior fechou) antes de
@@ -241,11 +251,14 @@ export default function GradeAutomatica({
       if (cursoAtual.current === cursoId && historico.estado().podeDesfazer)
         avisar.desfazer("Grade aplicada", () => void desfazerEAvisar());
       else avisar.sucesso("Grade aplicada");
-      await carregar().catch((falha) => setErro(String(falha)));
+      // Antes de recarregar, e não depois: um desfazer que chegue durante a
+      // recarga zera os dois (pelo efeito de `versao`), e escrevê-los depois
+      // dela reacenderia o aviso de uma grade que já foi desfeita.
       if (cursoAtual.current === cursoId) {
         setGerado(null);
         setAplicadoEm(cursoId);
       }
+      await carregar();
     } finally {
       setAplicando(false);
     }
@@ -363,7 +376,9 @@ export default function GradeAutomatica({
 
               <p className="mb-3 max-w-[68ch] text-xs leading-normal text-tx2">
                 Resolvido em {resultado.milissegundos} ms, {resultado.passos} tentativas de posicionamento.{" "}
-                Em Gerada: ▲ melhor, ▼ pior e = igual à grade atual.
+                {/* Só para quem vê as setas: lida em voz alta, a frase sai com o
+                    nome dos glifos, e cada célula já diz "melhorou" ou "piorou". */}
+                <span aria-hidden="true">Em Gerada: ▲ melhor, ▼ pior e = igual à grade atual.</span>
               </p>
 
               {resultado.faltantes.length > 0 && (

@@ -114,6 +114,29 @@ test.describe("B10", () => {
     await expect.poll(() => contar(banco, "SELECT COUNT(*) FROM indisponibilidades")).toBe(2);
     expect(chamadas.filter((c) => c === "transacao")).toHaveLength(1);
   });
+
+  test("o botão sobe fora da janela: o ponteiro que volta sem botão apertado encerra o arrasto e não pinta", async ({ page, banco, chamadas }) => {
+    await irPara(page, "Indisponibilidades");
+    await page.getByRole("button", { name: "Ana Souza" }).click();
+    await celula(page, "Segunda", "M1").hover();
+    await page.mouse.down();
+    await celula(page, "Segunda", "M2").hover();
+    // O `mouseup` ficou lá fora: o ponteiro volta e entra numa célula, vindo de
+    // fora da janela (sem `relatedTarget`), sem botão nenhum apertado.
+    await celula(page, "Segunda", "M3").evaluate((el) =>
+      el.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, buttons: 0 })),
+    );
+    // O arrasto acabou ali: grava o que pintou, e a célula da volta fica como estava.
+    await expect.poll(() => contar(banco, "SELECT COUNT(*) FROM indisponibilidades")).toBe(2);
+    await expect(celula(page, "Segunda", "M3")).toHaveText("");
+    // Para o teste o botão ainda está apertado: solto agora, não há mais o que gravar.
+    await page.mouse.up();
+    // Marco: um clique de verdade, que grava a sua marca numa transação só dele.
+    await celula(page, "Terça", "M1").click();
+    await expect.poll(() => contar(banco, "SELECT COUNT(*) FROM indisponibilidades")).toBe(3);
+    expect(chamadas.filter((c) => c === "transacao")).toHaveLength(2);
+    expect(contar(banco, "SELECT COUNT(*) FROM indisponibilidades WHERE dia = 0 AND hora = 2")).toBe(0);
+  });
 });
 
 test.describe("Indisponibilidades", () => {

@@ -4,9 +4,16 @@ import { Ocupacao } from "../../regras/ocupacao";
 import type { Contexto, FatiaRegras } from "../../regras/tipos";
 import type { Aula, Fatia } from "./usarGrade";
 
-/** A chave de uma aula na tabela: (curso, período, dia, hora). */
-const ONDE = "WHERE curso_id = ? AND periodo = ? AND dia = ? AND hora = ?";
-const chave = (a: Aula) => [a.cursoId, a.periodo, a.dia, a.hora];
+/**
+ * A aula que a tela mostrava: o lugar dela na tabela (curso, período, dia e
+ * hora, que são a chave) e também a disciplina e o professor. Se entre o
+ * desenho e a gravação a célula passou a ser de outra aula, a instrução não
+ * toca em nenhuma linha, em vez de agir sobre uma aula que o usuário não viu.
+ */
+const ONDE = "WHERE curso_id = ? AND periodo = ? AND dia = ? AND hora = ? AND disciplina_id = ? AND professor_id = ?";
+const chave = (a: Aula) => [a.cursoId, a.periodo, a.dia, a.hora, a.disciplinaId, a.professorId];
+/** Mover e remover não valem para a aula fixada, ainda que o cadeado tenha chegado depois do desenho. */
+const SOLTA = "AND fixada = 0";
 
 export function alocar(cursoId: number, periodo: number, dia: number, hora: number, f: Fatia, salaId: number | null): Instrucao {
   return {
@@ -17,11 +24,11 @@ export function alocar(cursoId: number, periodo: number, dia: number, hora: numb
 }
 
 export function mover(a: Aula, dia: number, hora: number, salaId: number | null): Instrucao {
-  return { sql: `UPDATE alocacoes SET dia = ?, hora = ?, sala_id = ? ${ONDE}`, params: [dia, hora, salaId, ...chave(a)] };
+  return { sql: `UPDATE alocacoes SET dia = ?, hora = ?, sala_id = ? ${ONDE} ${SOLTA}`, params: [dia, hora, salaId, ...chave(a)] };
 }
 
 export function remover(a: Aula): Instrucao {
-  return { sql: `DELETE FROM alocacoes ${ONDE}`, params: chave(a) };
+  return { sql: `DELETE FROM alocacoes ${ONDE} ${SOLTA}`, params: chave(a) };
 }
 
 export function trocarSala(a: Aula, salaId: number | null): Instrucao {
@@ -37,7 +44,7 @@ export function limpar(cursoId: number, periodo: number): Instrucao {
   return { sql: "DELETE FROM alocacoes WHERE curso_id = ? AND periodo = ? AND fixada = 0", params: [cursoId, periodo] };
 }
 
-/** Se as duas são a mesma linha da tabela (a mesma chave), ainda que em objetos diferentes. */
+/** Se as duas ocupam o mesmo lugar da tabela (curso, período, dia e hora), ainda que em objetos diferentes. */
 export const mesmaAula = (a: Aula, b: Aula) =>
   a.cursoId === b.cursoId && a.periodo === b.periodo && a.dia === b.dia && a.hora === b.hora;
 

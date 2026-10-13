@@ -84,6 +84,11 @@ export function criarHistorico({ consultar, transacao, aoEscrever }: Dependencia
    *
    * As instruções devem se limitar às `alocacoes` do curso: é só isso que o
    * desfazer guarda e restaura.
+   *
+   * A ação que cruza a época (uma escrita de cadastro, ou a troca de curso,
+   * entre a chamada e a gravação) resolve normalmente e fica gravada, mas não
+   * entra na pilha. Quem chama e vai oferecer "Desfazer" confere antes
+   * `estado().podeDesfazer`.
    */
   function executarNaGrade(cursoId: number, rotulo: string, instrucoes: Instrucao[]) {
     // Anotada na chamada, não na vez da fila: se o histórico for invalidado

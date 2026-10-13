@@ -300,7 +300,6 @@ export function usarGrade(cursoId: number) {
     ctx,
     padroes,
     carregar,
-    doCurso,
     oc,
     alocadas,
     daGrade,

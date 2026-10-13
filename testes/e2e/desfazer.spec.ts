@@ -457,6 +457,8 @@ test.describe("grade gerada", () => {
     await page.getByRole("button", { name: "Gerar grade" }).click();
     const aulas = page.getByRole("row", { name: /Aulas alocadas/ }).getByRole("cell");
     await expect(aulas.nth(2)).toContainText("igual", { timeout: 30_000 });
+    // A legenda das setas é para quem as vê: as células já dizem o mesmo em palavras.
+    await expect(page.getByText("Em Gerada:")).toHaveAttribute("aria-hidden", "true");
   });
 
   test("enquanto aplica, os botões ficam parados e dizem por quê; terminando, um Ctrl+Z desfaz tudo", async ({ page, banco }) => {
@@ -492,6 +494,34 @@ test.describe("grade gerada", () => {
     await expect.poll(() => contar(banco, ALOCADAS)).toBe(semOPrimeiro);
     await expect(page.getByRole("main").getByRole("button", { name: "Desfazer" })).toHaveAttribute("aria-disabled", "true");
   });
+
+  test("um desfazer que chega enquanto a tela recarrega depois de aplicar não deixa o aviso de grade aplicada", async ({ page, banco }) => {
+    await responderConfirmacoes(page);
+    const total = contar(banco, TOTAL_DO_CURSO);
+    const semOPrimeiro = await esvaziarOPrimeiro(page, banco);
+    await irPara(page, "Automática");
+    await page.getByRole("button", { name: "Gerar grade" }).click();
+    const aplicar = page.getByRole("button", { name: "Aplicar esta grade" });
+    await aplicar.waitFor({ timeout: 30_000 });
+
+    // A mesma leitura serve ao "antes" do histórico e à recarga da tela: a
+    // primeira segue, e a aplicação fica parada na recarga que vem depois dela.
+    const consultas = await segurarConsultas(page, "SELECT * FROM alocacoes WHERE curso_id = ?");
+    await aplicar.click();
+    await expect.poll(consultas.seguras).toBe(1);
+    await consultas.soltar(1);
+    await expect.poll(() => contar(banco, ALOCADAS)).toBe(total);
+    await expect.poll(consultas.seguras).toBe(1);
+    // O desfazer chega no meio da recarga, e a recarga dele também fica parada.
+    await page.keyboard.press("Control+z");
+    await expect.poll(() => contar(banco, ALOCADAS)).toBe(semOPrimeiro);
+    await expect.poll(consultas.seguras).toBe(2);
+    await consultas.soltar();
+    // Marco: os botões só voltam depois de a aplicação terminar o que tinha a fazer.
+    await expect(page.getByRole("button", { name: "Gerar grade" })).toBeEnabled();
+    expect(await page.getByText("Grade aplicada.").count()).toBe(0);
+    expect(await page.getByRole("button", { name: "Abrir a grade manual" }).count()).toBe(0);
+  });
 });
 
 test.describe("grade gerada, troca de curso", () => {
@@ -524,5 +554,34 @@ test.describe("grade gerada, troca de curso", () => {
     await expect(page.getByRole("button", { name: "Gerar grade" })).toBeEnabled();
     expect(await page.getByRole("button", { name: "Aplicar esta grade" }).count()).toBe(0);
     expect(contar(banco, "SELECT COUNT(*) FROM alocacoes")).toBe(0);
+  });
+
+  test("a carga do curso de que se saiu, falhando depois, não põe erro na tela do outro", async ({ page }) => {
+    // A leitura das aulas do primeiro curso fica parada, e falha quando o teste mandar.
+    await page.evaluate(() => {
+      type Interno = { invoke: (cmd: string, args?: { query?: unknown; values?: unknown[] }) => Promise<unknown> };
+      const w = window as unknown as { __TAURI_INTERNALS__: Interno; __falhar: (() => void)[] };
+      const invocar = w.__TAURI_INTERNALS__.invoke;
+      w.__falhar = [];
+      w.__TAURI_INTERNALS__.invoke = async (cmd, args) => {
+        const doPrimeiro = String(args?.query).includes("SELECT * FROM alocacoes WHERE curso_id = ?") && args?.values?.[0] === 1;
+        if (cmd === "plugin:sql|select" && doPrimeiro)
+          await new Promise<void>((_, falha) => w.__falhar.push(() => falha("falha simulada")));
+        return invocar(cmd, args);
+      };
+    });
+    await irPara(page, "Automática");
+    await expect.poll(() => page.evaluate(() => (window as unknown as { __falhar: unknown[] }).__falhar.length)).toBeGreaterThan(0);
+    await escolher(page.getByRole("navigation").getByRole("combobox", { name: "Curso" }), "Beta");
+    // A tela já é a do segundo curso, carregada.
+    await expect(page.getByRole("main").getByText(/2 aula\(s\) a distribuir/)).toBeVisible();
+    await expect(page.getByRole("listbox")).toHaveCount(0);
+    // A falha chega agora. Marco: dois quadros depois dela a tela já a teria desenhado.
+    await page.evaluate(async () => {
+      (window as unknown as { __falhar: (() => void)[] }).__falhar.splice(0).forEach((falhar) => falhar());
+      await new Promise((seguir) => requestAnimationFrame(() => requestAnimationFrame(seguir)));
+    });
+    expect(await page.getByRole("main").getByRole("alert").count()).toBe(0);
+    await expect(page.getByRole("button", { name: "Gerar grade" })).toBeEnabled();
   });
 });

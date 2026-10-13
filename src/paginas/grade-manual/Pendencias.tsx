@@ -100,7 +100,7 @@ function Pendencia({
   // Só `listeners`: os `attributes` do dnd-kit anunciam um arrasto por teclado
   // que aqui não existe (pelo teclado, a pendência se escolhe e o horário se
   // clica). A fechada não tem mais aula a levar.
-  const { setNodeRef, listeners } = useDraggable({
+  const { setNodeRef, listeners, isDragging } = useDraggable({
     id: `fatia:${idFatia(fatia)}`,
     data: { tipo: "fatia", fatia } satisfies Carga,
     disabled: completa,
@@ -114,7 +114,8 @@ function Pendencia({
       {...listeners}
       type="button"
       aria-pressed={escolhida}
-      className={`fatia ${completa ? "completa" : ""}`}
+      // Em mãos, a pendência leva a marca de origem, como a aula da malha.
+      className={cn("fatia", completa && "completa", isDragging && "origem")}
       onClick={aoEscolher}
     >
       <span className="linha1">
