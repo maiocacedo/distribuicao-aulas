@@ -16,8 +16,9 @@ export interface Opcao<V> {
  * só quando o gatilho deve mostrar outra coisa.
  *
  * Casos de borda: o valor é localizado pela posição da primeira opção igual
- * (valores repetidos na lista não são suportados) e um valor fora da lista
- * deixa o gatilho vazio.
+ * (valores repetidos na lista não são suportados). Com o valor fora da lista o
+ * Radix ignora os filhos do `SelectValue` e mostra o `placeholder`: `exibir`
+ * vai nos dois, para valer também aí. Sem `exibir`, o gatilho fica vazio.
  */
 export function Seletor<V extends string | number | null>({
   valor,
@@ -50,7 +51,7 @@ export function Seletor<V extends string | number | null>({
       disabled={desabilitado}
     >
       <SelectTrigger aria-label={rotulo} className={className} {...aria}>
-        <SelectValue>{exibir}</SelectValue>
+        <SelectValue placeholder={exibir}>{exibir}</SelectValue>
       </SelectTrigger>
       <SelectContent>
         {opcoes.map((o, i) => (

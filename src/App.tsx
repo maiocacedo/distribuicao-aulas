@@ -200,14 +200,17 @@ function App() {
           {/* O escopo do que se edita fica visível o tempo todo, numa caixa
               rebaixada acima dos grupos: o curso vale para as páginas do
               primeiro grupo e para as grades. A altura de linha do gatilho
-              (1,4286, a antiga do `text-sm`) é o que dá a altura da caixa. */}
+              (1,4286) é o que dá a altura da caixa, e o `min-h` a reserva
+              enquanto ele está sem texto: sem isso o gatilho teria só a altura
+              da seta até a lista de cursos chegar, e a barra inteira desceria
+              quando o nome aparecesse. */}
           <div className="mx-0.5 mb-2.5 rounded-[5px] bg-poco px-[9px] pb-[5px] pt-1.5 shadow-[inset_0_0_0_1px_var(--lineC)]">
             <label htmlFor="curso-ativo" className="mb-0.5 block text-[10px] text-tx3">
               Curso
             </label>
             <Seletor
               id="curso-ativo"
-              className="h-auto w-full border-0 bg-transparent px-0 py-0 text-sm font-semibold leading-[1.4286] hover:bg-transparent"
+              className="h-auto min-h-[1.4286em] w-full border-0 bg-transparent px-0 py-0 text-sm font-semibold leading-[1.4286] hover:bg-transparent"
               valor={cursoId}
               opcoes={cursos.map((c) => ({ valor: c.id as number | null, rotulo: c.nome }))}
               exibir={cursos.length === 0 ? "nenhum curso" : undefined}
@@ -215,9 +218,8 @@ function App() {
               desabilitado={cursos.length === 0}
             />
           </div>
-          {/* Atalho discreto, como era: menor e em cinza, sem o fundo de item.
-              Com a altura de linha de 1,3333 (a antiga do `text-xs`) o texto
-              fica onde estava, no pixel. */}
+          {/* Atalho discreto: menor e em cinza, sem o fundo de item, com a
+              altura de linha de 1,3333. */}
           {item(
             PAGINA_CURSOS,
             "mx-0.5 h-auto w-[calc(100%-4px)] px-2 pb-[7px] pt-[5px] text-xs leading-[1.3333] text-tx3",

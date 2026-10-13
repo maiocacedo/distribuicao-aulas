@@ -50,3 +50,14 @@ test.describe("seletor de curso", () => {
     expect(rolagem).toBe(0);
   });
 });
+
+test.describe("sem curso nenhum", () => {
+  test.use({ semMassa: true, semente: "DELETE FROM cursos;" });
+
+  test("a caixa do curso diz que não há curso, em vez de ficar vazia", async ({ page }) => {
+    const seletor = page.getByRole("navigation").getByRole("combobox", { name: "Curso" });
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Nenhum curso");
+    await expect(seletor).toHaveText("nenhum curso");
+    await expect(seletor).toBeDisabled();
+  });
+});

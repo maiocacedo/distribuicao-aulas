@@ -26,20 +26,23 @@ const TELAS: { id: string; rotulo: string; pronta: (p: Page) => Locator }[] = [
  * e2e não precisam disso.
  *
  * Antes de fotografar, repinta a barra lateral. Os itens dela ficam em posição
- * fracionária (alturas de 17,84 e 26,66 px acima deles), e a caixa do curso
- * muda de altura quando a lista de cursos chega, logo depois de abrir a página:
- * os ícones são rasterizados na posição antiga e, em cerca de um quarto das
- * execuções, a camada fica com esse desenho velho (1 a 5 níveis de cor em
- * alguns pixels de três ícones), que não se corrige sozinho: fica igual por
- * quanto tempo se espere. Mudar a barra para posições inteiras seria a correção
- * de verdade, em `src/App.tsx`; aqui, esconder e mostrar a barra força o
- * desenho final, o mesmo da referência, sem tocar no que é fotografado.
+ * fracionária: acima deles estão o gatilho do curso, com 17,84 px de altura de
+ * linha, e o atalho "Gerenciar cursos", com 26,66 px. Em parte das execuções a
+ * camada da barra fica com os ícones rasterizados de um desenho anterior (1 a
+ * 5 níveis de cor em alguns pixels de três ícones), e isso não se corrige
+ * sozinho: fica igual por quanto tempo se espere. Reservar a altura da caixa
+ * do curso em `src/App.tsx`, para a barra não mudar de posição quando a lista
+ * de cursos chega, não bastou: sem o repinte, a captura clara de "Automática"
+ * continuou diferindo da referência na execução completa. Posições inteiras na
+ * barra seriam a correção de verdade, e obrigam a regerar todas as
+ * referências. Aqui, esconder e mostrar a barra força o desenho final, o mesmo
+ * da referência, sem tocar no que é fotografado.
  */
 async function capturar(page: Page, nome: string, opcoes: { fullPage?: boolean } = {}) {
   await page.mouse.move(1390, 890);
-  await page.evaluate(() => {
-    const barra = document.querySelector<HTMLElement>("nav");
-    if (!barra) return;
+  // Com um diálogo aberto a barra sai da árvore de acessibilidade, e continua
+  // sendo ela a repintar. Se a barra sumir, isto falha em vez de passar calado.
+  await page.getByRole("navigation", { includeHidden: true }).evaluate((barra: HTMLElement) => {
     barra.style.display = "none";
     void barra.offsetHeight; // aplica o estilo antes de devolver
     barra.style.removeProperty("display");
