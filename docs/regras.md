@@ -99,9 +99,11 @@ próprios blocos, e as restrições de professor se aplicam ao dono da fatia.
 
 O mesmo módulo, `src/regras/`, serve ao gerador e à grade manual: as regras de
 célula (D1–D8, D13–D16) são decididas num lugar só, e a grade manual mostra o
-motivo quando recusa uma célula. D9 e D10 dependem da fatia inteira; na grade
-manual aparecem como **aviso na pendência** (a fatia está sempre incompleta
-durante a montagem à mão), não como bloqueio. D9, D10 e D12 são estruturais do
+motivo quando recusa uma célula. D9 e D10 dependem da fatia inteira. Na grade
+manual, D9 bloqueia só o excesso: com todas as aulas da fatia já alocadas,
+nenhuma célula a aceita ("N de N aulas já alocadas"); a falta não bloqueia,
+porque durante a montagem à mão a fatia está sempre incompleta. D10 aparece
+como **aviso na pendência**. D9, D10 e D12 são estruturais do
 gerador. O auditor `src/solver/conferir.ts` reimplementa todas de forma
 independente, para que um erro no módulo de regras não passe despercebido.
 

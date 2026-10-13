@@ -39,6 +39,15 @@ Não há migração de banco nem mudança no lado Rust.
 | Confirmação de sala (D1) | Quando as aulas só perdem a sala, a confirmação diz "Outras N aula(s) ficam sem sala." | usuário, 2026-10-12 |
 | Teclado e leitor de tela nas malhas (C1 + E1) | Ficam para UMA tarefa própria, depois deste subprojeto, tratando as duas malhas juntas: Indisponibilidades (células sem foco nem teclado; "×" e "•" não chegam ao leitor de tela) e grade manual (setas em vez de 72 paradas de Tab) | usuário, 2026-10-12 |
 
+### Em aberto
+
+- **Teclado e leitor de tela nas duas malhas** (Indisponibilidades e grade manual): a
+  tarefa própria da decisão C1 + E1, depois deste subprojeto.
+- **O arrasto não foi exercitado no WebView2.** Os e2e rodam no Chromium do Playwright;
+  o motor é o mesmo, a versão não.
+- **O smoke não foi executado na rodada final** (só o typecheck dele): as mudanças em
+  `testes/smoke/` daquela rodada ainda precisam de uma execução contra o binário.
+
 ### Decisões tomadas sem o usuário (revisar)
 
 O usuário aprovou a parte 1 do desenho e pediu para seguir sem pausas. Estas são minhas:
@@ -112,7 +121,7 @@ O usuário aprovou a parte 1 do desenho e pediu para seguir sem pausas. Estas s�
 25. **O spec não passou por revisão do usuário antes do plano**, a pedido dele.
 26. **Capturas com tolerância mínima de cor** (`threshold: 0.01`). Com zero, um ícone da
     barra oscilava um ou dois níveis no antisserrilhamento entre execuções; uma troca de 16
-    níveis num token ainda derruba as 13 capturas do tema.
+    níveis num token ainda derruba as 14 capturas do tema.
 27. **O Tailwind varre só `src/`.** Varrendo tudo, ele lia os planos em Markdown e gerava
     uns 150 utilitários sem uso.
 28. **A cor do poço no tema é `bg-poco`.** `bg-inset` colidia com o `ring-inset` nativo do
@@ -173,8 +182,10 @@ O usuário aprovou a parte 1 do desenho e pediu para seguir sem pausas. Estas s�
     mudou no meio (um desfazer, uma recarga), o soltar não grava. A troca de curso cancela o
     arrasto.
 55. **A captura visual repinta a barra lateral antes da foto**, contra o ícone rasterizado
-    em posição antiga. A causa, a caixa do curso que muda de altura, não foi corrigida e
-    fica como pendência.
+    em posição antiga. Na rodada final a caixa do curso passou a reservar a altura (não
+    muda mais quando a lista de cursos chega), e o repinte continuou necessário: sem ele a
+    captura clara de "Automática" ainda difere na execução completa. O que resta da causa
+    não foi isolado; os itens da barra seguem em posição fracionária.
 56. **Na grade automática, ▲ significa melhor e ▼ pior** nas comparações entre a grade
     gerada e a atual.
 57. **"Gerar grade" fica desabilitado, com o motivo à vista,** quando o curso não tem fatias
@@ -216,11 +227,11 @@ e na configuração do Vitest.
 | Caminho | Conteúdo |
 |---|---|
 | `src/estilos/tema.css` | entrada do CSS: ordem das camadas, Tailwind, tokens claro/escuro, mapeamento para o shadcn, as três regras em comentário |
-| `src/estilos/legado.css` | o `App.css` de hoje, restrito ao contêiner `.legado`; apagado na última onda |
+| `src/estilos/legado.css` | o `App.css` de antes, restrito ao contêiner `.legado` durante a conversão. **Apagado na tarefa 17** |
 | `src/estilos/grade.css` | malha da grade manual e de Indisponibilidades |
 | `src/componentes/ui/` | componentes do shadcn, ajustados ao tema |
 | `src/componentes/` | compostos do app (lista em "Componentes do app") |
-| `src/componentes/legado.tsx` | o `ui.tsx` de hoje, renomeado; encolhe a cada tela e some no fim |
+| `src/componentes/legado.tsx` | o `ui.tsx` de antes, renomeado; encolheu a cada tela. **Apagado na tarefa 17** |
 | `src/lib/utils.ts` | `cn` |
 | `src/grade/historico.ts` | histórico de desfazer |
 | `src/paginas/disciplinas/`, `src/paginas/grade-manual/` | as duas telas divididas |
@@ -257,6 +268,10 @@ ser usados como utilitário.
 
 ### Isolamento do CSS antigo
 
+> **Removido na tarefa 17.** Esta seção descreve a convivência durante a conversão.
+> `legado.css`, a camada `legado` e a classe `.legado` não existem mais; a ordem das
+> camadas hoje é `theme, base, components, utilities` (ver `src/estilos/tema.css`).
+
 ```css
 @layer theme, base, legado, components, utilities;
 @import "tailwindcss";
@@ -286,12 +301,16 @@ Em `src/componentes/`, cada um com uma responsabilidade:
 | `campo.tsx` | rótulo, dica e erro de um campo, ligados por `aria-describedby` | `Campo` |
 | `seletor.tsx` | `Select` do shadcn com rótulo acessível e valores `number`, `string` ou `null` | `<select>` |
 | `tabela-dados.tsx` | tabela sobre TanStack Table: ordenação com `aria-sort`, busca global, filtros por coluna, coluna de ações, estado vazio | `<table className="lista">`, `Ordenavel`, `comparar` |
-| `filtro-facetado.tsx` | botão que abre a lista de valores de uma coluna com caixas de marcar; os filtros ativos aparecem como chips removíveis, com "Limpar filtros" | — |
+| `barra-de-filtros.tsx` | um botão por coluna filtrável, que abre a lista de valores com caixas de marcar; os filtros ativos aparecem como chips removíveis, com "Limpar filtros" | — |
 | `cabecalho-pagina.tsx` | título, escopo ("deste curso" ou "da instituição"), contagem, busca e ações | `CabecalhoLista`, `.cabecalho-pagina` |
 | `alerta.tsx` | mensagem na página ou no diálogo, em três tons (erro, aviso, sucesso) | `Erro`, `.aviso`, `.alerta` |
 | `botao-icone.tsx` | botão só com ícone, com dica e `aria-label` | `BotaoIcone`, `Lapis`, `Lixeira` |
 | `estado-vazio.tsx` | texto de lista vazia, com o próximo passo quando houver | `Vazio` |
-| `toasts.ts` | `avisar.sucesso`, `avisar.erro` e `avisar.desfazer` sobre o Sonner; `mensagemErro` continua traduzindo o erro do SQLite | — |
+| `marcador.tsx` | caixa de marcar com o rótulo e, embaixo, a frase que diz o que ela faz | `input[type=checkbox]` com `label` |
+| `secao.tsx` | painel de seção de uma página, com o título em caixa alta | `.secao` |
+| `use-sinal-de-salvo.ts` | o "salvo" que acende e some nas telas sem botão de salvar (Períodos, Regras) | — |
+| `toasts.ts` | `avisar.sucesso`, `avisar.erro`, `avisar.aviso` e `avisar.desfazer` sobre o Sonner | — |
+| `src/lib/erros.ts` (fora de `componentes/`) | `mensagemErro`, que traduz o erro do SQLite para o usuário | — |
 
 Toasts no canto inferior direito. Sucesso some em 5 s; com "Desfazer", em 10 s; erro fica
 até ser fechado.
@@ -394,7 +413,7 @@ botões ficam dentro dele.
 
 ```ts
 executarNaGrade(cursoId, rotulo, instrucoes): Promise<ResultadoEscrita>
-desfazer(): Promise<void>
+desfazer(): Promise<string | null>   // o rótulo do que desfez; null sem o que desfazer
 limpar(): void
 assinar(ouvinte): () => void     // para useSyncExternalStore
 estado(): { podeDesfazer: boolean; rotulo: string | null; versao: number }

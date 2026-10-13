@@ -35,9 +35,11 @@ mexer em estilo. O spec do desenho é
   ela não é arrastada nem removida, e "Limpar período" e o gerador a respeitam.
   Esc cancela o arrasto ou solta a pendência escolhida.
 - **Desfazer.** As duas grades têm o botão "Desfazer" (com a dica "Desfazer:
-  …"), o atalho Ctrl+Z e, depois de cada ação, um aviso com o mesmo botão. O
-  histórico é de um curso: trocar de curso, ou alterar um cadastro que invalida
-  aulas, o zera.
+  …") e o atalho Ctrl+Z, que valem para toda ação da grade. Remover uma aula,
+  limpar o período e aplicar a grade gerada abrem também um aviso com o mesmo
+  botão. O histórico é de um curso e dura a sessão: trocar de curso, ou gravar
+  qualquer coisa fora da grade (professor, sala, disciplina, indisponibilidade,
+  regra), o zera.
 - **Grade automática.** "Gerar grade" mostra o resultado sem gravar nada;
   "Aplicar esta grade" grava, entra no histórico (dá para desfazer) e oferece
   "Abrir a grade manual".
@@ -77,11 +79,13 @@ número, acrescentado também à lista em `lib.rs`.
 
 ## Testes
 
-Três camadas de teste, mais o benchmark, todas sobre a mesma massa anonimizada (`testes/massa/`):
+Quatro camadas de teste (unidade, interface, capturas e binário real), mais o
+benchmark, sobre a mesma massa anonimizada (`testes/massa/`):
 
 ```bash
 npm run typecheck      # tipos do app e dos testes
-npm test               # Vitest: solver, auditor, ponte de IPC (segundos)
+npm test               # Vitest: regras, solver e auditor, histórico de desfazer, db,
+                       # ações da grade, validação de Disciplinas, ponte de IPC (segundos)
 npm run test:e2e       # Playwright: a interface no Chromium, sem compilar Rust
 npm run test:visual    # capturas de cada tela, claro e escuro (só local, Windows)
 npm run test:smoke     # binário real (Windows); exige build debug e drivers
@@ -89,7 +93,7 @@ npm run bench:solver   # compara solvers em cenários × sementes
 ```
 
 - `npm run test:visual` — compara cada tela, no claro e no escuro, com as capturas de
-  `testes/visual/__capturas__/`. Só roda localmente, no Windows. Mudança visual de
+  `testes/visual/__capturas__/`. Mudança visual de
   propósito: `npm run test:visual -- -g "<tela>" --update-snapshots` e confira as imagens.
 - **Massa.** `testes/massa/engenharia_v9.sql` vem do banco real, com nomes de
   professores trocados por `Professor NN` e observações apagadas. Para
@@ -105,7 +109,10 @@ npm run bench:solver   # compara solvers em cenários × sementes
   `cargo install --git https://github.com/chippers/msedgedriver-tool` e
   `msedgedriver-tool` na raiz. Depois:
   `npm run tauri build -- --debug --no-bundle && npm run test:smoke`. O banco
-  do smoke é temporário (`DISTRIBUICAO_BANCO`, só em debug); o seu não é tocado.
+  do smoke é temporário: o build de debug atual lê `DISTRIBUICAO_BANCO` e usa
+  esse arquivo no lugar do seu. Um binário compilado antes desse suporte abriria
+  o banco real, por isso o smoke recusa o binário mais antigo que
+  `src-tauri/src/lib.rs` e confere o banco em uso antes de gravar.
 - **Falha esperada.** Todos os bugs conhecidos do subprojeto de regras e
   integridade foram corrigidos: não restam testes marcados com `it.fails` ou
   `test.fail`. Ao descobrir um bug novo, a convenção é escrever o teste com essa
