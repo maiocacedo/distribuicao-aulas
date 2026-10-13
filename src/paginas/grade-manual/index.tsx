@@ -22,7 +22,7 @@ import { Button } from "@/componentes/ui/button";
 import { mensagemErro } from "@/lib/erros";
 import { cn } from "@/lib/utils";
 import { historico } from "../../grade";
-import { arrastoEmCurso, marcarArrasto } from "../../grade/arrasto";
+import { arrastoEmCurso, marcarArrasto } from "../../grade/arrastoEmCurso";
 import { BotaoDesfazer } from "../../grade/BotaoDesfazer";
 import { desfazerEAvisar } from "../../grade/desfazer";
 import { useHistorico } from "../../grade/useHistorico";
@@ -30,7 +30,7 @@ import { curto, descrever } from "../../regras/descrever";
 import { escolherSala, impedimento, salasPossiveis } from "../../regras/impedimentos";
 import type { Ocupacao } from "../../regras/ocupacao";
 import * as acoes from "./acoes";
-import type { Alvo, Carga } from "./arrasto";
+import { mesmaCarga, type Alvo, type Carga } from "./arrasto";
 import { Diagnostico } from "./Diagnostico";
 import { Malha } from "./Malha";
 import { Pendencias } from "./Pendencias";
@@ -54,6 +54,14 @@ const pendurarNoPonteiro: Modifier = ({ activatorEvent, draggingNodeRect, transf
   };
 };
 const NO_PONTEIRO = [pendurarNoPonteiro];
+
+/**
+ * O que faz o sensor de ponteiro do dnd-kit largar a carga, fora o Esc. A
+ * página ouve os mesmos eventos na janela, onde eles chegam depois de o sensor
+ * os tratar: o dnd-kit só avisa que o arrasto acabou se já tiver desenhado o
+ * começo dele, e quem pega e solta num escorregão de clique solta antes disso.
+ */
+const FINS_DO_SENSOR = ["pointerup", "pointercancel", "resize", "visibilitychange"] as const;
 
 /**
  * Depois do Esc que cancela o arrasto, o botão do mouse continua apertado, e
@@ -120,8 +128,12 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
     void recarregar();
   }, [recarregar, versao]);
 
-  // A pendência escolhida é do curso em que foi escolhida.
-  useEffect(() => setEscolhida(null), [cursoId]);
+  // A pendência escolhida é do curso em que foi escolhida, e o que está em
+  // mãos também: solto depois da troca, seria gravado no curso que saiu da tela.
+  useEffect(() => {
+    setEscolhida(null);
+    cancelarArrasto();
+  }, [cursoId]);
 
   // Esc solta a pendência escolhida: sair de um modo é sempre a mesma tecla.
   // Quando o Esc já fechou outra coisa (a lista de salas, a confirmação), o
@@ -151,8 +163,16 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
   // O arrasto só começa depois de 6 px: antes disso é clique.
   const sensores = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const [arrasto, setArrasto] = useState<Carga | null>(null);
-  // Sair da tela no meio de um arrasto não pode deixar o teclado travado.
-  useEffect(() => () => marcarArrasto(false), []);
+  /**
+   * O arrasto como a página o conhece: o que foi pego, e o que desliga os
+   * ouvintes do fim dele. Numa `ref`, além do estado que pinta a tela, porque
+   * quem pergunta ao soltar pode ser o `aoSoltar` de um desenho que já passou
+   * (o do curso de que se saiu com a carga em mãos), e esse não vê estado novo.
+   */
+  const pego = useRef<{ carga: Carga; fim: AbortController } | null>(null);
+  // Sair da tela no meio de um arrasto não pode deixar o teclado travado, nem
+  // a carga pronta para ser gravada por uma página que não existe mais.
+  useEffect(() => cancelarArrasto, []);
 
   const fatiasDoPeriodo = fatias.filter((f) => f.periodo === periodo && f.ofertada);
   const fatiaEscolhida = fatias.find((f) => idFatia(f) === escolhida) ?? null;
@@ -160,14 +180,11 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
   // O que pinta as células é a fatia em mãos: a arrastada, senão a escolhida.
   const fatiaEmMaos = arrasto?.fatia ?? fatiaEscolhida;
   const arrastandoAula = arrasto?.tipo === "aula";
-  // A aula em mãos, como a carga mais recente a conhece: a ocupação compara
-  // pelo objeto, e o da hora de pegar fica velho se uma recarga chega no meio.
-  const aulaEmMaos = arrasto?.tipo === "aula" ? daGrade.get(chave(arrasto.aula.dia, arrasto.aula.hora)) : undefined;
   // Ao mover, a aula não disputa lugar consigo mesma (o professor dela, a sala
   // dela, o dia que ela já ocupa).
   const ocupacaoEmMaos = useMemo(
-    () => (aulaEmMaos ? acoes.semAOrigem(cursoId, aulas, aulaEmMaos) : oc),
-    [aulaEmMaos, aulas, cursoId, oc],
+    () => (arrasto?.tipo === "aula" ? acoes.semAOrigem(cursoId, aulas, arrasto.aula) : oc),
+    [arrasto, aulas, cursoId, oc],
   );
 
   const dias = ctx?.dias ?? 6;
@@ -333,24 +350,62 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
   }
 
   function aoComecar(e: DragStartEvent) {
+    const carga = e.active.data.current as Carga;
+    const fim = new AbortController();
+    pego.current = { carga, fim };
     marcarArrasto(true);
-    setArrasto(e.active.data.current as Carga);
+    setArrasto(carga);
+    // O arrasto da página termina por conta própria, sem depender de o dnd-kit
+    // avisar (ver `FINS_DO_SENSOR`). Na fase de subida da janela, e não na
+    // captura: é depois do documento, onde o sensor ouve — o `aoSoltar` de um
+    // arrasto normal já rodou, com a carga e o destino, quando isto encerra.
+    const ate = { signal: fim.signal };
+    const esc = (tecla: KeyboardEvent) => {
+      if (tecla.code === "Escape") encerrarArrasto();
+    };
+    for (const evento of FINS_DO_SENSOR) window.addEventListener(evento, encerrarArrasto, ate);
+    window.addEventListener("keydown", esc, ate);
+    // Disto o sensor não sabe: a janela perde o foco com o botão apertado, o
+    // botão sobe lá fora, e na volta o primeiro clique soltaria a carga onde
+    // o ponteiro estivesse.
+    window.addEventListener("blur", cancelarArrasto, ate);
   }
 
+  /**
+   * O fim do arrasto para a página, por qualquer caminho; chamar de novo não
+   * faz nada. Só mexe em `ref` e em `set`: serve chamado de qualquer desenho.
+   */
   function encerrarArrasto() {
+    pego.current?.fim.abort();
+    pego.current = null;
     marcarArrasto(false);
     setArrasto(null);
   }
 
+  /**
+   * A página desiste do arrasto que o ponteiro ainda segura. O sensor do
+   * dnd-kit só larga a carga ao ouvir o fim do ponteiro, e não há outro jeito
+   * de pedir: `pointercancel` no documento é o aviso que ele entende.
+   */
+  function cancelarArrasto() {
+    if (!pego.current) return;
+    document.dispatchEvent(new PointerEvent("pointercancel", { bubbles: true }));
+    encerrarArrasto();
+  }
+
   async function aoSoltar(e: DragEndEvent) {
-    // A carga como a origem a conhece agora, e não como era ao pegar: uma
-    // recarga no meio do arrasto troca os objetos das aulas, e a origem que
-    // deixou de existir (a aula saiu de lá por outro caminho) não tem carga —
-    // o dnd-kit entrega `undefined` ou um objeto vazio.
+    // A carga como a origem a conhece agora: é a que tem a sala e o cadeado de
+    // hoje. A origem que deixou de existir (a aula saiu de lá por outro
+    // caminho) não tem carga — o dnd-kit entrega `undefined` ou um objeto vazio.
     const carga = e.active.data.current as Carga | undefined;
     const alvo = e.over?.data.current as Alvo | undefined;
+    const pega = pego.current?.carga;
     encerrarArrasto();
     if (!carga?.tipo || !alvo || periodo == null || !ctx) return;
+    // Sem o que foi pego, a página já tinha encerrado este arrasto por outro
+    // caminho; e a carga que não é mais a mesma é outra aula no lugar da que o
+    // cartão mostra. Nos dois casos soltar não faz nada, nem avisa.
+    if (!pega || !mesmaCarga(pega, carga)) return;
     // O que está em mãos é do período em que foi pego.
     if (carga.fatia.periodo !== periodo) return;
 
@@ -379,13 +434,18 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
       if (!carga?.tipo) return undefined;
       return `Arrastando ${carga.tipo === "aula" ? carga.aula.disciplina : carga.fatia.disciplina_curta}`;
     },
-    onDragOver: ({ over }) => {
+    // Sem o que dizer, o anúncio é vazio, e não `undefined`: esse o dnd-kit
+    // ignora, e o destino anterior continuaria escrito na região viva.
+    onDragOver: ({ active, over }) => {
+      const carga = active.data.current as Carga | undefined;
       const alvo = over?.data.current as Alvo | undefined;
-      if (!alvo) return undefined;
-      return alvo.tipo === "pendencias" ? "Sobre as pendências" : `Sobre ${DIAS[alvo.dia]}, ${codigoDe(alvo.hora)}`;
+      if (!alvo) return "";
+      // O painel só recebe aula: para a pendência ele não é destino.
+      if (alvo.tipo === "pendencias") return carga?.tipo === "aula" ? "Sobre as pendências" : "";
+      return `Sobre ${DIAS[alvo.dia]}, ${codigoDe(alvo.hora)}`;
     },
     // O que aconteceu ao soltar aparece na grade e, quando há o que dizer, num aviso.
-    onDragEnd: () => undefined,
+    onDragEnd: () => "",
     onDragCancel: () => "Arrasto cancelado",
   };
 

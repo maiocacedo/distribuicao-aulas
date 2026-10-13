@@ -37,9 +37,17 @@ export function limpar(cursoId: number, periodo: number): Instrucao {
   return { sql: "DELETE FROM alocacoes WHERE curso_id = ? AND periodo = ? AND fixada = 0", params: [cursoId, periodo] };
 }
 
-/** A ocupação sem a aula que está sendo movida, para ela não conflitar consigo mesma. */
+/** Se as duas são a mesma linha da tabela (a mesma chave), ainda que em objetos diferentes. */
+export const mesmaAula = (a: Aula, b: Aula) =>
+  a.cursoId === b.cursoId && a.periodo === b.periodo && a.dia === b.dia && a.hora === b.hora;
+
+/**
+ * A ocupação sem a aula que está sendo movida, para ela não conflitar consigo
+ * mesma. Sai pela chave, e não pelo objeto: cada recarga traz objetos novos, e
+ * a aula que está em mãos desde antes dela continua sendo a mesma aula.
+ */
 export function semAOrigem(cursoId: number, aulas: Aula[], origem: Aula): Ocupacao {
-  return new Ocupacao(cursoId, aulas.filter((a) => a !== origem));
+  return new Ocupacao(cursoId, aulas.filter((a) => !mesmaAula(a, origem)));
 }
 
 /**

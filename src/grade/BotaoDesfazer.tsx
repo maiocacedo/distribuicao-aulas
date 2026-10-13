@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { ESTILO_DESABILITADO } from "@/componentes/botao-icone";
 import { Button } from "@/componentes/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/componentes/ui/tooltip";
-import { arrastoEmCurso } from "./arrasto";
+import { arrastoEmCurso } from "./arrastoEmCurso";
 import { desfazerEAvisar } from "./desfazer";
 import { useHistorico } from "./useHistorico";
 

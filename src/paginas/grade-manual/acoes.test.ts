@@ -45,6 +45,24 @@ describe("mover", () => {
     expect(oc.doProfessor(1, 0, 0)).toBeUndefined();
   });
 
+  // Uma recarga no meio do arrasto troca os objetos: a aula em mãos é a mesma
+  // linha da tabela, e não o mesmo objeto.
+  it("a origem sai pela chave, mesmo sendo outro objeto", () => {
+    const outra = aula(1, 0, 2, { disciplinaId: 2, professorId: 2 });
+    const oc = semAOrigem(1, [aula(0, 0, 1), outra], aula(0, 0, 1));
+    expect(oc.daSala(1, 0, 0)).toBeUndefined();
+    expect(oc.doProfessor(1, 0, 0)).toBeUndefined();
+    expect(oc.doProfessor(2, 1, 0)).toBe(outra);
+  });
+
+  it("a aula do mesmo horário em outro período ou outro curso não é a origem", () => {
+    const doSegundo = aula(0, 0, 2, { periodo: 2, disciplinaId: 2, professorId: 2 });
+    const deOutroCurso = aula(0, 0, null, { cursoId: 2, disciplinaId: 3, professorId: 3 });
+    const oc = semAOrigem(1, [aula(0, 0, 1), doSegundo, deOutroCurso], aula(0, 0, 1));
+    expect(oc.doProfessor(2, 0, 0)).toBe(doSegundo);
+    expect(oc.doProfessor(3, 0, 0)).toBe(deOutroCurso);
+  });
+
   it("leva a sala quando ela está livre no destino", () => {
     const origem = aula(0, 0, 2);
     const oc = semAOrigem(1, [origem], origem);

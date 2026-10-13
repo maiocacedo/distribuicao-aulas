@@ -379,3 +379,250 @@ test.describe("mover não conflita consigo mesma", () => {
     expect(await page.locator("[data-sonner-toast]").count()).toBe(0);
   });
 });
+
+/** A região viva em que o dnd-kit anuncia o arrasto. */
+const anuncio = (page: Page) => page.locator('[id^="DndLiveRegion"]');
+
+test.describe("o arrasto sempre termina", () => {
+  test.use({ semMassa: true, semente: BASE });
+
+  test("pegar e soltar antes de a tela se redesenhar não deixa a página presa", async ({ page, banco }) => {
+    await irPara(page, "Manual");
+    const pendencia = page.getByRole("button", { name: /Cálculo/ });
+    await expect(pendencia).toBeVisible();
+    // O dnd-kit engole por 50 ms o clique que vem depois de um arrasto: o
+    // relógio do teste passa desse prazo sem esperar por ele.
+    await page.clock.install();
+    // Os três eventos no mesmo turno: o arrasto começa (o ponteiro andou mais
+    // que 6 px) e o botão sobe antes de o React desenhar. É o escorregão de
+    // quem clica: nesse caso o dnd-kit não avisa que o arrasto acabou.
+    await pendencia.evaluate((el) => {
+      const { left, top } = el.getBoundingClientRect();
+      const ponteiro = (tipo: string, x: number, y: number, buttons: number) =>
+        new PointerEvent(tipo, {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          pointerId: 1,
+          pointerType: "mouse",
+          isPrimary: true,
+          button: 0,
+          buttons,
+          clientX: x,
+          clientY: y,
+        });
+      el.dispatchEvent(ponteiro("pointerdown", left + 10, top + 10, 1));
+      el.dispatchEvent(ponteiro("pointermove", left + 30, top + 30, 1));
+      el.dispatchEvent(ponteiro("pointerup", left + 30, top + 30, 0));
+    });
+    await page.clock.fastForward(1_000);
+    // A tela segue viva: a pendência se escolhe, o horário aloca, o Ctrl+Z desfaz.
+    await pendencia.click();
+    await expect(pendencia).toHaveAttribute("aria-pressed", "true");
+    await celula(page, "Terça", "M2").click();
+    await expect.poll(() => onde(banco, 1, 1)).toBe(1);
+    await page.keyboard.press("Control+z");
+    await expect.poll(() => onde(banco, 1, 1)).toBe(0);
+  });
+
+  test("a janela perde o foco no meio do arrasto: ele é cancelado, e soltar o mouse depois não grava", async ({ page, banco }) => {
+    await irPara(page, "Manual");
+    const pendencia = page.getByRole("button", { name: /Cálculo/ });
+    await pegar(page, pendencia, celula(page, "Terça", "M2"));
+    await expect(page.locator(".celula.arrastando")).toBeVisible();
+    // Alt+Tab com o botão apertado: o botão sobe em outra janela, e esta não fica sabendo.
+    await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+    await expect(page.locator(".celula.arrastando")).toHaveCount(0);
+    await expect(celula(page, "Terça", "M2")).not.toContainText("Alocar");
+    // De volta à janela, o primeiro clique não solta a carga onde o ponteiro estiver.
+    await page.mouse.up();
+    // Marco: uma alocação de verdade, pela mesma fila. Com a carga solta no
+    // clique, seriam duas aulas.
+    await arrastar(page, pendencia, celula(page, "Quinta", "M1"));
+    await expect(celula(page, "Quinta", "M1")).toContainText("Cálculo");
+    expect(contar(banco, "SELECT COUNT(*) FROM alocacoes")).toBe(1);
+    expect(onde(banco, 1, 1)).toBe(0);
+  });
+
+  test("soltar a pendência sobre o painel de pendências não faz nada", async ({ page, banco }) => {
+    await irPara(page, "Manual");
+    const pendencia = page.getByRole("button", { name: /Cálculo/ });
+    const painel = page.getByRole("region", { name: "Pendências" });
+    await pegar(page, pendencia, celula(page, "Terça", "M2"));
+    await expect(celula(page, "Terça", "M2")).toContainText("Alocar");
+    const caixa = (await painel.boundingBox())!;
+    await page.mouse.move(caixa.x + caixa.width / 2, caixa.y + caixa.height / 2, { steps: 10 });
+    await expect(celula(page, "Terça", "M2")).not.toHaveClass(/sobre/);
+    // O painel só é destino para uma aula: não convida a soltar a pendência.
+    await expect(painel).not.toHaveClass(/soltar-aqui/);
+    await page.mouse.up();
+    await expect(page.locator(".celula.arrastando")).toHaveCount(0);
+    await expect(pendencia).toHaveAttribute("aria-pressed", "false");
+    // Marco: uma alocação de verdade, pela mesma fila.
+    await arrastar(page, pendencia, celula(page, "Quinta", "M1"));
+    await expect(celula(page, "Quinta", "M1")).toContainText("Cálculo");
+    expect(contar(banco, "SELECT COUNT(*) FROM alocacoes")).toBe(1);
+    expect(await page.locator("[data-sonner-toast]").count()).toBe(0);
+  });
+
+  test("o anúncio não fica para trás: some fora de um destino e depois de soltar", async ({ page, banco }) => {
+    await irPara(page, "Manual");
+    const pendencia = page.getByRole("button", { name: /Cálculo/ });
+    const painel = (await page.getByRole("region", { name: "Pendências" }).boundingBox())!;
+    await pegar(page, pendencia, celula(page, "Terça", "M2"));
+    await expect(anuncio(page)).toHaveText("Sobre Terça, M2");
+    // Para a pendência o painel não é destino: ali não há o que anunciar.
+    await page.mouse.move(painel.x + painel.width / 2, painel.y + painel.height / 2, { steps: 10 });
+    await expect(anuncio(page)).toHaveText("");
+    const alvo = (await celula(page, "Quinta", "M3").boundingBox())!;
+    await page.mouse.move(alvo.x + alvo.width / 2, alvo.y + alvo.height / 2, { steps: 10 });
+    await expect(anuncio(page)).toHaveText("Sobre Quinta, M3");
+    await page.mouse.up();
+    await expect.poll(() => onde(banco, 3, 2)).toBe(1);
+    await expect(anuncio(page)).toHaveText("");
+  });
+});
+
+test.describe("a aula da célula muda no meio do arrasto", () => {
+  test.use({
+    semMassa: true,
+    semente: `${BASE}
+      INSERT INTO professores (id, nome) VALUES (2, 'Bruno Lima');
+      INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais) VALUES (2, 1, 'Física', 1, 2);
+      INSERT INTO disciplina_professores (disciplina_id, professor_id, aulas) VALUES (2, 2, 2);
+      INSERT INTO alocacoes (curso_id, periodo, dia, hora, disciplina_id, professor_id, sala_id) VALUES (1, 1, 0, 0, 2, 2, 1);`,
+  });
+
+  const disciplinaEm = (banco: import("node:sqlite").DatabaseSync, dia: number, hora: number) =>
+    contar(banco, "SELECT COALESCE(MAX(disciplina_id), 0) FROM alocacoes WHERE dia = ? AND hora = ?", dia, hora);
+
+  test("dois desfazer que chegam com a aula em mãos: soltar não move a que tomou o lugar dela", async ({ page, banco }) => {
+    await irPara(page, "Manual");
+    // A Física sai da segunda e o Cálculo entra no lugar dela.
+    await celula(page, "Segunda", "M1").getByRole("button", { name: "Remover aula" }).click();
+    await expect.poll(() => onde(banco, 0, 0)).toBe(0);
+    await page.getByRole("button", { name: /Cálculo/ }).click();
+    await celula(page, "Segunda", "M1").click();
+    await expect(celula(page, "Segunda", "M1")).toContainText("Cálculo");
+    // Dois desfazer com a recarga parada: no banco a célula volta a ser da
+    // Física, e a tela ainda mostra o Cálculo.
+    const consultas = await segurarConsultas(page, AULAS_DA_GRADE);
+    await page.keyboard.press("Control+z");
+    await expect.poll(consultas.seguras).toBe(1);
+    await page.keyboard.press("Control+z");
+    await expect.poll(() => disciplinaEm(banco, 0, 0)).toBe(2);
+    await pegar(page, celula(page, "Segunda", "M1"), celula(page, "Quinta", "M3"));
+    await expect(page.locator(".celula.arrastando")).toContainText("Cálculo");
+    await consultas.soltar();
+    await expect(celula(page, "Segunda", "M1")).toContainText("Física");
+    await page.mouse.up();
+    // Marco: uma alocação de verdade, pela mesma fila. Outro arrasto, e não um
+    // clique: o dnd-kit engole o clique que chega até 50 ms depois de soltar.
+    await arrastar(page, page.getByRole("button", { name: /Cálculo/ }), celula(page, "Terça", "M2"));
+    await expect(celula(page, "Terça", "M2")).toContainText("Cálculo");
+    expect(disciplinaEm(banco, 0, 0)).toBe(2);
+    expect(onde(banco, 3, 2)).toBe(0);
+    expect(contar(banco, "SELECT COUNT(*) FROM alocacoes")).toBe(2);
+  });
+});
+
+test.describe("dois períodos com aula no mesmo horário", () => {
+  test.use({
+    semMassa: true,
+    semente: `${AULA}
+      INSERT INTO periodos (curso_id, numero, turno) VALUES (1, 2, 'manha');
+      INSERT INTO professores (id, nome) VALUES (2, 'Bruno Lima');
+      INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais) VALUES (2, 1, 'Física', 2, 2);
+      INSERT INTO disciplina_professores (disciplina_id, professor_id, aulas) VALUES (2, 2, 2);
+      INSERT INTO alocacoes (curso_id, periodo, dia, hora, disciplina_id, professor_id, sala_id) VALUES (1, 2, 0, 0, 2, 2, 1);`,
+  });
+
+  // Com algo em mãos o dnd-kit engole todo clique, e o Enter ou o Espaço num
+  // botão é um clique: a aba não troca. Se um dia trocar, a aula do outro
+  // período, que ocupa o mesmo horário, não pode ser a que se move.
+  test("o teclado não troca de período com a aula em mãos, e a que se move é a que foi pega", async ({ page, banco }) => {
+    const aulaDo = (periodo: number, dia: number, hora: number) =>
+      contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE periodo = ? AND dia = ? AND hora = ?", periodo, dia, hora);
+    await irPara(page, "Manual");
+    await pegar(page, celula(page, "Segunda", "M1"), celula(page, "Quinta", "M3"));
+    await expect(page.locator(".celula.arrastando")).toContainText("Cálculo");
+    const segundo = page.getByRole("button", { name: "2º", exact: true });
+    await segundo.focus();
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Space");
+    await page.mouse.up();
+    await expect.poll(() => aulaDo(1, 3, 2)).toBe(1);
+    await expect(segundo).toHaveAttribute("aria-pressed", "false");
+    expect(aulaDo(2, 0, 0)).toBe(1);
+    expect(contar(banco, "SELECT COUNT(*) FROM alocacoes")).toBe(2);
+  });
+});
+
+test.describe("dois cursos", () => {
+  test.use({
+    semMassa: true,
+    semente: `${BASE}
+      INSERT INTO cursos (id, nome) VALUES (2, 'Zeta');
+      INSERT INTO periodos (curso_id, numero, turno) VALUES (2, 1, 'manha');
+      INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais, exige_sala) VALUES (3, 2, 'Redes', 1, 2, 0);
+      INSERT INTO disciplina_professores (disciplina_id, professor_id, aulas) VALUES (3, 1, 2);`,
+  });
+
+  // O seletor de curso abre e escolhe ao apertar a tecla, sem clique: é o
+  // caminho que resta para trocar de curso com o botão do mouse apertado.
+  test("trocar de curso pelo teclado com a pendência em mãos: soltar não grava no curso que saiu da tela", async ({ page, banco }) => {
+    await irPara(page, "Manual");
+    await pegar(page, page.getByRole("button", { name: /Cálculo/ }), celula(page, "Terça", "M2"));
+    await expect(celula(page, "Terça", "M2")).toContainText("Alocar");
+    await page.getByRole("navigation").getByRole("combobox", { name: "Curso" }).focus();
+    await page.keyboard.press("Enter");
+    await page.getByRole("option", { name: "Zeta", exact: true }).focus();
+    await page.keyboard.press("Enter");
+    const pendencia = page.getByRole("button", { name: /Redes/ });
+    await expect(pendencia).toBeVisible();
+    // A lista do seletor tapa a tela para o ponteiro enquanto fecha.
+    await expect(page.getByRole("listbox")).toHaveCount(0);
+    await page.mouse.up();
+    // Marco: uma alocação no curso novo, pela mesma fila.
+    await arrastar(page, pendencia, celula(page, "Quinta", "M1"));
+    await expect(celula(page, "Quinta", "M1")).toContainText("Redes");
+    expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE curso_id = 1")).toBe(0);
+    expect(contar(banco, "SELECT COUNT(*) FROM alocacoes")).toBe(1);
+  });
+});
+
+test.describe("contraturno", () => {
+  test.use({
+    semMassa: true,
+    semente: `
+      INSERT INTO periodos (curso_id, numero, turno) VALUES (1, 1, 'manha');
+      INSERT INTO professores (id, nome) VALUES (1, 'Ana Souza'), (2, 'Bruno Lima');
+      INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais, exige_sala, turno) VALUES
+        (1, 1, 'Cálculo', 1, 2, 0, NULL), (2, 1, 'Física', 1, 2, 0, 'manha');
+      INSERT INTO disciplina_professores (disciplina_id, professor_id, aulas) VALUES (1, 1, 2), (2, 2, 2);
+      INSERT INTO alocacoes (curso_id, periodo, dia, hora, disciplina_id, professor_id) VALUES (1, 1, 0, 0, 1, 1), (1, 1, 1, 0, 2, 2);`,
+  });
+
+  const t1 = (banco: import("node:sqlite").DatabaseSync) => contar(banco, "SELECT indice FROM horarios WHERE codigo = 'T1'");
+
+  test("mover para o contraturno é aceito como ao alocar, e a aula fica marcada", async ({ page, banco }) => {
+    await irPara(page, "Manual");
+    await arrastar(page, celula(page, "Segunda", "M1"), celula(page, "Segunda", "T1"));
+    await expect.poll(() => onde(banco, 0, t1(banco))).toBe(1);
+    expect(onde(banco, 0, 0)).toBe(0);
+    await expect(celula(page, "Segunda", "T1")).toContainText("fora do turno");
+  });
+
+  test("mover para o contraturno é recusado, com o motivo, se a disciplina só pode de manhã", async ({ page, banco }) => {
+    await irPara(page, "Manual");
+    await pegar(page, celula(page, "Terça", "M1"), celula(page, "Terça", "T1"));
+    await expect(celula(page, "Terça", "T1")).toContainText("Disciplina só de manhã");
+    await page.mouse.up();
+    await expect(page.locator("[data-sonner-toast]", { hasText: "Disciplina só de manhã" })).toBeVisible();
+    // Marco: mover a outra aula, pela mesma fila.
+    await arrastar(page, celula(page, "Segunda", "M1"), celula(page, "Quarta", "M1"));
+    await expect(celula(page, "Quarta", "M1")).toContainText("Cálculo");
+    expect(onde(banco, 1, 0)).toBe(1);
+    expect(onde(banco, 1, t1(banco))).toBe(0);
+  });
+});
