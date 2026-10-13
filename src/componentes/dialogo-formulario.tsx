@@ -48,7 +48,6 @@ export function DialogoFormulario({
   alterado,
   salvando,
   erro,
-  rotuloSalvar = "Salvar",
   largo,
   aoFechar,
   aoSalvar,
@@ -58,7 +57,6 @@ export function DialogoFormulario({
   alterado: boolean;
   salvando?: boolean;
   erro?: ReactNode;
-  rotuloSalvar?: string;
   largo?: boolean;
   aoFechar: () => void;
   aoSalvar: () => void;
@@ -121,7 +119,7 @@ export function DialogoFormulario({
         <DialogHeader>
           <DialogTitle>{titulo}</DialogTitle>
         </DialogHeader>
-        {/* 16 px entre os campos e 20 px até o rodapé, como no modal antigo. */}
+        {/* 16 px entre os campos e 20 px até o rodapé (o vão mais o `mt-1` dele). */}
         <form
           ref={formulario}
           // Sem a bolha do navegador: a validação é a de cada tela, em português e junto do campo.
@@ -146,7 +144,7 @@ export function DialogoFormulario({
               Cancelar
             </Button>
             <Button type="submit" disabled={salvando}>
-              {salvando ? "Salvando…" : rotuloSalvar}
+              {salvando ? "Salvando…" : "Salvar"}
             </Button>
           </DialogFooter>
         </form>

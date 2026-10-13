@@ -64,6 +64,6 @@ describe("binário real", () => {
     await $('[aria-label="Professor da fatia 1"]').click();
     await $('[role="option"]*=Bruno Lima').click();
     await $("button=Salvar").click();
-    await expect($('[role="dialog"] [role="alert"]')).toHaveText(expect.stringContaining("está em uso"));
+    await expect($('[role="dialog"] [role="alert"]')).toHaveText(expect.stringContaining("ainda tem"));
   });
 });

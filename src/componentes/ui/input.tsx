@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils"
 /*
  * Ajustes sobre o que o shadcn gera, pelas regras do design:
  * - densidade: 28 px de altura, texto de controle de 12,5 px, fundo do poço e
- *   o contorno de controle (`--lineC`), como o campo das telas antigas;
+ *   o contorno de controle (`--lineC`);
  * - desabilitado rebaixa texto e borda, nunca `opacity`;
  * - sem anel próprio de foco: vale o anel global do tema (`:focus-visible`);
  * - o pouso escurece o contorno, que é o que diz "aqui se digita".

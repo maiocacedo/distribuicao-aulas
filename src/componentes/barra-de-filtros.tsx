@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useId, useRef } from "react";
 import type { ColumnFiltersState } from "@tanstack/react-table";
 import { ListFilter, X } from "lucide-react";
 import { Badge } from "@/componentes/ui/badge";
@@ -35,6 +35,7 @@ export function BarraDeFiltros({
   // Os botões de filtro, por `id`: o chip e o "Limpar filtros" somem ao serem
   // acionados, e o foco deles não pode cair no `body`.
   const botoes = useRef(new Map<string, HTMLButtonElement>());
+  const id = useId();
   const marcados = (id: string) => (valor.find((f) => f.id === id)?.value as Valor[] | undefined) ?? [];
 
   function definir(id: string, valores: Valor[]) {
@@ -65,11 +66,13 @@ export function BarraDeFiltros({
             <PopoverTrigger asChild>
               {/* O cabeçalho da coluna também é um botão com o título dela: este diz o que faz.
                   Com filtro ativo, o botão ganha o fundo do acento e a contagem: o estado
-                  não fica só na cor. */}
+                  não fica só na cor. O nome não muda (é por ele que se acha o botão); que
+                  há filtro ativo vai na descrição. */}
               <Button
                 variant="outline"
                 size="sm"
                 aria-label={`Filtrar por ${d.titulo}`}
+                aria-describedby={n > 0 ? `${id}-${d.id}` : undefined}
                 ref={(el) => {
                   if (el) botoes.current.set(d.id, el);
                   else botoes.current.delete(d.id);
@@ -79,16 +82,22 @@ export function BarraDeFiltros({
                 <ListFilter className="size-3" aria-hidden />
                 {d.titulo}
                 {n > 0 && (
-                  <span
-                    aria-hidden
-                    className="rounded-[3px] bg-poco px-[5px] text-[10px] text-tx2 tabular-nums"
-                  >
-                    {n}
-                  </span>
+                  <>
+                    <span
+                      aria-hidden
+                      className="rounded-[3px] bg-poco px-[5px] text-[10px] text-tx2 tabular-nums"
+                    >
+                      {n}
+                    </span>
+                    <span id={`${id}-${d.id}`} className="sr-only">
+                      {n} marcado(s)
+                    </span>
+                  </>
                 )}
               </Button>
             </PopoverTrigger>
-            <PopoverContent align="start" className="flex w-56 flex-col gap-0.5 p-1">
+            {/* O popover é um `dialog`, e um diálogo sem nome é anunciado só como "diálogo". */}
+            <PopoverContent align="start" aria-label={`Filtrar por ${d.titulo}`} className="flex w-56 flex-col gap-0.5 p-1">
               {d.opcoes.map((o) => {
                 const marcado = marcados(d.id).includes(o.valor);
                 return (

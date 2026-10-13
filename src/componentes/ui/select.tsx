@@ -25,8 +25,8 @@ function SelectValue({
  * Ajustes sobre o que o shadcn gera, pelas regras do design:
  * - o gatilho tem o desenho do `Input` (28 px, texto de 12,5 px, fundo do
  *   poço, contorno de controle, 8 px de preenchimento contando a borda, e o
- *   pouso escurece o contorno): nas telas antigas `input`, `select` e
- *   `textarea` eram uma regra só, e num formulário os três ficam lado a lado.
+ *   pouso escurece o contorno): num formulário campo de texto, seletor e
+ *   `textarea` ficam lado a lado e têm de parecer a mesma peça.
  *   Quem quer outro desenho sobrescreve no ponto de uso, como o seletor de
  *   curso da barra lateral;
  * - desabilitado rebaixa texto e borda, nunca `opacity`. O `disabled:bg-poco`

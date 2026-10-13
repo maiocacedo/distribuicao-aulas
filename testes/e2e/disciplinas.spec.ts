@@ -266,6 +266,47 @@ test.describe("aula perde a sala e outra é apagada", () => {
   });
 });
 
+test.describe("professor com aula na grade", () => {
+  test.use({
+    semMassa: true,
+    semente: `
+      INSERT INTO periodos (curso_id, numero, turno) VALUES (1, 1, 'manha');
+      INSERT INTO professores (id, nome) VALUES (1, 'Ana Souza'), (2, 'Bruno Lima');
+      INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais, exige_sala) VALUES
+        (1, 1, 'Cálculo', 1, 2, 0), (2, 1, 'Física', 1, 2, 0);
+      INSERT INTO disciplina_professores (disciplina_id, professor_id, aulas) VALUES (1, 1, 2), (2, 2, 2);
+      INSERT INTO alocacoes (curso_id, periodo, dia, hora, disciplina_id, professor_id) VALUES (1, 1, 0, 0, 1, 1);`,
+  });
+
+  test("tirá-lo da disciplina é recusado no formulário, dizendo quantas aulas ele tem, e nada é gravado", async ({ page, banco }) => {
+    await irPara(page, "Disciplinas");
+    await linhaCom(page, "Cálculo").getByRole("button", { name: "Editar" }).click();
+    const dialogo = page.getByRole("dialog");
+    await escolher(dialogo.getByLabel("Professor da fatia 1"), "Bruno Lima");
+    await dialogo.getByRole("button", { name: "Salvar" }).click();
+    await expect(dialogo.getByRole("alert")).toHaveText(
+      "A. Souza ainda tem 1 aula(s) desta disciplina na grade. Tire-as na grade antes de tirá-lo da disciplina.",
+    );
+    // Habilitado de novo, a tela terminou de reagir à recusa: o banco já não muda.
+    await expect(dialogo.getByRole("button", { name: "Salvar" })).toBeEnabled();
+    expect(contar(banco, "SELECT COUNT(*) FROM disciplina_professores WHERE disciplina_id = 1 AND professor_id = 1")).toBe(1);
+    expect(contar(banco, "SELECT COUNT(*) FROM disciplina_professores WHERE disciplina_id = 1 AND professor_id = 2")).toBe(0);
+    expect(contar(banco, "SELECT COUNT(*) FROM alocacoes")).toBe(1);
+  });
+
+  test("a confirmação de remover diz quantas aulas saem junto, e não fala de aulas quando não há", async ({ page, banco }) => {
+    const mensagens = await responderConfirmacoes(page);
+    await irPara(page, "Disciplinas");
+    await linhaCom(page, "Física").getByRole("button", { name: "Remover" }).click();
+    await expect.poll(() => contar(banco, "SELECT COUNT(*) FROM disciplinas")).toBe(1);
+    expect(mensagens[0]).toContain("Remover Física?");
+    expect(mensagens[0]).not.toContain("aula(s)");
+    await linhaCom(page, "Cálculo").getByRole("button", { name: "Remover" }).click();
+    await expect.poll(() => contar(banco, "SELECT COUNT(*) FROM disciplinas")).toBe(0);
+    expect(mensagens[1]).toContain("As 1 aula(s) dela na grade saem junto.");
+  });
+});
+
 test.describe("marcas na lista", () => {
   test.use({
     semMassa: true,

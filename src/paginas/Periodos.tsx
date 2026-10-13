@@ -85,7 +85,11 @@ export default function Periodos({ cursoId }: { cursoId: number }) {
   return (
     <>
       <CabecalhoPagina titulo="Períodos">
-        {salvo && <span className="text-xs text-primary">salvo</span>}
+        {/* A região existe sempre e o texto entra e sai dentro dela: é a
+            mudança que o leitor de tela anuncia, não o elemento que aparece. */}
+        <span role="status" className="text-xs text-primary">
+          {salvo ? "salvo" : ""}
+        </span>
       </CabecalhoPagina>
 
       <Alerta tom="erro">{erro}</Alerta>
@@ -153,7 +157,8 @@ export default function Periodos({ cursoId }: { cursoId: number }) {
                         // (que dá 0) passaria por "sem mudança" com a caixa vazia.
                         if (texto === "" || !Number.isInteger(valor) || valor < 0) {
                           caixa.value = String(p.max_disciplinas_contraturno);
-                          return avisar.erro("Use um número inteiro, zero ou maior.");
+                          // Recusa de digitação, não falha: informa e some.
+                          return avisar.aviso("Use um número inteiro, zero ou maior.");
                         }
                         if (valor === p.max_disciplinas_contraturno) {
                           caixa.value = String(valor);
@@ -181,27 +186,31 @@ export default function Periodos({ cursoId }: { cursoId: number }) {
           </Table>
         )}
 
-        <dl className="mt-3.5 grid grid-cols-[max-content_1fr] gap-x-3 gap-y-0.5 border-t border-line pt-3 text-xs">
-          <dt className="font-semibold whitespace-nowrap text-tx2">Turno</dt>
-          <dd className="text-tx3">
-            Onde o período acontece por padrão. Este curso ocupa{" "}
-            <strong>
-              {turnosDoCurso
-                .map((t) => TURNOS.find((x) => x.valor === t)?.rotulo ?? t)
-                .join(" e ")}
-            </strong>
-            ; para liberar outro turno, mude em <strong>Gerenciar cursos</strong>.
-          </dd>
-          <dt className="font-semibold whitespace-nowrap text-tx2">Máx. de obrigatórias no contraturno</dt>
-          <dd className="text-tx3">
-            Quantas disciplinas obrigatórias podem escapar do turno do período. Optativas não contam: o gerador as põe
-            no contraturno quando convém, mantendo ao menos uma no turno.
-          </dd>
-          <dt className="font-semibold whitespace-nowrap text-tx2">Disciplinas</dt>
-          <dd className="text-tx3">Quantas disciplinas estão cadastradas neste período.</dd>
-          <dt className="font-semibold whitespace-nowrap text-tx2">Aulas na grade</dt>
-          <dd className="text-tx3">Quantas aulas do período já foram alocadas na grade horária.</dd>
-        </dl>
+        {/* Sob a mesma carga do quadro: a legenda cita os turnos do curso, e
+            durante a troca eles ainda seriam os do curso anterior. */}
+        {!carregando && (
+          <dl className="mt-3.5 grid grid-cols-[max-content_1fr] gap-x-3 gap-y-0.5 border-t border-line pt-3 text-xs">
+            <dt className="font-semibold whitespace-nowrap text-tx2">Turno</dt>
+            <dd className="text-tx3">
+              Onde o período acontece por padrão. Este curso ocupa{" "}
+              <strong>
+                {turnosDoCurso
+                  .map((t) => TURNOS.find((x) => x.valor === t)?.rotulo ?? t)
+                  .join(" e ")}
+              </strong>
+              ; para liberar outro turno, mude em <strong>Gerenciar cursos</strong>.
+            </dd>
+            <dt className="font-semibold whitespace-nowrap text-tx2">Máx. de obrigatórias no contraturno</dt>
+            <dd className="text-tx3">
+              Quantas disciplinas obrigatórias podem escapar do turno do período. Optativas não contam: o gerador as põe
+              no contraturno quando convém, mantendo ao menos uma no turno.
+            </dd>
+            <dt className="font-semibold whitespace-nowrap text-tx2">Disciplinas</dt>
+            <dd className="text-tx3">Quantas disciplinas estão cadastradas neste período.</dd>
+            <dt className="font-semibold whitespace-nowrap text-tx2">Aulas na grade</dt>
+            <dd className="text-tx3">Quantas aulas do período já foram alocadas na grade horária.</dd>
+          </dl>
+        )}
 
         {/* Antes da carga `proximo` seria 1 e o botão inseriria um período que já existe. */}
         {!carregando && (
@@ -241,7 +250,7 @@ export default function Periodos({ cursoId }: { cursoId: number }) {
             {/* O botão desabilitado não recebe foco nem pouso: o motivo fica à
                 vista, ao lado, em vez de numa dica que ninguém alcança. */}
             {ultimoTemDisciplinas && (
-              <span id="motivo-remover-ultimo" className="text-xs text-tx3">
+              <span id="motivo-remover-ultimo" className="text-xs text-tx2">
                 O último período ainda tem disciplinas.
               </span>
             )}

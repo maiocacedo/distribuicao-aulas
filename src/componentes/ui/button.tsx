@@ -13,10 +13,10 @@ import { cn } from "@/lib/utils"
  *   tema.css), o mesmo desenho em todo controle.
  * A borda transparente existe para o `disabled:border-line` ter onde pintar em
  * toda variante, sem mudar a altura entre habilitado e desabilitado. Ela conta
- * na largura: o preenchimento é de 11 px para a soma dar os 12 px do botão das
- * telas antigas, e o botão convertido não empurra o que está ao lado.
+ * na largura: o preenchimento é de 11 px para a soma com ela dar 12 px de
+ * cada lado.
  * Peso: os botões cheios (primário e destrutivo) são semi-negrito e os demais,
- * normais, como nas telas antigas. O `font-medium` que o shadcn põe em todos
+ * normais. O `font-medium` que o shadcn põe em todos
  * não serve: a fonte do sistema não tem o peso 500 e o navegador o desenha
  * como semi-negrito, o que deixava "Cancelar" com o peso de "Salvar".
  */

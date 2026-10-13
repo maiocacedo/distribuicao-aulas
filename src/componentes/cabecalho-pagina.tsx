@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
  * Cabeçalho de toda tela. O escopo ao lado do título responde "isto vale só
  * para o curso selecionado ou para a instituição inteira?".
  *
- * São dois desenhos, os mesmos das telas antigas. O de lista (com busca ou
+ * São dois desenhos. O de lista (com busca ou
  * contagem) é uma linha só, centrada, a 12 px do conteúdo. O de página (com
  * subtítulo ou só o título) alinha tudo pelo topo e fica a 16 px.
  */
@@ -42,8 +42,8 @@ export function CabecalhoPagina({
       {aoBuscar && (
         <div className="relative">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-tx3" aria-hidden />
-          {/* 30 px, 2 a mais que os outros controles: é a altura do filtro das
-              listas antigas, e é ela que dá a altura do cabeçalho de lista. */}
+          {/* 30 px, 2 a mais que os outros controles: a busca está sozinha na
+              linha, e é ela que dá a altura do cabeçalho de lista. */}
           <Input
             aria-label="Buscar"
             placeholder="Buscar…"

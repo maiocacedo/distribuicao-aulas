@@ -61,9 +61,9 @@ export function BotaoIcone({
             desabilitado
               ? ESTILO_DESABILITADO
               : perigo
-                ? // Sempre da cor de negativo, como na interface antiga: a ação
-                  // destrutiva se distingue sem depender do pouso. O `hover` repete a
-                  // cor porque o `ghost` do `Button` a trocaria.
+                ? // Sempre da cor de negativo: a ação destrutiva se distingue sem
+                  // depender do pouso. O `hover` repete a cor porque o `ghost` do
+                  // `Button` a trocaria.
                   "text-destructive hover:text-destructive"
                 : "text-tx2",
             className,

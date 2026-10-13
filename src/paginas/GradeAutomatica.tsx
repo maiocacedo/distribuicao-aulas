@@ -306,7 +306,7 @@ export default function GradeAutomatica({
         }
       >
         {motivo && (
-          <span id={MOTIVO} className="inline-flex h-7 items-center text-xs text-tx3">
+          <span id={MOTIVO} className="inline-flex h-7 items-center text-xs text-tx2">
             {motivo}
           </span>
         )}

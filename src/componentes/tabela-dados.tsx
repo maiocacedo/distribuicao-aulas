@@ -17,7 +17,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { cn } from "@/lib/utils";
 
 declare module "@tanstack/react-table" {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   interface ColumnMeta<TData extends RowData, TValue> {
     /**
      * Coluna numérica: alinha à direita, em fonte de largura fixa. A marca é só
@@ -96,7 +95,6 @@ export function useTabela<T>({
    * Ao menos uma coluna precisa de `accessorKey` ou `accessorFn`: numa tabela
    * só de colunas de desenho (`id` e `cell`), o TanStack não aplica a busca.
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   colunas: ColumnDef<T, any>[];
   ordemInicial: SortingState;
   /**
@@ -128,7 +126,6 @@ export function useTabela<T>({
   // linhas iguais na coluna ordenada ficam nessa ordem, crescente ou não.
   const ordenados = useMemo(
     () => ordenarPorDesempate(dados, desempate),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [dados],
   );
 
@@ -139,7 +136,8 @@ export function useTabela<T>({
     state: { sorting: ordem, globalFilter: busca.trim(), columnFilters: filtros, columnVisibility: visibilidade },
     onSortingChange: setOrdem,
     enableSortingRemoval: false,
-    // Um critério por vez, como nas listas antigas (sem Shift + clique).
+    // Um critério por vez (sem Shift + clique): a ordem da lista é a que a
+    // seta de um cabeçalho mostra.
     enableMultiSort: false,
     // Sem isto o TanStack escolhe o primeiro sentido pelo valor da primeira
     // linha: uma coluna de texto que começasse com um nulo abriria do fim para
@@ -194,8 +192,8 @@ export function TabelaDados<T>({ tabela, vazio }: { tabela: Tabela<T>; vazio: Re
                     key={h.id}
                     aria-sort={sentido === "asc" ? "ascending" : sentido === "desc" ? "descending" : undefined}
                     className={cn(
-                      // Fonte de largura fixa (`--font-mono` do tema), como nas
-                      // listas antigas: os dígitos caem um embaixo do outro.
+                      // Fonte de largura fixa (`--font-mono` do tema): os dígitos
+                      // caem um embaixo do outro.
                       meta?.numerico && "w-[1%] pl-5 text-right font-mono",
                       meta?.centro && "pl-2.5 text-center",
                       h.column.id === "acoes" && "w-[1%]",
@@ -257,8 +255,8 @@ export function TabelaDados<T>({ tabela, vazio }: { tabela: Tabela<T>; vazio: Re
                     {c.column.id === "acoes" ? (
                       // `opacity`, não `visibility`: os botões somem sem sair do
                       // fluxo (a coluna guarda o lugar) e continuam alcançáveis
-                      // pelo teclado. Não é estado de desabilitado. O passo de
-                      // 29 px por botão é o das listas antigas.
+                      // pelo teclado. Não é estado de desabilitado. O passo é de
+                      // 29 px por botão: os 24 dele e 5 de vão.
                       <div className="flex justify-end gap-[5px] pl-[5px] opacity-0 transition-opacity duration-90 group-hover:opacity-100 has-[:focus-visible]:opacity-100">
                         {conteudo}
                       </div>

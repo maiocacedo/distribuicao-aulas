@@ -132,7 +132,19 @@ export default function Tipos() {
 
   const remover = useCallback(
     async (l: Linha) => {
-      if (!(await confirmar({ titulo: `Remover o tipo "${l.nome}"?`, confirmar: "Remover tipo", perigo: true }))) return;
+      if (
+        !(await confirmar({
+          titulo: `Remover o tipo "${l.nome}"?`,
+          // O que a remoção faz com quem usa o tipo (ver o `DELETE` abaixo).
+          descricao:
+            l.n_disciplinas > 0
+              ? `${l.n_disciplinas} disciplina(s) ficam sem tipo e conservam as propriedades que já têm.`
+              : undefined,
+          confirmar: "Remover tipo",
+          perigo: true,
+        }))
+      )
+        return;
       try {
         // A FK é ON DELETE SET NULL: as disciplinas ficam sem tipo, mas
         // conservam as propriedades que já tinham. O tipo é molde, não dono.
@@ -146,7 +158,6 @@ export default function Tipos() {
   );
 
   // As colunas não podem ser recriadas a cada desenho: ver `useTabela`.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const colunas = useMemo<ColumnDef<Linha, any>[]>(
     () => [
       {
@@ -201,7 +212,14 @@ export default function Tipos() {
 
   return (
     <>
-      <CabecalhoPagina titulo="Tipos de disciplina" escopo="Instituição · moldes de cadastro" contagem={`${linhas.length} tipo(s)`}>
+      <CabecalhoPagina
+        titulo="Tipos de disciplina"
+        escopo="Instituição · moldes de cadastro"
+        // Antes da carga seria "0 tipo(s)". Vazia, e não ausente: sem busca, é a
+        // contagem que faz deste um cabeçalho de lista, e ausente ele mudaria de
+        // desenho (e de altura) quando a lista chegasse.
+        contagem={carregando ? "" : `${linhas.length} tipo(s)`}
+      >
         <Button onClick={() => abrir(vazio())}>Novo tipo</Button>
       </CabecalhoPagina>
 

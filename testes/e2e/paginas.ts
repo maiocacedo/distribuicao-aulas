@@ -109,6 +109,26 @@ export async function segurarConsultas(page: Page, trecho: string) {
   };
 }
 
+/**
+ * Faz falhar, daqui em diante, toda consulta cujo SQL contém `trecho`.
+ * Instalada depois de a página carregar, a primeira a falhar é a recarga que
+ * vem depois de uma gravação. O `falharAPartirDe` da ponte conta execuções, e
+ * a carga inicial não tem número certo: em desenvolvimento o `StrictMode` roda
+ * cada efeito de carga duas vezes.
+ */
+export async function falharConsultas(page: Page, trecho: string) {
+  await page.evaluate((trecho) => {
+    type Interno = { invoke: (cmd: string, args?: { query?: unknown }) => Promise<unknown> };
+    const w = window as unknown as { __TAURI_INTERNALS__: Interno };
+    const invocar = w.__TAURI_INTERNALS__.invoke;
+    w.__TAURI_INTERNALS__.invoke = async (cmd, args) => {
+      // Rejeita com texto, como o Tauri faz com o erro que vem do Rust.
+      if (cmd === "plugin:sql|select" && String(args?.query).includes(trecho)) throw `falha simulada: ${String(args?.query)}`;
+      return invocar(cmd, args);
+    };
+  }, trecho);
+}
+
 /** A consulta das aulas, no meio da carga da grade. */
 export const AULAS_DA_GRADE = "FROM alocacoes a";
 

@@ -226,7 +226,7 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
       if (
         !(await confirmar({
           titulo: `Remover ${l.nome}?`,
-          descricao: `As ${l.n_aulas} aula(s) dela na grade saem junto.`,
+          descricao: l.n_aulas > 0 ? `As ${l.n_aulas} aula(s) dela na grade saem junto.` : undefined,
           confirmar: "Remover disciplina",
           perigo: true,
         }))
@@ -318,7 +318,7 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
             {/* O botão desabilitado não recebe foco nem pouso: o motivo fica à
                 vista, ao lado, em vez de numa dica que ninguém alcança. */}
             {semProfessores && (
-              <span id="motivo-nova-disciplina" className="text-xs whitespace-nowrap text-tx3">
+              <span id="motivo-nova-disciplina" className="text-xs whitespace-nowrap text-tx2">
                 Cadastre um professor antes
               </span>
             )}

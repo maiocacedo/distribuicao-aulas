@@ -3,8 +3,8 @@ import { cn } from "@/lib/utils"
 import { Label as LabelPrimitive } from "radix-ui"
 
 /*
- * Rótulo de campo: 11 px, secundário e em semi-negrito, como nas telas
- * antigas. Com o controle desabilitado o texto é rebaixado; nunca `opacity`.
+ * Rótulo de campo: 11 px, secundário e em semi-negrito. Com o controle
+ * desabilitado o texto é rebaixado; nunca `opacity`.
  */
 function Label({
   className,

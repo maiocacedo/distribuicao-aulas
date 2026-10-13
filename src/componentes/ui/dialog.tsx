@@ -7,9 +7,9 @@ import { Button } from "@/componentes/ui/button"
 
 /*
  * Ajustes sobre o que o shadcn gera:
- * - o cartão é o do `alert-dialog` (painel, raio de 8 px, fio e sombra), com o
- *   preenchimento do modal antigo (16 px em cima, 20 px dos lados e embaixo) e o
- *   fio como sombra interna: o conteúdo fica com os mesmos 500 px de largura;
+ * - o cartão é o do `alert-dialog` (painel, raio de 8 px, fio e sombra), com
+ *   16 px de preenchimento em cima e 20 px dos lados e embaixo, e o fio como
+ *   sombra interna: o conteúdo fica com 500 px de largura;
  * - não passa de 85% da altura da janela: o que sobra rola dentro dele;
  * - o "×" rebaixa a cor em vez de usar `opacity`, e se chama "Fechar". A área
  *   de clique tem 24 px em volta do ícone de 16: o botão sai 4 px para cima e

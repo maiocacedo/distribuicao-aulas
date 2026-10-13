@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures";
-import { celula, contar, escolher, escolhida, irPara, responderConfirmacoes } from "./paginas";
+import { celula, contar, escolher, escolhida, falharConsultas, irPara, linhaCom, responderConfirmacoes, segurarConsultas } from "./paginas";
 
 test.describe("turnos do curso", () => {
   test.use({
@@ -268,30 +268,47 @@ const AULA_NO_SABADO = `
 test.describe("tirar o sábado com a gravação falhando", () => {
   test.use({ semMassa: true, semente: AULA_NO_SABADO, opcoesPonte: { falharQuando: /^DELETE FROM alocacoes WHERE dia/ } });
 
-  test("o seletor continua mostrando o que está no banco", async ({ page, banco }) => {
+  test("a falha sai num aviso de erro, o seletor continua mostrando o que está no banco e a tela segue utilizável", async ({ page, banco }) => {
     await responderConfirmacoes(page);
     await irPara(page, "Regras");
     const semana = page.getByLabel("Semana");
     await escolher(semana, "Segunda a sexta");
-    await expect(page.getByText(/falha simulada/)).toBeVisible({ timeout: 3_000 });
+    // Falha de gravação é aviso de erro, como nas outras telas: fica até ser fechado.
+    const aviso = page.locator('[data-sonner-toast][data-type="error"]');
+    await expect(aviso).toContainText("falha simulada", { timeout: 3_000 });
+    await expect(aviso.locator("[data-close-button]")).toBeVisible();
+    // O alerta da página é da carga, e a carga não falhou.
+    expect(await page.getByRole("main").getByRole("alert").count()).toBe(0);
     await expect.poll(() => escolhida(semana)).toBe("Segunda a sábado");
     expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE dia = 5")).toBe(1);
     expect(contar(banco, "SELECT COUNT(*) FROM configuracao WHERE chave = 'dias_letivos' AND valor = '5'")).toBe(0);
+    // A tela não ficou presa no erro: outra gravação, que não falha, passa.
+    await page.getByLabel("Divisão do novo padrão").fill("5+2");
+    await page.getByRole("button", { name: "Adicionar padrão" }).click();
+    await expect.poll(() => contar(banco, "SELECT COUNT(*) FROM padroes_blocos WHERE padrao = '5+2'")).toBe(1);
+    await expect(page.getByRole("button", { name: "Remover o padrão 5+2 (nota 0)" })).toBeVisible();
   });
 });
 
 test.describe("tirar o sábado com a consulta falhando", () => {
   test.use({ semMassa: true, semente: AULA_NO_SABADO, opcoesPonte: { falharQuando: /FROM alocacoes WHERE dia >= / } });
 
-  test("o erro aparece na tela e o seletor não muda", async ({ page }) => {
+  test("a falha sai num aviso de erro e o seletor não muda", async ({ page, banco }) => {
     await responderConfirmacoes(page);
     await irPara(page, "Regras");
     const semana = page.getByLabel("Semana");
     await escolher(semana, "Segunda a sexta");
-    await expect(page.getByText(/falha simulada/)).toBeVisible({ timeout: 3_000 });
-    // Na própria tela — não no aviso global de promessa rejeitada, que a substitui.
+    // A consulta é parte da ação de mudar a semana: a falha dela é da ação, não da carga.
+    const aviso = page.locator('[data-sonner-toast][data-type="error"]');
+    await expect(aviso).toContainText("falha simulada", { timeout: 3_000 });
+    await expect(aviso.locator("[data-close-button]")).toBeVisible();
+    // Num aviso, com a tela inteira no lugar — não na rede global de promessa
+    // rejeitada, que troca a tela toda pela mensagem.
     await expect(page.getByText("Erro fora da tela")).toHaveCount(0);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Regras");
+    expect(await page.getByRole("main").getByRole("alert").count()).toBe(0);
     await expect.poll(() => escolhida(semana)).toBe("Segunda a sábado");
+    expect(contar(banco, "SELECT valor FROM configuracao WHERE chave = 'dias_letivos'")).toBe(6);
   });
 });
 
@@ -307,6 +324,165 @@ test.describe("dias letivos sem aula no sábado", () => {
     await escolher(semana, "Segunda a sábado");
     await expect.poll(() => contar(banco, "SELECT valor FROM configuracao WHERE chave = 'dias_letivos'")).toBe(6);
     await expect.poll(() => escolhida(semana)).toBe("Segunda a sábado");
+  });
+});
+
+test.describe("padrões de bloco", () => {
+  test.use({ semMassa: true });
+
+  test("a recarga que falha depois de gravar é erro da página: o padrão ficou gravado e o campo limpa", async ({ page, banco }) => {
+    await irPara(page, "Regras");
+    await expect(page.getByLabel("Semana")).toBeVisible();
+    const campo = page.getByLabel("Divisão do novo padrão");
+    await campo.fill("5+2");
+    // A falha entra agora, com a tela já carregada: a primeira consulta a falhar é a recarga.
+    await falharConsultas(page, "FROM padroes_blocos");
+    await page.getByRole("button", { name: "Adicionar padrão" }).click();
+    await expect(page.getByRole("main").getByRole("alert")).toContainText("falha simulada");
+    expect(contar(banco, "SELECT COUNT(*) FROM padroes_blocos WHERE aulas = 7 AND padrao = '5+2'")).toBe(1);
+    await expect(campo).toHaveValue("");
+    // Nada de aviso de falha de gravação: ele sairia antes da recarga, e a gravação deu certo.
+    expect(await page.locator('[data-sonner-toast][data-type="error"]').count()).toBe(0);
+  });
+
+  test.describe("com a gravação falhando", () => {
+    test.use({ opcoesPonte: { falharQuando: /^INSERT INTO padroes_blocos/ } });
+
+    test("a falha sai num aviso de erro, e o que foi digitado fica no campo", async ({ page, banco }) => {
+      const padroes = contar(banco, "SELECT COUNT(*) FROM padroes_blocos");
+      await irPara(page, "Regras");
+      const campo = page.getByLabel("Divisão do novo padrão");
+      await campo.fill("5+2");
+      await page.getByRole("button", { name: "Adicionar padrão" }).click();
+      const aviso = page.locator('[data-sonner-toast][data-type="error"]');
+      await expect(aviso).toContainText("falha simulada");
+      await expect(aviso.locator("[data-close-button]")).toBeVisible();
+      expect(await page.getByRole("main").getByRole("alert").count()).toBe(0);
+      await expect(campo).toHaveValue("5+2");
+      expect(contar(banco, "SELECT COUNT(*) FROM padroes_blocos")).toBe(padroes);
+    });
+  });
+
+  test.describe("com a carga falhando", () => {
+    test.use({ opcoesPonte: { falharQuando: /FROM padroes_blocos/ } });
+
+    test("o erro de carga fica na página, e não num aviso", async ({ page }) => {
+      await irPara(page, "Regras");
+      await expect(page.getByRole("main").getByRole("alert")).toContainText("falha simulada");
+      await expect(page.getByText("Erro fora da tela")).toHaveCount(0);
+      expect(await page.locator("[data-sonner-toast]").count()).toBe(0);
+    });
+  });
+
+  test("a divisão mal escrita é recusada junto do campo, e a mensagem sai ao digitar", async ({ page, banco }) => {
+    const padroes = contar(banco, "SELECT COUNT(*) FROM padroes_blocos");
+    await irPara(page, "Regras");
+    const campo = page.getByLabel("Divisão do novo padrão");
+    await campo.fill("2+x");
+    await page.getByRole("button", { name: "Adicionar padrão" }).click();
+    await expect(campo).toHaveAttribute("aria-invalid", "true");
+    await expect(campo).toHaveAccessibleDescription('Escreva o padrão como "2+2" ou "3+1" — números somados.');
+    // Uma mensagem só, a do campo: o alerta do topo da página é da carga.
+    await expect(page.getByRole("main").getByRole("alert")).toHaveCount(1);
+    await expect(page.getByRole("main").getByRole("alert")).toHaveAttribute("id", "erro-do-novo-padrao");
+    await expect(campo).toBeFocused();
+    expect(contar(banco, "SELECT COUNT(*) FROM padroes_blocos")).toBe(padroes);
+    await campo.fill("2+");
+    await expect(campo).not.toHaveAttribute("aria-invalid", "true");
+    await expect(page.getByText(/Escreva o padrão como/)).toHaveCount(0);
+  });
+
+  test("o chip do padrão se chama pelo que o clique faz, e o \"salvo\" é anunciado", async ({ page, banco }) => {
+    await responderConfirmacoes(page);
+    await irPara(page, "Regras");
+    // A região existe antes de haver o que dizer: é a mudança dentro dela que o leitor de tela anuncia.
+    const salvo = page.getByRole("main").locator("header").getByRole("status");
+    await expect(salvo).toHaveText("");
+    await page.getByRole("button", { name: "Remover o padrão 3+1 (nota 1)" }).click();
+    await expect.poll(() => contar(banco, "SELECT COUNT(*) FROM padroes_blocos WHERE padrao = '3+1'")).toBe(0);
+    await expect(salvo).toHaveText("salvo");
+  });
+});
+
+test.describe("contagem do cabeçalho durante a carga", () => {
+  test.use({ semMassa: true });
+
+  for (const [tela, consulta, contagem, carregada] of [
+    ["Professores", "FROM professores p", "0 de 0", "0 de 0"],
+    ["Salas", "FROM salas s", "0 de 0", "0 de 0"],
+    ["Tipos de disciplina", "FROM tipos_disciplina t", "0 tipo(s)", "0 tipo(s)"],
+    ["Gerenciar cursos", "FROM cursos c", "0 curso(s)", "1 curso(s)"],
+  ] as const) {
+    test(`${tela}: sem número enquanto a lista não chega`, async ({ page }) => {
+      const consultas = await segurarConsultas(page, consulta);
+      await irPara(page, tela);
+      await expect.poll(consultas.seguras).toBeGreaterThan(0);
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      expect(await page.getByText(contagem, { exact: true }).count()).toBe(0);
+      const altura = (await page.locator("main header").boundingBox())!.height;
+      await consultas.soltar();
+      await expect(page.getByText(carregada, { exact: true })).toBeVisible();
+      // O número chega sem empurrar a tela: o cabeçalho tem a mesma altura antes e depois.
+      expect((await page.locator("main header").boundingBox())!.height).toBe(altura);
+    });
+  }
+});
+
+test.describe("lista de professores", () => {
+  test.use({
+    semMassa: true,
+    semente: `
+      INSERT INTO periodos (curso_id, numero, turno) VALUES (1, 1, 'manha');
+      INSERT INTO professores (id, nome) VALUES (1, 'Ana Souza'), (2, 'Bruno Lima');
+      INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais, exige_sala) VALUES (1, 1, 'Cálculo', 1, 2, 0);
+      INSERT INTO disciplina_professores (disciplina_id, professor_id, aulas) VALUES (1, 1, 2);`,
+  });
+
+  test("busca sem resultado oferece limpar a busca", async ({ page }) => {
+    await irPara(page, "Professores");
+    const busca = page.getByLabel("Buscar");
+    await busca.fill("zzzz");
+    await expect(page.getByText("Nenhum professor encontrado.")).toBeVisible();
+    await page.getByRole("button", { name: "Limpar busca" }).click();
+    await expect(busca).toHaveValue("");
+    await expect(page.getByText("2 de 2")).toBeVisible();
+  });
+
+  test("o aviso que ficou aberto se fecha com o diálogo por cima dele", async ({ page }) => {
+    await irPara(page, "Professores");
+    // O professor com disciplina não é removido, e o aviso de erro fica até ser fechado.
+    await linhaCom(page, "Ana Souza").getByRole("button", { name: "Remover" }).click();
+    const aviso = page.locator("[data-sonner-toast]", { hasText: "disciplina(s) atribuída(s)" });
+    await expect(aviso).toBeVisible();
+    await page.getByRole("button", { name: "Novo professor" }).click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    // Com o diálogo aberto o resto da página não recebe o ponteiro; o aviso recebe.
+    await aviso.locator("[data-close-button]").click();
+    await expect(aviso).toHaveCount(0);
+    await expect(page.getByRole("dialog")).toBeVisible();
+  });
+});
+
+test.describe("troca de curso em Períodos", () => {
+  test.use({
+    semMassa: true,
+    semente: `
+      UPDATE cursos SET nome = 'Alfa' WHERE id = 1;
+      INSERT INTO cursos (id, nome) VALUES (2, 'Beta');
+      INSERT INTO periodos (curso_id, numero, turno) VALUES (1, 1, 'manha'), (2, 1, 'manha');`,
+  });
+
+  test("a legenda não fica com os turnos do curso anterior enquanto o novo carrega", async ({ page }) => {
+    await irPara(page, "Períodos");
+    await expect(page.getByText(/Este curso ocupa/)).toBeVisible();
+    const consultas = await segurarConsultas(page, "SELECT turnos FROM cursos WHERE id = ?");
+    await escolher(page.getByRole("navigation").getByRole("combobox", { name: "Curso" }), "Beta");
+    await expect.poll(consultas.seguras).toBe(1);
+    // Com a lista de cursos aberta o resto da página sai da árvore de acessibilidade.
+    await expect(page.getByRole("listbox")).toHaveCount(0);
+    expect(await page.getByText(/Este curso ocupa/).count()).toBe(0);
+    await consultas.soltar();
+    await expect(page.getByText(/Este curso ocupa/)).toBeVisible();
   });
 });
 

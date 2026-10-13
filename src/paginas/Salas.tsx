@@ -307,7 +307,6 @@ export default function Salas() {
   );
 
   // As colunas não podem ser recriadas a cada desenho: ver `useTabela`.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const colunas = useMemo<ColumnDef<Linha, any>[]>(
     () => [
       {
@@ -373,7 +372,8 @@ export default function Salas() {
       <CabecalhoPagina
         titulo="Salas"
         escopo="Instituição · comuns a todos os cursos"
-        contagem={`${tabela.getRowModel().rows.length} de ${linhas.length}`}
+        // Antes da carga seria "0 de 0". A altura do cabeçalho vem da busca: o texto só some.
+        contagem={carregando ? undefined : `${tabela.getRowModel().rows.length} de ${linhas.length}`}
         busca={busca}
         aoBuscar={setBusca}
       >

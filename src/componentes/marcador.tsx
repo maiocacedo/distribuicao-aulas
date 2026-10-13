@@ -4,9 +4,9 @@ import { Checkbox } from "@/componentes/ui/checkbox";
 /**
  * Caixa de marcar com o rótulo e, embaixo, a frase que diz o que ela faz.
  *
- * O `<label>` envolve tudo para o clique valer na linha inteira, como nas telas
- * antigas. O nome da caixa é só o rótulo: a frase é a descrição dela, e não
- * entra no nome que o leitor de tela anuncia.
+ * O `<label>` envolve tudo para o clique valer na linha inteira. O nome da
+ * caixa é só o rótulo: a frase é a descrição dela, e não entra no nome que o
+ * leitor de tela anuncia.
  */
 export function Marcador({
   rotulo,

@@ -206,7 +206,6 @@ export default function Cursos({ aoMudarLista }: { aoMudarLista: () => void }) {
   );
 
   // As colunas não podem ser recriadas a cada desenho: ver `useTabela`.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const colunas = useMemo<ColumnDef<Linha, any>[]>(
     () => [
       {
@@ -283,7 +282,10 @@ export default function Cursos({ aoMudarLista }: { aoMudarLista: () => void }) {
       <CabecalhoPagina
         titulo="Cursos"
         escopo="Cada curso tem os próprios períodos, disciplinas e grade"
-        contagem={`${linhas.length} curso(s)`}
+        // Antes da carga seria "0 curso(s)". Vazia, e não ausente: sem busca, é a
+        // contagem que faz deste um cabeçalho de lista, e ausente ele mudaria de
+        // desenho (e de altura) quando a lista chegasse.
+        contagem={carregando ? "" : `${linhas.length} curso(s)`}
       >
         <Button onClick={() => abrir(vazio())}>Novo curso</Button>
       </CabecalhoPagina>

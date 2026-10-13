@@ -2,11 +2,11 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 /*
- * A tabela das telas antigas (`table.lista`), nos mesmos números: cabeçalho de
- * 10 px em caixa alta, linha de 38 px, fio entre as linhas e realce no pouso.
+ * A tabela de lista: cabeçalho de 10 px em caixa alta, linha de 38 px, fio
+ * entre as linhas e realce no pouso.
  * O painel em volta (fundo, raio e contorno) não mora aqui: quem desenha uma
  * lista inteira usa `TabelaDados`, que o acrescenta; um quadro pequeno dentro
- * de uma seção usa estas peças direto e fica sem moldura, como era.
+ * de uma seção usa estas peças direto e fica sem moldura.
  */
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (

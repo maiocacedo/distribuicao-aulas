@@ -167,7 +167,6 @@ export default function Professores() {
   );
 
   // As colunas não podem ser recriadas a cada desenho: ver `useTabela`.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const colunas = useMemo<ColumnDef<Linha, any>[]>(
     () => [
       {
@@ -248,7 +247,8 @@ export default function Professores() {
       <CabecalhoPagina
         titulo="Professores"
         escopo="Instituição · comuns a todos os cursos"
-        contagem={`${tabela.getRowModel().rows.length} de ${linhas.length}`}
+        // Antes da carga seria "0 de 0". A altura do cabeçalho vem da busca: o texto só some.
+        contagem={carregando ? undefined : `${tabela.getRowModel().rows.length} de ${linhas.length}`}
         busca={busca}
         aoBuscar={setBusca}
       >
@@ -262,9 +262,16 @@ export default function Professores() {
           tabela={tabela}
           vazio={
             <EstadoVazio>
-              {linhas.length === 0
-                ? "Nenhum professor cadastrado ainda."
-                : "Nenhum professor com esse nome."}
+              {linhas.length === 0 ? (
+                "Nenhum professor cadastrado ainda."
+              ) : (
+                <>
+                  Nenhum professor encontrado.{" "}
+                  <Button variant="link" onClick={() => setBusca("")}>
+                    Limpar busca
+                  </Button>
+                </>
+              )}
             </EstadoVazio>
           }
         />

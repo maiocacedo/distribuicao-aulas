@@ -545,7 +545,7 @@ export default function GradeManual({ cursoId }: { cursoId: number }) {
             vista, ao lado, em vez de numa dica que ninguém alcança. Vem antes
             dos botões, à esquerda: quando aparece, eles não se mexem. */}
         {nadaALimpar && (
-          <span id="motivo-limpar-periodo" className="inline-flex h-7 items-center text-xs text-tx3">
+          <span id="motivo-limpar-periodo" className="inline-flex h-7 items-center text-xs text-tx2">
             {nadaALimpar}
           </span>
         )}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Motivo } from "../../regras/tipos";
-import { fraseDasSalas, motivosParaMostrar, novo, validarRascunho, type Rascunho } from "./salvar";
+import type { Professor } from "../../tipos";
+import { fraseDasSalas, motivosParaMostrar, novo, recusaDeQuemSaiu, validarRascunho, type Rascunho } from "./salvar";
 
 it("omite o motivo de sala quando a aula tem outro", () => {
   const sala = { regra: "sala-invalida" } as Motivo;
@@ -80,6 +81,32 @@ describe("validarRascunho", () => {
   it("devolve juntas as recusas de campos diferentes", () => {
     const erros = validarRascunho(rascunho({ nome: "", aulas_semanais: 0, fatias: [] }));
     expect(Object.keys(erros ?? {}).sort()).toEqual(["aulas", "fatias", "nome"]);
+  });
+});
+
+describe("recusaDeQuemSaiu", () => {
+  const professores = [
+    { id: 1, nome: "Ana Souza" },
+    { id: 2, nome: "Bruno Lima" },
+  ] as Professor[];
+  const aulasDe = (...ids: number[]) => ids.map((professor_id) => ({ professor_id }));
+
+  it("não recusa quando todo professor com aula na grade continua na disciplina", () => {
+    expect(recusaDeQuemSaiu(aulasDe(1, 1, 2), [{ professor_id: 1, aulas: 2 }, { professor_id: 2, aulas: 2 }], professores)).toBeNull();
+    expect(recusaDeQuemSaiu([], [], professores)).toBeNull();
+  });
+
+  it("recusa dizendo quem saiu e quantas aulas dele ainda estão na grade", () => {
+    expect(recusaDeQuemSaiu(aulasDe(1, 2, 1), [{ professor_id: 2, aulas: 4 }], professores)).toBe(
+      "A. Souza ainda tem 2 aula(s) desta disciplina na grade. Tire-as na grade antes de tirá-lo da disciplina.",
+    );
+  });
+
+  it("com mais de um, uma frase para cada, na ordem da lista de professores", () => {
+    expect(recusaDeQuemSaiu(aulasDe(2, 1), [], professores)).toBe(
+      "A. Souza ainda tem 1 aula(s) desta disciplina na grade. Tire-as na grade antes de tirá-lo da disciplina. " +
+        "B. Lima ainda tem 1 aula(s) desta disciplina na grade. Tire-as na grade antes de tirá-lo da disciplina.",
+    );
   });
 });
 

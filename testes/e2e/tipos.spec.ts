@@ -46,10 +46,25 @@ test.describe("tipos de disciplina", () => {
   });
 
   test("remover um tipo, com a confirmação, tira da lista e do banco", async ({ page, banco }) => {
-    await responderConfirmacoes(page);
+    const mensagens = await responderConfirmacoes(page);
     await irPara(page, "Tipos de disciplina");
     await linhaCom(page, "Tipo Alfa").getByRole("button", { name: "Remover" }).click();
     await expect(linhaCom(page, "Tipo Alfa")).toHaveCount(0);
     expect(contar(banco, "SELECT COUNT(*) FROM tipos_disciplina")).toBe(0);
+    // Sem disciplina com o tipo, a confirmação não fala de disciplinas.
+    expect(mensagens[0]).not.toContain("disciplina");
+  });
+
+  test("a confirmação de remover diz quantas disciplinas ficam sem tipo", async ({ page, banco }) => {
+    banco.exec(`
+      INSERT INTO periodos (curso_id, numero, turno) VALUES (1, 1, 'manha');
+      INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais, tipo_id) VALUES (1, 1, 'Cálculo', 1, 2, 1), (2, 1, 'Física', 1, 2, 1);`);
+    const mensagens = await responderConfirmacoes(page);
+    await page.reload();
+    await irPara(page, "Tipos de disciplina");
+    await linhaCom(page, "Tipo Alfa").getByRole("button", { name: "Remover" }).click();
+    await expect(linhaCom(page, "Tipo Alfa")).toHaveCount(0);
+    expect(mensagens[0]).toContain("2 disciplina(s) ficam sem tipo e conservam as propriedades que já têm.");
+    expect(contar(banco, "SELECT COUNT(*) FROM disciplinas WHERE tipo_id IS NULL")).toBe(2);
   });
 });

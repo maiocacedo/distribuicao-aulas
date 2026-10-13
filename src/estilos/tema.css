@@ -139,10 +139,12 @@
 
   --font-sans: "Segoe UI", system-ui, sans-serif;
   /* Largura fixa para número e código: os dígitos de uma coluna caem um
-     embaixo do outro. A mesma pilha do `.num` das telas antigas. */
+     embaixo do outro. */
   --font-mono: Consolas, "Cascadia Mono", monospace;
 
-  /* A densidade do design: 13 px de base, controles com texto de 12,5 px. */
+  /* A densidade do design: 13 px de base, controles com texto de 12,5 px.
+     `--line-height: normal` em cada tamanho: sem isto o `text-*` traria junto
+     a altura de linha do Tailwind, e não a natural da fonte, que o design usa. */
   --text-xs: 11px;
   --text-xs--line-height: normal;
   --text-sm: 12.5px;
@@ -166,8 +168,7 @@
     color: var(--tx);
     font-size: 13px;
     /* A altura de linha do design é a natural da fonte; o padrão do Tailwind
-       (1,5) é mais folgado e deixaria toda tela convertida mais alta que a
-       referência. */
+       (1,5) é mais folgado e deixaria toda tela mais alta que o design. */
     line-height: normal;
   }
 

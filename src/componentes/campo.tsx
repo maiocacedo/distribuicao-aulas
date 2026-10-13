@@ -25,7 +25,7 @@ export function Campo({
   const id = useId();
   const descricao = erro ? `${id}-erro` : dica ? `${id}-dica` : undefined;
   // Dica e erro são frases, às vezes de duas linhas: os 16 px de entrelinha são
-  // os das dicas das telas antigas, mais folgados que os de um rótulo.
+  // mais folgados que os de um rótulo, para as linhas não se colarem.
   return (
     <div className={cn("flex min-w-0 flex-col gap-1", className)}>
       <Label htmlFor={id}>{rotulo}</Label>

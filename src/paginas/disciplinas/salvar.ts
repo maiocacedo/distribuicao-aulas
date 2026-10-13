@@ -1,6 +1,6 @@
 import { consultar, type Instrucao } from "../../db";
 import { carregarContexto } from "../../regras/carregar";
-import { descrever } from "../../regras/descrever";
+import { curto, descrever } from "../../regras/descrever";
 import { violacoesDaAula } from "../../regras/impedimentos";
 import { Ocupacao } from "../../regras/ocupacao";
 import { reatribuirSalas } from "../../regras/reatribuir";
@@ -127,6 +127,34 @@ export function motivosParaMostrar(motivos: Motivo[]): Motivo[] {
 }
 
 /**
+ * A recusa de tirar da disciplina um professor que ainda tem aula dela na
+ * grade; `null` = ninguém saiu deixando aula. As aulas referenciam o par
+ * (disciplina, professor): tirar a fatia violaria a chave, e a mensagem do
+ * banco ("está em uso") não diz de quem é a aula nem o que fazer com ela.
+ * Uma frase por professor, na ordem da lista de professores.
+ */
+export function recusaDeQuemSaiu(
+  aulas: { professor_id: number }[],
+  fatias: Fatia[],
+  professores: Professor[],
+): string | null {
+  const deixadas = new Map<number, number>();
+  for (const a of aulas) {
+    if (fatias.some((f) => f.professor_id === a.professor_id)) continue;
+    deixadas.set(a.professor_id, (deixadas.get(a.professor_id) ?? 0) + 1);
+  }
+  if (deixadas.size === 0) return null;
+  return professores
+    .filter((p) => deixadas.has(p.id))
+    .map(
+      (p) =>
+        `${curto(p.nome)} ainda tem ${deixadas.get(p.id)} aula(s) desta disciplina na grade. ` +
+        "Tire-as na grade antes de tirá-lo da disciplina.",
+    )
+    .join(" ");
+}
+
+/**
  * O que a edição faz com as aulas que a disciplina já tem: o período leva as
  * aulas junto (B3); a aula cuja sala deixou de servir troca de sala; a que
  * deixou de valer por outro motivo é apagada, com confirmação. Tudo vai na
@@ -138,21 +166,22 @@ export async function prepararAulas(d: Rascunho, entrada: EntradaDasAulas): Prom
   const { cursoId, linhas, professores, salas } = entrada;
   const original = linhas.find((l) => l.id === d.id);
   const mudouPeriodo = !!original && original.periodo !== d.periodo;
-  const dela = (
-    await consultar<{
-      curso_id: number;
-      periodo: number;
-      dia: number;
-      hora: number;
-      professor_id: number;
-      sala_id: number | null;
-      fixada: number;
-    }>(
-      `SELECT curso_id, periodo, dia, hora, professor_id, sala_id, fixada FROM alocacoes
-        WHERE disciplina_id = ? ORDER BY dia, hora`,
-      [d.id],
-    )
-  ).filter((a) => d.fatias.some((f) => f.professor_id === a.professor_id));
+  const dela = await consultar<{
+    curso_id: number;
+    periodo: number;
+    dia: number;
+    hora: number;
+    professor_id: number;
+    sala_id: number | null;
+    fixada: number;
+  }>(
+    `SELECT curso_id, periodo, dia, hora, professor_id, sala_id, fixada FROM alocacoes
+      WHERE disciplina_id = ? ORDER BY dia, hora`,
+    [d.id],
+  );
+  // Antes de tudo: daqui em diante toda aula é de um professor que continua.
+  const quemSaiu = recusaDeQuemSaiu(dela, d.fatias, professores);
+  if (quemSaiu) return { recusa: quemSaiu };
   if (dela.length === 0) return SEM_AULAS;
   const antes: Instrucao[] = [];
   const depois: Instrucao[] = [];
@@ -430,8 +459,9 @@ export function montarInstrucoes(
         },
 
     // As aulas já alocadas referenciam (disciplina, professor). Tirar um
-    // professor que ainda tem aula na grade viola a chave estrangeira — e
-    // é isso mesmo que deve acontecer: primeiro se limpa a grade dele.
+    // professor que ainda tem aula na grade violaria a chave estrangeira:
+    // `prepararAulas` recusa antes, dizendo de quem são as aulas; a chave é a
+    // rede de baixo, para quem chegar aqui por outro caminho.
     {
       sql: `DELETE FROM disciplina_professores
                  WHERE disciplina_id = ? AND professor_id NOT IN (${marcadores})`,

@@ -46,7 +46,6 @@ export const SEGUE_O_PERIODO = "segue-o-periodo";
 
 const FATIAS_NAO_FECHAM = "fatias não fecham com a CH";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Colunas = ColumnDef<Linha, any>[];
 
 /**

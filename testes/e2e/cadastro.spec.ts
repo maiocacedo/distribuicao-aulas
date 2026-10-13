@@ -68,6 +68,10 @@ test.describe("contraturno do período", () => {
     await caixa.fill("");
     await caixa.blur();
     await expect(page.getByText(AVISO)).toBeVisible();
+    // Recusa de digitação: informa e some. Não é o aviso de erro, que fica até ser fechado.
+    const aviso = page.locator("[data-sonner-toast]", { hasText: AVISO });
+    await expect(aviso).not.toHaveAttribute("data-type", "error");
+    expect(await aviso.locator("[data-close-button]").count()).toBe(0);
     await expect(caixa).toHaveValue("0");
     expect(gravado(banco, 1)).toBe(0);
   });

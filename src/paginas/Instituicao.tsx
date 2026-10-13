@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { consultar, executar, transacao } from "../db";
 import { TURNOS, type Horario, type PadraoBloco } from "../tipos";
 import { Alerta } from "@/componentes/alerta";
@@ -8,6 +8,7 @@ import { useConfirmar } from "@/componentes/confirmacao";
 import { EstadoVazio } from "@/componentes/estado-vazio";
 import { Secao } from "@/componentes/secao";
 import { Seletor } from "@/componentes/seletor";
+import { avisar } from "@/componentes/toasts";
 import { Button } from "@/componentes/ui/button";
 import { Input } from "@/componentes/ui/input";
 import { useSinalDeSalvo } from "@/componentes/use-sinal-de-salvo";
@@ -65,7 +66,12 @@ export default function Instituicao() {
   const [padroes, setPadroes] = useState<PadraoBloco[]>([]);
   const [novoPadrao, setNovoPadrao] = useState("");
   const [custoPadrao, setCustoPadrao] = useState(0);
+  // Falha de carga ou de recarga: o que a tela mostra pode não ser o que o
+  // banco guarda. Falha de gravação é toast.
   const [erro, setErro] = useState("");
+  // A divisão mal escrita é erro do campo, não da página: fica junto dele.
+  const [erroDoPadrao, setErroDoPadrao] = useState("");
+  const campoDoPadrao = useRef<HTMLInputElement>(null);
   const [salvo, piscar] = useSinalDeSalvo();
 
   async function carregar() {
@@ -82,28 +88,35 @@ export default function Instituicao() {
         "SELECT * FROM padroes_blocos ORDER BY aulas, custo, padrao",
       ),
     );
+    setErro("");
   }
 
+  // A falha de carga aparece na página, venha da abertura da tela ou da
+  // recarga depois de gravar: nos dois casos o que está errado é o que ela mostra.
+  const recarregar = () => carregar().catch((e) => setErro(String(e)));
+
   useEffect(() => {
-    carregar().catch((e) => setErro(String(e)));
+    void recarregar();
   }, []);
 
   /**
-   * Grava e relê. A falha de consulta ou de gravação fica na própria página
-   * (não num aviso que some): a tela não tem formulário e o que está errado é
-   * o que ela mostra. Devolve se gravou, para quem precisa limpar o campo.
+   * Grava e relê. A tela não tem formulário onde a falha de gravação caiba:
+   * ela sai num aviso de erro, que fica até ser fechado, e a tela continua
+   * mostrando o que o banco guarda. Devolve se gravou, para quem precisa
+   * limpar o campo.
    */
   async function tentar(acao: () => Promise<unknown>, contexto: string): Promise<boolean> {
-    setErro("");
     try {
       await acao();
-      await carregar();
-      piscar();
-      return true;
     } catch (e) {
-      setErro(mensagemErro(e, contexto));
+      avisar.erro(mensagemErro(e, contexto));
       return false;
     }
+    // Fora do `try`: o que já foi gravado não é falha de gravação. Se a
+    // releitura falhar, o erro é da página e quem chamou fica sabendo que gravou.
+    await recarregar();
+    piscar();
+    return true;
   }
 
   const gravarConfig = (chave: string, valor: string) =>
@@ -127,12 +140,12 @@ export default function Instituicao() {
     // que o seletor muda. Se a gravação falhar, ele continua mostrando o que
     // está no banco, em vez de 5 dias com o banco em 6.
     if (novo < dias) {
-      setErro("");
       let n: number;
       try {
         [{ n }] = await consultar<{ n: number }>("SELECT COUNT(*) AS n FROM alocacoes WHERE dia >= ?", [novo]);
       } catch (e) {
-        return setErro(mensagemErro(e, "A configuração"));
+        // A consulta é parte da ação de mudar a semana: a falha dela é da ação.
+        return avisar.erro(mensagemErro(e, "A configuração"));
       }
       if (n > 0) {
         if (
@@ -192,7 +205,9 @@ export default function Instituicao() {
   async function acrescentarPadrao() {
     const p = partes(novoPadrao);
     if (!p) {
-      setErro('Escreva o padrão como "2+2" ou "3+1" — números somados.');
+      setErroDoPadrao('Escreva o padrão como "2+2" ou "3+1" — números somados.');
+      // Quem clicou no botão está longe do campo: o foco volta para onde se corrige.
+      campoDoPadrao.current?.focus();
       return;
     }
     // Ordem decrescente é a forma canônica: '1+3' e '3+1' são o mesmo padrão.
@@ -219,7 +234,11 @@ export default function Instituicao() {
         titulo="Regras"
         sub="Como a grade é montada: dias letivos, horários do dia e padrões de bloco. Valem para todos os cursos."
       >
-        {salvo && <span className="text-xs text-primary">salvo</span>}
+        {/* A região existe sempre e o texto entra e sai dentro dela: é a
+            mudança que o leitor de tela anuncia, não o elemento que aparece. */}
+        <span role="status" className="text-xs text-primary">
+          {salvo ? "salvo" : ""}
+        </span>
       </CabecalhoPagina>
 
       <Alerta tom="erro">{erro}</Alerta>
@@ -302,6 +321,8 @@ export default function Instituicao() {
                           "group inline-flex cursor-pointer items-baseline rounded-[4px] border bg-panel py-px pr-[3px] pl-1.5 font-mono text-[11.5px] transition-colors hover:border-destructive hover:bg-accent hover:text-destructive",
                           faixa.chip,
                         )}
+                        // O texto do chip ("2+2 0") não diz o que o clique faz.
+                        aria-label={`Remover o padrão ${p.padrao} (nota ${p.custo})`}
                         title={`Nota ${p.custo} · ${NOTAS[p.custo] ?? ""} — clique para remover este padrão`}
                         onClick={() => void removerPadrao(p, n)}
                       >
@@ -333,11 +354,18 @@ export default function Instituicao() {
 
         <div className="mt-3 flex items-center gap-2">
           <Input
+            ref={campoDoPadrao}
             aria-label="Divisão do novo padrão"
+            aria-invalid={erroDoPadrao ? true : undefined}
+            aria-describedby={erroDoPadrao ? "erro-do-novo-padrao" : undefined}
             className="w-32"
             placeholder="ex.: 2+2"
             value={novoPadrao}
-            onChange={(e) => setNovoPadrao(e.target.value)}
+            onChange={(e) => {
+              setNovoPadrao(e.target.value);
+              // Quem voltou a digitar já leu a mensagem.
+              setErroDoPadrao("");
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
@@ -357,6 +385,13 @@ export default function Instituicao() {
           </Button>
           {divisao && <span className="self-center text-xs text-tx3">{divisao.reduce((s, x) => s + x, 0)} aulas</span>}
         </div>
+        {/* `role="alert"`: com o Enter o foco já está no campo, e a descrição
+            que muda num campo focado não é lida sozinha. */}
+        {erroDoPadrao && (
+          <p id="erro-do-novo-padrao" role="alert" className="mt-1 text-xs leading-4 text-destructive">
+            {erroDoPadrao}
+          </p>
+        )}
       </Secao>
     </div>
   );
