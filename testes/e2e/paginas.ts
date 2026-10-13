@@ -1,4 +1,4 @@
-import type { Locator, Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 import type { DatabaseSync } from "node:sqlite";
 import { converter } from "../suporte/ponte";
 
@@ -41,6 +41,16 @@ export async function responderConfirmacoes(
   await page.addInitScript(instalar, resposta); // sobrevive a `page.reload()`
   await page.evaluate(instalar, resposta);
   return mensagens;
+}
+
+/**
+ * Na tela da grade automática: gera, aplica e espera o aviso da página. Quem
+ * chama já está na tela e já responde à confirmação (`responderConfirmacoes`).
+ */
+export async function gerarEAplicar(page: Page) {
+  await page.getByRole("button", { name: "Gerar grade" }).click();
+  await page.getByRole("button", { name: "Aplicar esta grade" }).click({ timeout: 30_000 });
+  await expect(page.getByText("Grade aplicada.")).toBeVisible();
 }
 
 /** Escolhe uma opção do seletor pelo texto que o usuário vê. */

@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures";
-import { celula, contar, irPara, responderConfirmacoes } from "./paginas";
+import { celula, contar, gerarEAplicar, irPara, responderConfirmacoes } from "./paginas";
 
 test.describe("requisito de sala por tipo", () => {
   test.use({
@@ -23,9 +23,7 @@ test.describe("requisito de sala por tipo", () => {
   test("no gerador todas as aulas vão para o laboratório", async ({ page, banco }) => {
     await responderConfirmacoes(page);
     await irPara(page, "Automática");
-    await page.getByRole("button", { name: "Gerar grade" }).click();
-    await page.getByRole("button", { name: "Aplicar esta grade" }).click({ timeout: 30_000 });
-    await expect(page.getByText("Grade aplicada.")).toBeVisible();
+    await gerarEAplicar(page);
     expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE disciplina_id = 1 AND sala_id = 2")).toBe(2);
     expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE disciplina_id = 1")).toBe(2);
   });

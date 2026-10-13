@@ -145,3 +145,25 @@ test.describe("mudar o tipo da sala quando só algumas aulas acham outra sala", 
     await expect(page.getByText("1 aula(s) mudaram de sala")).toBeVisible();
   });
 });
+
+test.describe("capacidade da sala", () => {
+  test.use({ semMassa: true, semente: "INSERT INTO salas (id, nome, tipo, capacidade) VALUES (1, 'A01', 'Sala de Aula', 40);" });
+
+  test("negativa ou fracionada é recusada junto do campo, e nada é gravado", async ({ page, banco }) => {
+    await irPara(page, "Salas");
+    await page.getByRole("row", { name: /A01/ }).getByRole("button", { name: "Editar" }).click();
+    const dialogo = page.getByRole("dialog");
+    const campo = dialogo.getByLabel("Capacidade");
+    for (const valor of ["-1", "30.5"]) {
+      await campo.fill(valor);
+      await dialogo.getByRole("button", { name: "Salvar" }).click();
+      await expect(campo).toHaveAttribute("aria-invalid", "true");
+      await expect(campo).toHaveAccessibleDescription("Capacidade inválida.");
+      await expect(campo).toBeFocused();
+    }
+    expect(contar(banco, "SELECT capacidade FROM salas WHERE id = 1")).toBe(40);
+    await campo.fill("35");
+    await dialogo.getByRole("button", { name: "Salvar" }).click();
+    await expect.poll(() => contar(banco, "SELECT capacidade FROM salas WHERE id = 1")).toBe(35);
+  });
+});

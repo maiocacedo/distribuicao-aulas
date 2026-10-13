@@ -29,13 +29,17 @@ async function pegar(page: Page, origem: Locator, destino: Locator) {
 }
 
 /**
- * Marco para afirmar que nada foi gravado: fixa (ou solta) a aula pelo botão,
- * o que entra na mesma fila de gravação. Uma gravação indevida do arrasto já
- * estaria no banco quando esta chega.
+ * Marco para afirmar que nada foi gravado: fixa (ou solta) a aula, o que entra
+ * na mesma fila de gravação. Uma gravação indevida do arrasto já estaria no
+ * banco quando esta chega.
+ *
+ * Pelo botão direito, e não por um clique no cadeado: o dnd-kit engole o clique
+ * que chega até 50 ms depois de um arrasto, e este marco vem logo depois de
+ * um. A célula fixa pelo `contextmenu`, que ele não engole.
  */
-async function alternarCadeado(page: Page, aula: Locator, banco: import("node:sqlite").DatabaseSync) {
+async function alternarCadeado(aula: Locator, banco: import("node:sqlite").DatabaseSync) {
   const antes = fixadas(banco);
-  await aula.getByRole("button", { name: /^(Fixar|Soltar)$/ }).click();
+  await aula.click({ button: "right" });
   await expect.poll(() => fixadas(banco)).not.toBe(antes);
 }
 
@@ -177,7 +181,7 @@ test.describe("aula", () => {
     await page.mouse.move(caixa.x + 30, caixa.y + 20, { steps: 4 });
     await page.mouse.up();
     expect(onde(banco, 0, 0)).toBe(1);
-    await alternarCadeado(page, origem, banco);
+    await alternarCadeado(origem, banco);
     expect(onde(banco, 0, 0)).toBe(1);
     // No histórico só a fixação, sem um "mover" para o mesmo lugar: desfeita
     // ela, não sobra o que desfazer.
@@ -202,14 +206,14 @@ test.describe("aula", () => {
     expect(await aula.getAttribute("aria-roledescription")).toBeNull();
     // Um arrasto que começa no botão de fixar não leva a aula: o gesto é do botão.
     await arrastar(page, aula.getByRole("button", { name: "Fixar" }), celula(page, "Quinta", "M3"));
-    await alternarCadeado(page, aula, banco);
+    await alternarCadeado(aula, banco);
     expect(onde(banco, 0, 0)).toBe(1);
     expect(onde(banco, 3, 2)).toBe(0);
   });
 
   test("Ctrl+Z durante o arrasto não desfaz por baixo da mão", async ({ page, banco }) => {
     await irPara(page, "Manual");
-    await alternarCadeado(page, celula(page, "Segunda", "M1"), banco);
+    await alternarCadeado(celula(page, "Segunda", "M1"), banco);
     expect(fixadas(banco)).toBe(1);
     await pegar(page, page.getByRole("button", { name: /Cálculo/ }), celula(page, "Terça", "M2"));
     await expect(page.locator(".celula.arrastando")).toBeVisible();
@@ -326,7 +330,7 @@ test.describe("aula fixada", () => {
     expect(onde(banco, 3, 2)).toBe(0);
     // Nem para o painel. O marco é soltar o cadeado, pela mesma fila.
     await arrastar(page, celula(page, "Segunda", "M1"), page.getByRole("region", { name: "Pendências" }));
-    await alternarCadeado(page, celula(page, "Segunda", "M1"), banco);
+    await alternarCadeado(celula(page, "Segunda", "M1"), banco);
     expect(onde(banco, 0, 0)).toBe(1);
     expect(onde(banco, 3, 2)).toBe(0);
     expect(await page.locator("[data-sonner-toast]").count()).toBe(0);
@@ -362,7 +366,7 @@ test.describe("duas aulas", () => {
   test("soltar uma aula sobre outra não faz nada", async ({ page, banco }) => {
     await irPara(page, "Manual");
     await arrastar(page, celula(page, "Segunda", "M1"), celula(page, "Terça", "M2"));
-    await alternarCadeado(page, celula(page, "Segunda", "M1"), banco);
+    await alternarCadeado(celula(page, "Segunda", "M1"), banco);
     expect(onde(banco, 0, 0)).toBe(1);
     expect(onde(banco, 1, 1)).toBe(1);
     expect(contar(banco, "SELECT COUNT(*) FROM alocacoes")).toBe(2);
@@ -393,7 +397,7 @@ test.describe("duas aulas", () => {
     await expect(anuncio(page)).toHaveText("Sobre Quarta, M1: A. Souza indisponível");
     await page.mouse.up();
     await expect(page.locator("[data-sonner-toast]", { hasText: "A. Souza indisponível" })).toBeVisible();
-    await alternarCadeado(page, celula(page, "Segunda", "M1"), banco);
+    await alternarCadeado(celula(page, "Segunda", "M1"), banco);
     expect(onde(banco, 0, 0)).toBe(1);
     expect(onde(banco, 2, 0)).toBe(0);
   });

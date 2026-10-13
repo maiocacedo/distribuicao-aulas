@@ -1,18 +1,10 @@
-import type { Page } from "@playwright/test";
 import type { DatabaseSync } from "node:sqlite";
 import { carregarProblema } from "../../src/solver/carregar";
 import { conferir } from "../../src/solver/conferir";
 import { DIAS } from "../../src/tipos";
 import { lerAlocacoes, lerDe } from "../suporte/banco";
 import { expect, test } from "./fixtures";
-import { celula, contar, irPara, responderConfirmacoes } from "./paginas";
-
-async function gerarEAplicar(page: Page) {
-  await irPara(page, "Automática");
-  await page.getByRole("button", { name: "Gerar grade" }).click();
-  await page.getByRole("button", { name: "Aplicar esta grade" }).click({ timeout: 30_000 });
-  await expect(page.getByText("Grade aplicada.")).toBeVisible();
-}
+import { celula, contar, gerarEAplicar, irPara, responderConfirmacoes } from "./paginas";
 
 const umaLinha = <T,>(banco: DatabaseSync, sql: string, ...params: (number | string)[]) => {
   const linha = banco.prepare(sql).get(...params);
@@ -22,6 +14,7 @@ const umaLinha = <T,>(banco: DatabaseSync, sql: string, ...params: (number | str
 
 test("gera e aplica uma grade que o auditor aprova", async ({ page, banco }) => {
   await responderConfirmacoes(page);
+  await irPara(page, "Automática");
   await gerarEAplicar(page);
   // A massa é totalmente resolúvel: a grade gerada deve colocar todas as aulas.
   const total = contar(
@@ -47,6 +40,7 @@ test("aula fixada com o botão direito sobrevive à geração", async ({ page, b
     .poll(() => contar(banco, "SELECT fixada FROM alocacoes WHERE curso_id = 1 AND periodo = 1 AND dia = ? AND hora = ?", alvo.dia, alvo.hora))
     .toBe(1);
 
+  await irPara(page, "Automática");
   await gerarEAplicar(page);
   expect(
     contar(
@@ -66,6 +60,7 @@ test("indisponibilidade marcada por arrasto é respeitada pelo gerador", async (
   // Controle: gera uma grade sem restrições para achar um professor que usa o intervalo M1-M3.
   banco.exec("DELETE FROM alocacoes WHERE curso_id = 1");
   await page.reload();
+  await irPara(page, "Automática");
   await gerarEAplicar(page);
   const { id, nome, dia } = umaLinha<{ id: number; nome: string; dia: number }>(
     banco,
@@ -88,6 +83,7 @@ test("indisponibilidade marcada por arrasto é respeitada pelo gerador", async (
   await page.mouse.up();
   await expect.poll(() => contar(banco, "SELECT COUNT(*) FROM indisponibilidades WHERE professor_id = ?", id)).toBe(3);
 
+  await irPara(page, "Automática");
   await gerarEAplicar(page);
   expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE professor_id = ?", id)).toBeGreaterThan(0);
   expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE professor_id = ? AND dia = ? AND hora <= 2", id, dia)).toBe(0);

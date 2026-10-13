@@ -326,8 +326,10 @@ test.describe("Esc na confirmação de Limpar período", () => {
     await page.keyboard.press("Escape");
     await expect(page.getByRole("alertdialog")).toHaveCount(0);
     await expect(pendencia).toHaveAttribute("aria-pressed", "true");
-    expect(contar(banco, "SELECT COUNT(*) FROM alocacoes")).toBe(1);
     await page.keyboard.press("Escape");
     await expect(pendencia).toHaveAttribute("aria-pressed", "false");
+    // Só agora, com a tela já tendo reagido ao segundo Esc: logo depois de o
+    // diálogo sumir, uma limpeza indevida ainda poderia estar a caminho do banco.
+    expect(contar(banco, "SELECT COUNT(*) FROM alocacoes")).toBe(1);
   });
 });

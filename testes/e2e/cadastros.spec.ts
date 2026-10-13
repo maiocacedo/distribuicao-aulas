@@ -192,18 +192,27 @@ test.describe("Indisponibilidades", () => {
   });
 
   test.describe("com a recontagem falhando depois de gravar", () => {
-    // A recontagem roda na carga (1ª vez) e depois de cada gravação (2ª): a gravação passa e só ela falha.
-    test.use({ opcoesPonte: { falharAPartirDe: { quando: /^SELECT professor_id, COUNT\(\*\) AS n FROM indisponibilidades/, vez: 2 } } });
-
     test("a marca gravada fica, e o erro é da página, não de gravação", async ({ page, banco }) => {
       await irPara(page, "Indisponibilidades");
       await page.getByRole("button", { name: "Ana Souza" }).click();
+      await expect(celula(page, "Segunda", "M1")).toBeVisible();
+      // A recontagem roda na carga da tela e depois de cada gravação. A falha
+      // entra agora, com a tela carregada e sem erro: a primeira recontagem a
+      // falhar é a que vem depois da gravação. (Contar execuções na ponte não
+      // serve: em desenvolvimento o `StrictMode` roda a carga duas vezes, e a
+      // "2ª vez" já era da própria carga.)
+      expect(await page.getByRole("main").getByRole("alert").count()).toBe(0);
+      await falharConsultas(page, "SELECT professor_id, COUNT(*) AS n FROM indisponibilidades");
       await celula(page, "Segunda", "M1").click();
       await expect(page.getByRole("main").getByRole("alert")).toContainText("falha simulada");
-      // Nada de aviso de falha de gravação: a gravação deu certo, e a marca fica na malha e no banco.
-      await expect(page.locator("[data-sonner-toast]")).toHaveCount(0);
       await expect(celula(page, "Segunda", "M1")).toHaveText("×");
       expect(contar(banco, "SELECT COUNT(*) FROM indisponibilidades")).toBe(1);
+      // Marco: outra marca, gravada depois. O aviso de falha de gravação da
+      // primeira, se houvesse, já estaria na tela quando esta chega ao banco.
+      await celula(page, "Terça", "M1").click();
+      await expect.poll(() => contar(banco, "SELECT COUNT(*) FROM indisponibilidades")).toBe(2);
+      await expect(celula(page, "Terça", "M1")).toHaveText("×");
+      expect(await page.locator("[data-sonner-toast]").count()).toBe(0);
     });
   });
 
@@ -446,6 +455,24 @@ test.describe("lista de professores", () => {
     await page.getByRole("button", { name: "Limpar busca" }).click();
     await expect(busca).toHaveValue("");
     await expect(page.getByText("2 de 2")).toBeVisible();
+  });
+
+  test("máximo de dias que não é inteiro de 1 a 7 é recusado junto do campo, e nada é gravado", async ({ page, banco }) => {
+    await irPara(page, "Professores");
+    await linhaCom(page, "Bruno Lima").getByRole("button", { name: "Editar" }).click();
+    const dialogo = page.getByRole("dialog");
+    const campo = dialogo.getByLabel("Máximo de dias na semana");
+    for (const valor of ["0", "8", "2.5"]) {
+      await campo.fill(valor);
+      await dialogo.getByRole("button", { name: "Salvar" }).click();
+      await expect(campo).toHaveAttribute("aria-invalid", "true");
+      await expect(campo).toHaveAccessibleDescription("O máximo de dias tem de ser um número inteiro de 1 a 7.");
+      await expect(campo).toBeFocused();
+    }
+    expect(contar(banco, "SELECT COUNT(*) FROM professores WHERE max_dias_semana IS NOT NULL")).toBe(0);
+    await campo.fill("3");
+    await dialogo.getByRole("button", { name: "Salvar" }).click();
+    await expect.poll(() => contar(banco, "SELECT COUNT(*) FROM professores WHERE id = 2 AND max_dias_semana = 3")).toBe(1);
   });
 
   test("o aviso que ficou aberto se fecha com o diálogo por cima dele", async ({ page }) => {

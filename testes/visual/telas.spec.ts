@@ -96,10 +96,19 @@ for (const [esquema, sufixo] of [["light", "claro"], ["dark", "escuro"]] as cons
       await capturar(page, `indisponibilidades-escolhido-${sufixo}.png`, { fullPage: true });
     });
 
-    test("Confirmação", async ({ page }) => {
+    test("Confirmação", async ({ page, banco }) => {
+      // Só quem não tem disciplina chega à confirmação (os outros recebem o
+      // aviso de uso). Achado no banco, e não pelo nome: a captura mostra o
+      // nome dele, e muda se a massa passar a ter outro nessa situação.
+      const { nome } = banco
+        .prepare(
+          `SELECT p.nome FROM professores p
+            WHERE NOT EXISTS (SELECT 1 FROM disciplina_professores dp WHERE dp.professor_id = p.id)
+            ORDER BY p.nome LIMIT 1`,
+        )
+        .get() as { nome: string };
       await irPara(page, "Professores");
-      // Só quem não tem disciplina chega à confirmação (os outros recebem o aviso de uso); na massa, é o Professor 07.
-      await linhaCom(page, "Professor 07").getByRole("button", { name: "Remover" }).click();
+      await linhaCom(page, nome).getByRole("button", { name: "Remover" }).click();
       await expect(page.getByRole("alertdialog")).toBeVisible();
       await capturar(page, `confirmacao-${sufixo}.png`);
     });

@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures";
-import { AULAS_DA_GRADE, celula, contar, escolher, irPara, responderConfirmacoes, segurarConsultas } from "./paginas";
+import { AULAS_DA_GRADE, celula, contar, escolher, gerarEAplicar, irPara, responderConfirmacoes, segurarConsultas } from "./paginas";
 
 const SEMENTE = `
   INSERT INTO periodos (curso_id, numero, turno) VALUES (1, 1, 'manha');
@@ -80,6 +80,42 @@ test("uma alteração de cadastro zera o histórico", async ({ page }) => {
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await irPara(page, "Manual");
   await expect(page.getByRole("main").getByRole("button", { name: "Desfazer" })).toBeDisabled();
+});
+
+test.describe("dois cursos", () => {
+  test.use({
+    semente: `${SEMENTE}
+      UPDATE cursos SET nome = 'Alfa' WHERE id = 1;
+      INSERT INTO cursos (id, nome) VALUES (2, 'Zeta');
+      INSERT INTO periodos (curso_id, numero, turno) VALUES (2, 1, 'manha');`,
+  });
+
+  test("trocar de curso zera o histórico", async ({ page, banco }) => {
+    await irPara(page, "Manual");
+    await celula(page, "Segunda", "M1").getByRole("button", { name: "Remover aula" }).click();
+    await expect.poll(() => total(banco)).toBe(1);
+    const desfazer = page.getByRole("main").getByRole("button", { name: "Desfazer" });
+    await expect(desfazer).toBeEnabled();
+
+    const curso = page.getByRole("navigation").getByRole("combobox", { name: "Curso" });
+    await escolher(curso, "Zeta");
+    await expect(curso).toHaveText("Zeta");
+    await escolher(curso, "Alfa");
+    await expect(curso).toHaveText("Alfa");
+    await expect(page.getByRole("listbox")).toHaveCount(0);
+    await irPara(page, "Manual");
+    // De volta ao primeiro curso, com a grade dele carregada: a aula que ficou.
+    await expect(celula(page, "Segunda", "M2")).toContainText("Cálculo");
+    await expect(desfazer).toBeDisabled();
+
+    // O Ctrl+Z não restaura a aula removida antes da troca. Marco: fixar a
+    // outra, pela mesma fila; um desfazer estaria antes dela.
+    await page.keyboard.press("Control+z");
+    await celula(page, "Segunda", "M2").click({ button: "right" });
+    await expect.poll(() => contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE fixada = 1")).toBe(1);
+    expect(total(banco)).toBe(1);
+    expect(await page.getByText(/^Desfeito/).count()).toBe(0);
+  });
 });
 
 test("as células vazias são alcançáveis pelo teclado", async ({ page, banco }) => {
@@ -401,12 +437,6 @@ test.describe("grade gerada", () => {
     banco.exec("DELETE FROM alocacoes WHERE curso_id = 1 AND periodo = 1");
     await page.reload();
     return contar(banco, ALOCADAS);
-  }
-
-  async function gerarEAplicar(page: import("@playwright/test").Page) {
-    await page.getByRole("button", { name: "Gerar grade" }).click();
-    await page.getByRole("button", { name: "Aplicar esta grade" }).click({ timeout: 30_000 });
-    await expect(page.getByText("Grade aplicada.")).toBeVisible();
   }
 
   test("aplicar, abrir a grade manual pelo botão e desfazer lá", async ({ page, banco }) => {

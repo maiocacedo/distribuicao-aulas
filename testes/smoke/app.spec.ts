@@ -52,6 +52,9 @@ describe("binário real", () => {
     await $('[role="dialog"] input').setValue("Cálculo");
     await $("button=Adicionar professor").click();
     await $("button=Salvar").click();
+    // Marco: a disciplina na lista. Sem ele o clique em "Manual" disputa com o
+    // diálogo, que enquanto fecha deixa o resto da página sem receber o ponteiro.
+    await expect($("td*=Cálculo")).toBeDisplayed();
 
     await ir("Manual");
     await $("button*=Cálculo").click();
