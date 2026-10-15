@@ -11,6 +11,15 @@ export default defineConfig(async () => ({
   plugins: [react(), tailwindcss()],
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
 
+  // O SQLite em WebAssembly do banco do navegador acha o `sqlite3.wasm` por
+  // `new URL(..., import.meta.url)`: pré-empacotado pelo Vite, o caminho
+  // apontaria para o lugar errado (é o que a documentação do pacote pede). O
+  // worker sai como módulo ES pelo mesmo motivo. Os cabeçalhos COOP/COEP que a
+  // documentação também cita não são precisos: são do VFS `opfs`, e o app usa
+  // o `opfs-sahpool`.
+  optimizeDeps: { exclude: ["@sqlite.org/sqlite-wasm"] },
+  worker: { format: "es" as const },
+
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent Vite from obscuring rust errors
