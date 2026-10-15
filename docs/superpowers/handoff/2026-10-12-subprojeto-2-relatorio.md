@@ -166,3 +166,21 @@ Para depois do merge, apontado pela revisão final:
 2. Decidir o merge de `refatoracao-visual` na `main`.
 3. Depois: a tarefa de teclado e leitor de tela nas duas malhas (C1 + E1) e o subprojeto 3
    (solver v2 ao lado do atual, com seletor para comparar).
+
+## Adendo de 2026-10-15: versão de navegador
+
+Pedida pelo usuário antes do merge, no branch `versao-navegador`, criado a partir de
+`refatoracao-visual` (11 commits por cima dele; HEAD `4f7a1e7` no fim da implementação). Spec:
+`docs/superpowers/specs/2026-10-15-versao-navegador-design.md`.
+
+- `npm run dev` e abrir `http://localhost:1420` num navegador: o app usa um SQLite próprio do
+  navegador (WebAssembly, guardado no armazenamento do site). O desktop não muda e não carrega
+  nada disso.
+- Página "Dados do navegador" (só no navegador): exportar o banco (abre no desktop), importar um
+  banco do desktop, carregar os dados de exemplo (a massa anonimizada dos testes), começar vazio.
+- Conferido pelo orquestrador em `4f7a1e7`: typecheck limpo, Vitest 251, e2e 211, navegador 17,
+  visual 28, build verde. O projeto `navegador` do Playwright roda o app contra o banco do
+  navegador de verdade (`npm run test:navegador`).
+- Não substitui o roteiro na janela do Tauri: o que ele quer pegar é da janela do desktop.
+- Merge: `versao-navegador` contém o `refatoracao-visual` inteiro; mesclar `versao-navegador` na
+  `main` leva os dois.

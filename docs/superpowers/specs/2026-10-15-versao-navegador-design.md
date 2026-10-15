@@ -1,6 +1,6 @@
 # Versão de navegador — desenho
 
-Status: aprovado pelo usuário em 2026-10-15 (opção 1: "usar sem instalar, uma pessoa por vez",
+Status: implementado em 2026-10-15 (N1 e N2 revisadas; suíte conferida pelo orquestrador em `4f7a1e7`). Aprovado pelo usuário em 2026-10-15 (opção 1: "usar sem instalar, uma pessoa por vez",
 para abrir e experimentar o app de verdade no navegador). Branch `versao-navegador`, a partir de
 `refatoracao-visual`.
 
@@ -63,3 +63,17 @@ máquinas, publicar o app num endereço público.
   migra, grava, persiste ao recarregar).
 - **N2 · Página "Dados do navegador".** Exportar, importar, exemplo, vazio; e2e no projeto
   `navegador`; README.
+
+## Decisões tomadas na execução
+
+- Uma aba por vez: o worker segura uma trava exclusiva (`navigator.locks`) antes de abrir o banco, esperando até 2 s (uma recarga espera o worker antigo morrer; uma aba de fato aberta ao lado é recusada com a mensagem de outra aba). Sem a trava, duas abas na primeira abertura criavam dois bancos e um deles sumia.
+- Trocar o banco (importar, exemplo, vazio) acontece dentro do worker que tem a trava; a imagem do banco atual é guardada antes, e se a gravação do novo falha a anterior é regravada e reaberta, sem recarga.
+- Sem armazenamento persistente (janela anônima de alguns navegadores), o banco roda em memória com aviso permanente, e Importar e Carregar exemplo ficam desabilitados com o motivo à vista.
+- Em `consultar`, os parâmetros são amarrados como o `select` do plugin do Tauri faz (número como REAL); nas escritas, como o `amarrar` do Rust.
+- O checksum das migrações exige contexto seguro (`localhost` ou `https`); por IP da rede local a abertura falha com mensagem clara.
+
+## Pendências
+
+- Na falha dupla (nem o banco novo nem o anterior gravam), mandar a imagem anterior à página para download de resgate.
+- O e2e da falha dupla só confere o aviso.
+- Publicar: a decisão 8 continua em aberto (a massa de exemplo vai no `dist/`, pedida só ao clicar).
