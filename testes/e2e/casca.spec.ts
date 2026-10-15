@@ -14,6 +14,14 @@ test.describe("navegação", () => {
     const item = page.getByRole("navigation").getByRole("button", { name: "Gerenciar cursos", exact: true });
     await expect(item).toHaveAttribute("aria-current", "page");
   });
+
+  test("no desktop não há página de dados do navegador", async ({ page }) => {
+    const barra = page.getByRole("navigation");
+    // O item sairia no mesmo desenho dos outros: com eles à vista, a ausência vale.
+    await expect(barra.getByRole("button", { name: "Gerenciar cursos", exact: true })).toBeVisible();
+    expect(await barra.getByRole("button", { name: "Dados do navegador" }).count()).toBe(0);
+    expect(await barra.getByText("este navegador").count()).toBe(0);
+  });
 });
 
 test.describe("seletor de curso", () => {

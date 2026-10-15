@@ -4,6 +4,7 @@ import {
   CalendarCog,
   CalendarRange,
   CalendarX,
+  Database,
   DoorOpen,
   GraduationCap,
   Layers,
@@ -17,10 +18,11 @@ import { Seletor } from "@/componentes/seletor";
 import { Toaster } from "@/componentes/ui/sonner";
 import { TooltipProvider } from "@/componentes/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { bancoEmMemoria, consultar } from "./db";
+import { bancoEmMemoria, consultar, noNavegador } from "./db";
 import { historico } from "./grade";
 import type { Curso } from "./tipos";
 import Cursos from "./paginas/Cursos";
+import DadosDoNavegador from "./paginas/DadosDoNavegador";
 import Disciplinas from "./paginas/disciplinas";
 import GradeAutomatica from "./paginas/GradeAutomatica";
 import GradeManual from "./paginas/grade-manual";
@@ -38,6 +40,8 @@ type Pagina = {
   rotulo: string;
   icone: LucideIcon;
   componente: (p: Props) => React.ReactNode;
+  /** Abre mesmo sem curso: não é página de um curso. */
+  semCurso?: boolean;
 };
 
 /**
@@ -122,9 +126,23 @@ const PAGINA_CURSOS: Pagina = {
   rotulo: "Gerenciar cursos",
   icone: GraduationCap,
   componente: (p) => <Cursos aoMudarLista={p.aoMudarCursos} />,
+  semCurso: true,
 };
 
-const TODAS = [...GRUPOS.flatMap((g) => g.paginas), PAGINA_CURSOS];
+/**
+ * Só no navegador, onde o banco não é um arquivo que o usuário vê: é a página
+ * que diz onde os dados ficam e que os exporta e troca. No desktop o item nem
+ * existe.
+ */
+const PAGINA_DADOS: Pagina = {
+  id: "dados-navegador",
+  rotulo: "Dados do navegador",
+  icone: Database,
+  componente: () => <DadosDoNavegador />,
+  semCurso: true,
+};
+
+const TODAS = [...GRUPOS.flatMap((g) => g.paginas), PAGINA_CURSOS, PAGINA_DADOS];
 
 function App() {
   const [cursos, setCursos] = useState<Curso[]>([]);
@@ -247,6 +265,13 @@ function App() {
               {g.paginas.map((p) => item(p))}
             </div>
           ))}
+
+          {noNavegador() && (
+            <div className="flex flex-col gap-px">
+              <div className="px-2.5 pb-1 pt-4 text-[10px] uppercase tracking-[0.08em] text-tx3">este navegador</div>
+              {item(PAGINA_DADOS)}
+            </div>
+          )}
         </nav>
 
         {/* `min-w-0`: sem ele a coluna `1fr` não encolhe abaixo do conteúdo e
@@ -257,7 +282,7 @@ function App() {
               Este navegador não guarda os dados: o que você fizer some ao fechar a página.
             </Alerta>
           )}
-          {semCurso && atual.id !== "cursos" ? (
+          {semCurso && !atual.semCurso ? (
             <>
               <h1 className="text-xl font-bold">Nenhum curso</h1>
               <p className="mt-2 text-tx2">Crie um curso em "Gerenciar cursos" para começar.</p>
