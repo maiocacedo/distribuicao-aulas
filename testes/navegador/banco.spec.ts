@@ -123,3 +123,55 @@ test("sem armazenamento de origem, o banco fica em memória e o aviso fica à vi
   await irPara(page, "Salas");
   await expect(page.getByText(AVISO_MEMORIA)).toBeVisible();
 });
+
+/** Como a página terminou de abrir: com o banco, ou com a falha de abertura. */
+function comoAbriu(page: Page): Promise<"aberta" | "recusada"> {
+  return Promise.race([
+    page.locator("#curso-ativo", { hasText: "Curso" }).waitFor().then(() => "aberta" as const),
+    page.getByText("Falha ao abrir o banco").waitFor().then(() => "recusada" as const),
+  ]);
+}
+
+/**
+ * Entra no começo do módulo do worker. A corrida perigosa é a da primeira
+ * abertura: o VFS lista a pasta do pool, e se as duas abas a veem vazia, cada
+ * uma cria os seus arquivos e o banco se divide em dois. Na máquina de verdade
+ * isso depende do acaso; aqui cada worker, depois de listar, espera o outro
+ * listar também (ou desiste em 2 s, quando só um chega a listar).
+ */
+const ENCONTRO_NA_LISTAGEM = `{
+  const canal = new BroadcastChannel("teste-duas-abas");
+  let outroListou = false;
+  let seguir = null;
+  canal.onmessage = () => { outroListou = true; seguir?.(); };
+  const listar = FileSystemDirectoryHandle.prototype[Symbol.asyncIterator];
+  FileSystemDirectoryHandle.prototype[Symbol.asyncIterator] = async function* () {
+    const itens = [];
+    for await (const item of listar.call(this)) itens.push(item);
+    canal.postMessage("listei");
+    if (!outroListou) await new Promise((r) => { seguir = r; setTimeout(r, 2000); });
+    yield* itens;
+  };
+}
+`;
+
+test("duas abas abrindo juntas: uma abre, a outra pede para fechar a primeira", async ({ context }) => {
+  await context.route(/\/src\/banco\/trabalhador\.ts/, async (rota) => {
+    const resposta = await rota.fetch();
+    await rota.fulfill({ response: resposta, body: ENCONTRO_NA_LISTAGEM + (await resposta.text()) });
+  });
+  const [a, b] = await Promise.all([context.newPage(), context.newPage()]);
+  await Promise.all([a.goto("/"), b.goto("/")]);
+  const estados = await Promise.all([comoAbriu(a), comoAbriu(b)]);
+  expect([...estados].sort()).toEqual(["aberta", "recusada"]);
+
+  const [aberta, recusada] = estados[0] === "aberta" ? [a, b] : [b, a];
+  await expect(recusada.getByText(/aberto em outra aba/)).toBeVisible();
+  await cadastrarProfessor(aberta, "Ana Souza");
+
+  // Fechada a que abriu, a outra abre ao recarregar, e com o que foi gravado.
+  await aberta.close();
+  await recusada.reload();
+  await expect(recusada.locator("#curso-ativo")).toHaveText("Curso");
+  await expect(noBanco(recusada, "SELECT nome FROM professores")).resolves.toEqual([{ nome: "Ana Souza" }]);
+});

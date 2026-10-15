@@ -54,6 +54,11 @@ export function valorDaLinha(v: SqlValue): unknown {
   return v;
 }
 
+/**
+ * Uma sentença por consulta: `prepare` só compila a primeira e ignora o resto
+ * do texto, sem aviso. O sqlx do plugin executaria todas. O app nunca manda
+ * mais de uma; quem passar a mandar precisa tratar aqui.
+ */
 export function consultar(sqlite3: Sqlite3Static, db: Database, sql: string, params: unknown[] = []) {
   const linhas: Record<string, unknown>[] = [];
   const stmt = db.prepare(sql);
@@ -80,6 +85,11 @@ export function consultar(sqlite3: Sqlite3Static, db: Database, sql: string, par
  * (dentro dela o PRAGMA é ignorado sem aviso), tudo ou nada, `rowsAffected`
  * somado e `lastInsertId` da última instrução. O COMMIT fica dentro do `try`:
  * com restrição adiada ele pode falhar, e a transação continuaria aberta.
+ *
+ * Diferença conhecida: uma instrução com várias sentenças executa todas, mas
+ * `db.changes()` conta só as linhas da última, enquanto o sqlx soma as de cada
+ * uma. O app manda uma sentença por instrução, então não aparece; quem passar
+ * a mandar várias precisa somar aqui.
  */
 export function transacao(sqlite3: Sqlite3Static, db: Database, instrucoes: Instrucao[]): ResultadoEscrita {
   db.exec("PRAGMA foreign_keys = ON");

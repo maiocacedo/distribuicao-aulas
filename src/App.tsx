@@ -151,7 +151,8 @@ function App() {
   }, []);
 
   useEffect(() => {
-    carregarCursos().catch((e) => setErro(String(e)));
+    // Só a mensagem: `String` de um `Error` começaria com "Error: ".
+    carregarCursos().catch((e) => setErro(e instanceof Error ? e.message : String(e)));
   }, [carregarCursos]);
 
   useEffect(() => {

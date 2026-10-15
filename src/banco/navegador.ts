@@ -21,7 +21,11 @@ const pendentes = new Map<number, { resolver: (v: unknown) => void; rejeitar: (e
 let ultimoId = 0;
 let quebrado: Error | null = null;
 
+/** Se o worker já respondeu alguma vez: daí em diante ele carregou. */
+let carregou = false;
+
 trabalhador.onmessage = (e: MessageEvent<Resposta>) => {
+  carregou = true;
   const r = e.data;
   const p = pendentes.get(r.id);
   if (!p) return;
@@ -30,9 +34,17 @@ trabalhador.onmessage = (e: MessageEvent<Resposta>) => {
   else p.rejeitar(new Error(r.erro));
 };
 
-// O worker que nem chega a carregar (o script ou o WebAssembly não vieram)
-// não responde mais nada: tudo o que espera e tudo o que vier falha com o motivo.
+// Erro antes da primeira resposta é o worker que nem chegou a carregar (o
+// script não veio, ou não roda): ele não responde mais nada, e tudo o que
+// espera e tudo o que vier falha com o motivo. Erro depois disso é uma exceção
+// solta dentro de um worker que funciona — os pedidos têm o próprio `catch` lá
+// dentro e continuam sendo atendidos —, então só vai para o console. (A falha
+// do WebAssembly ou das migrações não passa por aqui: vira resposta de erro.)
 trabalhador.onerror = (e) => {
+  if (carregou) {
+    console.error("worker do banco:", e.message);
+    return;
+  }
   e.preventDefault();
   quebrado = new Error(`O banco do navegador não carregou: ${e.message || "erro no worker"}`);
   pendentes.forEach((p) => p.rejeitar(quebrado!));

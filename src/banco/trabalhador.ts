@@ -28,6 +28,9 @@ export type Resposta = { id: number; ok: true; valor: unknown } | { id: number; 
 /** O arquivo do banco dentro do VFS. */
 export const ARQUIVO = "/distribuicao.db";
 
+/** O nome da trava que dá o banco a uma aba só (`travarOBanco`). */
+const TRAVA = "distribuicao.db";
+
 interface Aberto {
   sqlite3: Sqlite3Static;
   db: Database;
@@ -51,12 +54,48 @@ async function temArmazenamento(): Promise<boolean> {
   }
 }
 
+/**
+ * Uma aba por vez no banco, garantido por uma trava exclusiva (Web Locks)
+ * tomada ANTES de instalar o VFS e mantida pela vida do worker: o navegador a
+ * solta sozinho quando a aba fecha ou recarrega.
+ *
+ * O VFS sozinho não basta. Ele recusa a segunda aba quando os arquivos do pool
+ * já existem (cada um só aceita um acesso síncrono), mas na primeira abertura,
+ * com o pool vazio, as duas abas o listam vazio, cada uma cria os seus
+ * arquivos, e `/distribuicao.db` passa a existir duas vezes: o que uma aba
+ * grava fica num arquivo que a próxima abertura talvez nunca veja.
+ *
+ * O banco em memória não pede a trava: ali nada é compartilhado, cada aba tem
+ * o seu, e o aviso de memória já diz que nada fica.
+ *
+ * Sem a API de travas (navegador antigo) segue sem ela: é a proteção do VFS de
+ * antes, que só falha na primeira abertura simultânea.
+ */
+function travarOBanco(): Promise<void> {
+  const travas = (navigator as { locks?: LockManager }).locks;
+  if (!travas) return Promise.resolve();
+  return new Promise((pegou, recusou) => {
+    travas
+      .request(TRAVA, { ifAvailable: true }, (trava) => {
+        if (!trava) {
+          recusou(new Error("o banco já está em uso por outra aba"));
+          return;
+        }
+        pegou();
+        // Nunca resolve: a trava fica com este worker até ele terminar.
+        return new Promise<never>(() => {});
+      })
+      .catch(recusou);
+  });
+}
+
 async function abrir(): Promise<Aberto> {
   const sqlite3 = await sqlite3InitModule();
   let db: Database;
   let persistente = false;
   if (await temArmazenamento()) {
     try {
+      await travarOBanco();
       const pool = await sqlite3.installOpfsSAHPoolVfs({});
       db = new pool.OpfsSAHPoolDb(ARQUIVO);
       persistente = true;
@@ -103,8 +142,28 @@ const escopo = self as unknown as {
   postMessage: (r: Resposta) => void;
 };
 
+/**
+ * Uma resposta que não se deixa copiar para a página (`postMessage` lança)
+ * vira resposta de erro: quem pediu não fica esperando para sempre.
+ */
+function responder(r: Resposta) {
+  try {
+    escopo.postMessage(r);
+  } catch (e) {
+    escopo.postMessage({
+      id: r.id,
+      ok: false,
+      erro: `a resposta do banco não pôde ser enviada: ${e instanceof Error ? e.message : String(e)}`,
+    });
+  }
+}
+
 let fila: Promise<void> = Promise.resolve();
 escopo.onmessage = (e) => {
-  // `atender` nunca rejeita: a fila não para por causa de um pedido que falhou.
-  fila = fila.then(() => atender(e.data).then((r) => escopo.postMessage(r)));
+  // `atender` nunca rejeita, e o `catch` cobre o resto: um elo rejeitado
+  // pararia a fila, porque o `then` seguinte não roda sobre ele.
+  fila = fila
+    .then(() => atender(e.data))
+    .then(responder)
+    .catch((erro) => console.error("worker do banco: pedido sem resposta", erro));
 };
