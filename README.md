@@ -79,9 +79,34 @@ Um arquivo de migração já publicado nunca é editado — bancos existentes n�
 executariam de novo. Toda alteração de esquema é um arquivo novo com o próximo
 número, acrescentado também à lista em `lib.rs`.
 
+## Rodar no navegador
+
+O desktop continua sendo o modo principal. Para abrir o app sem instalar nada,
+num navegador comum:
+
+```bash
+npm install
+npm run dev
+```
+
+e abra <http://localhost:1420>. Fora do Tauri, o app usa um banco próprio do
+navegador (SQLite em WebAssembly, no armazenamento do site): os dados ficam
+naquele navegador, naquela máquina, e somem se os dados do site forem limpos.
+Numa janela anônima, somem ao fechar a janela; se o navegador não oferece
+armazenamento, o app avisa no topo de toda tela.
+
+A página **Dados do navegador**, que só existe nesse modo, exporta o banco
+num arquivo `.db` (o mesmo formato do desktop, que o abre se for copiado para a
+pasta de dados dele com o nome `distribuicao.db`), importa um `.db` exportado
+daqui ou do desktop, carrega os dados de exemplo da massa de teste e recomeça
+com um banco vazio.
+
+O banco abre em uma aba por vez. Não há sincronização entre navegadores ou
+máquinas nem vários usuários: para levar os dados, exporte e importe.
+
 ## Testes
 
-Quatro camadas de teste (unidade, interface, capturas e binário real), mais o
+Cinco camadas de teste (unidade, interface, capturas, navegador e binário real), mais o
 benchmark, sobre a mesma massa anonimizada (`testes/massa/`):
 
 ```bash
@@ -90,6 +115,7 @@ npm test               # Vitest: regras, solver e auditor, histórico de desfaze
                        # ações da grade, validação de Disciplinas, ponte de IPC (segundos)
 npm run test:e2e       # Playwright: a interface no Chromium, sem compilar Rust
 npm run test:visual    # capturas de cada tela, claro e escuro (só local, Windows)
+npm run test:navegador # Playwright: o app no navegador, com o banco do navegador de verdade
 npm run test:smoke     # binário real (Windows); exige build debug e drivers
 npm run bench:solver   # compara solvers em cenários × sementes
 ```
