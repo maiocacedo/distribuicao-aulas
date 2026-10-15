@@ -29,6 +29,14 @@ export default defineConfig({
       testDir: "testes/visual",
       use: { ...devices["Desktop Chrome"], viewport: { width: 1400, height: 900 } },
     },
+    {
+      // Sem a ponte falsa do Tauri: o app abre como num navegador comum, com o
+      // banco do navegador de verdade (SQLite em WebAssembly no armazenamento de
+      // origem). Cada teste ganha um contexto novo, e com ele um armazenamento vazio.
+      name: "navegador",
+      testDir: "testes/navegador",
+      use: { ...devices["Desktop Chrome"], viewport: { width: 1400, height: 900 } },
+    },
   ],
   webServer: {
     command: "npm run dev",

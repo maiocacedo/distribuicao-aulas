@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:e2e": "playwright test --project=chromium",
     "test:visual": "playwright test --project=visual",
+    "test:navegador": "playwright test --project=navegador",
     "bench:solver": "vite-node scripts/bench_solver.ts --"
   },
   "engines": {
