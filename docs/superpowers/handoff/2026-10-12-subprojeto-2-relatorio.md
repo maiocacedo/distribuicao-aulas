@@ -59,9 +59,12 @@ O Playwright reaproveita o que estiver na porta 1420: se um teste falhar sem mot
 não há um `npm run dev` antigo aberto. Rodar o e2e logo depois de outra rodada pode dar
 `ERR_CONNECTION_REFUSED` no primeiro teste; rode de novo.
 
-**Antes de abrir o app de produção sobre o banco real**, guarde uma cópia de
-`%APPDATA%\br.edu.utfpr.distribuicaoaulas\distribuicao.db`: a migração 010 roda na primeira
-abertura com este código. (`npm run tauri dev` usa o build de debug.)
+**Antes de abrir o app sobre o banco real**, guarde uma cópia de
+`%APPDATA%\br.edu.utfpr.distribuicaoaulas\distribuicao.db`. Isso vale também para
+`npm run tauri dev`: o build de debug usa esse mesmo arquivo, a menos que a variável
+`DISTRIBUICAO_BANCO` aponte para outro (é o que o smoke faz). O banco real já está na versão
+10 do esquema (a cópia de segurança feita em 2026-10-12 tem a migração 010 registrada), então
+este código não aplica migração nova nele.
 
 ### Roteiro na janela do Tauri
 
