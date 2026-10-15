@@ -1,4 +1,5 @@
 import { motorTauri } from "./banco/tauri";
+import type { Substituto } from "./banco/trabalhador";
 
 /**
  * A fronteira com o banco. Por baixo há dois motores com a mesma semântica: o
@@ -19,11 +20,15 @@ export interface Motor {
   emMemoria(): Promise<boolean>;
 }
 
-let doNavegador: Promise<Motor> | null = null;
+let doNavegador: Promise<typeof import("./banco/navegador")> | null = null;
+
+function moduloDoNavegador() {
+  if (!doNavegador) doNavegador = import("./banco/navegador");
+  return doNavegador;
+}
 
 function navegador(): Promise<Motor> {
-  if (!doNavegador) doNavegador = import("./banco/navegador").then((m) => m.motorNavegador);
-  return doNavegador;
+  return moduloDoNavegador().then((m) => m.motorNavegador);
 }
 
 const viaNavegador: Motor = {
@@ -34,9 +39,26 @@ const viaNavegador: Motor = {
 };
 
 /** O Tauri injeta `__TAURI_INTERNALS__` antes de qualquer script da página. */
-function motor(): Motor {
-  return "__TAURI_INTERNALS__" in globalThis ? motorTauri : viaNavegador;
+export function noNavegador(): boolean {
+  return !("__TAURI_INTERNALS__" in globalThis);
 }
+
+function motor(): Motor {
+  return noNavegador() ? viaNavegador : motorTauri;
+}
+
+export type { Resumo, Substituto } from "./banco/trabalhador";
+
+/**
+ * O banco do navegador como arquivo (página "Dados do navegador"). Só existe
+ * fora do Tauri: no desktop o banco é um arquivo no disco, e quem o copia é o
+ * usuário.
+ */
+export const arquivoDoBanco = {
+  exportar: () => moduloDoNavegador().then((m) => m.arquivoDoBanco.exportar()),
+  conferir: (bytes: Uint8Array) => moduloDoNavegador().then((m) => m.arquivoDoBanco.conferir(bytes)),
+  substituir: (s: Substituto) => moduloDoNavegador().then((m) => m.arquivoDoBanco.substituir(s)),
+};
 
 export function banco(): Promise<string> {
   return motor().banco();

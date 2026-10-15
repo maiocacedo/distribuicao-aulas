@@ -1,5 +1,5 @@
 import type { Motor } from "../db";
-import type { Pedido, Resposta } from "./trabalhador";
+import type { Pedido, Resposta, Resumo, Substituto } from "./trabalhador";
 
 /**
  * O banco do navegador, do lado da página: manda cada pedido ao worker
@@ -79,4 +79,16 @@ export const motorNavegador: Motor = {
     pedir<T[]>({ tipo: "consultar", dados: { sql, params: comoJson(params) } }),
   transacao: (instrucoes) => pedir({ tipo: "transacao", dados: { instrucoes: comoJson(instrucoes) } }),
   emMemoria: () => abertura.then((a) => !a.persistente),
+};
+
+/**
+ * O que só o banco do navegador faz: a página "Dados do navegador" baixa o
+ * banco, confere um arquivo antes de pedir confirmação e troca o banco. A
+ * troca acontece dentro do worker, que tem a trava; quem chama recarrega a
+ * página em seguida.
+ */
+export const arquivoDoBanco = {
+  exportar: () => pedir<Uint8Array>({ tipo: "exportar" }),
+  conferir: (bytes: Uint8Array) => pedir<Resumo>({ tipo: "conferir", dados: { bytes } }),
+  substituir: (s: Substituto) => pedir<null>({ tipo: "substituir", dados: s }),
 };

@@ -1,5 +1,6 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { irPara } from "../e2e/paginas";
+import { AVISO_MEMORIA, cadastrarProfessor, comoAbriu, gravarNoBanco, noBanco } from "./apoio";
 
 /**
  * O app como num navegador comum: sem `__TAURI_INTERNALS__`, `src/db.ts`
@@ -11,39 +12,6 @@ import { irPara } from "../e2e/paginas";
  * contexto.
  */
 
-const AVISO_MEMORIA = "Este navegador não guarda os dados: o que você fizer some ao fechar a página.";
-
-/**
- * Consulta pelo mesmo módulo `db.ts` que o app usa: o servidor de dev o serve
- * em `/src/db.ts`, e o import devolve a mesma instância (e o mesmo worker).
- */
-function noBanco<T>(page: Page, sql: string, params: unknown[] = []): Promise<T[]> {
-  return page.evaluate(
-    async ([caminho, sql, params]) => {
-      const db = await import(/* @vite-ignore */ caminho as string);
-      return db.consultar(sql, params);
-    },
-    ["/src/db.ts", sql, params] as const,
-  );
-}
-
-function gravarNoBanco(page: Page, sql: string, params: unknown[] = []) {
-  return page.evaluate(
-    async ([caminho, sql, params]) => {
-      const db = await import(/* @vite-ignore */ caminho as string);
-      return db.executar(sql, params);
-    },
-    ["/src/db.ts", sql, params] as const,
-  );
-}
-
-async function cadastrarProfessor(page: Page, nome: string) {
-  await irPara(page, "Professores");
-  await page.getByRole("button", { name: "Novo professor" }).click();
-  await page.getByLabel("Nome", { exact: true }).fill(nome);
-  await page.getByRole("button", { name: "Salvar" }).click();
-  await expect(page.getByRole("row", { name: new RegExp(nome) })).toBeVisible();
-}
 
 test("abre num banco vazio, já migrado, com o curso que a migração 005 cria", async ({ page }) => {
   await page.goto("/");
@@ -122,15 +90,16 @@ test("sem armazenamento de origem, o banco fica em memória e o aviso fica à vi
   await cadastrarProfessor(page, "Ana Souza");
   await irPara(page, "Salas");
   await expect(page.getByText(AVISO_MEMORIA)).toBeVisible();
+
+  // Em memória, importar e o exemplo sumiriam na recarga que termina a troca.
+  await irPara(page, "Dados do navegador");
+  await expect(page.getByRole("button", { name: "Importar banco…" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Carregar dados de exemplo" })).toBeDisabled();
+  await expect(page.getByText(/o banco trocado sumiria na recarga/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Exportar banco" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Começar vazio" })).toBeEnabled();
 });
 
-/** Como a página terminou de abrir: com o banco, ou com a falha de abertura. */
-function comoAbriu(page: Page): Promise<"aberta" | "recusada"> {
-  return Promise.race([
-    page.locator("#curso-ativo", { hasText: "Curso" }).waitFor().then(() => "aberta" as const),
-    page.getByText("Falha ao abrir o banco").waitFor().then(() => "recusada" as const),
-  ]);
-}
 
 /**
  * Entra no começo do módulo do worker. A corrida perigosa é a da primeira
@@ -174,4 +143,28 @@ test("duas abas abrindo juntas: uma abre, a outra pede para fechar a primeira", 
   await recusada.reload();
   await expect(recusada.locator("#curso-ativo")).toHaveText("Curso");
   await expect(noBanco(recusada, "SELECT nome FROM professores")).resolves.toEqual([{ nome: "Ana Souza" }]);
+});
+
+test("a aba que pega a trava e não consegue abrir a solta para a próxima", async ({ context }) => {
+  // Na primeira aba, a migração falha depois de a trava e o VFS serem tomados:
+  // o checksum (SHA-384 do navegador) é derrubado no começo do worker dela.
+  const quebrada = await context.newPage();
+  await quebrada.route(/\/src\/banco\/trabalhador\.ts/, async (rota) => {
+    const resposta = await rota.fetch();
+    await rota.fulfill({
+      response: resposta,
+      body:
+        'crypto.subtle.digest = () => Promise.reject(new Error("checksum derrubado pelo teste"));\n' +
+        (await resposta.text()),
+    });
+  });
+  await quebrada.goto("/");
+  await expect(quebrada.getByText("Falha ao abrir o banco")).toBeVisible();
+  await expect(quebrada.getByText(/checksum derrubado pelo teste/)).toBeVisible();
+
+  // Com ela ainda aberta, a segunda abre: a trava e os arquivos foram soltos.
+  const outra = await context.newPage();
+  await outra.goto("/");
+  await expect(outra.locator("#curso-ativo")).toHaveText("Curso");
+  await expect(outra.getByText("Falha ao abrir o banco")).toHaveCount(0);
 });

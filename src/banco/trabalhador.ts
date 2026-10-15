@@ -1,4 +1,6 @@
-import sqlite3InitModule, { type Database, type Sqlite3Static } from "@sqlite.org/sqlite-wasm";
+/// <reference types="vite/client" />
+import sqlite3InitModule, { type Database, type SAHPoolUtil, type Sqlite3Static } from "@sqlite.org/sqlite-wasm";
+import { abrirArquivo, exportar, montarExemplo, montarVazio, resumir, type Resumo } from "./arquivo";
 import { migracoesDoApp, migrar } from "./migracoes";
 import { consultar, transacao } from "./sqlite";
 
@@ -16,14 +18,27 @@ import { consultar, transacao } from "./sqlite";
  * Protocolo: pedido `{ id, tipo, dados }`, resposta `{ id, ok: true, valor }`
  * ou `{ id, ok: false, erro }`, com `erro` sendo a mensagem do SQLite como ele
  * a deu (é nela que `mensagemErro` reconhece "FOREIGN KEY constraint failed").
+ *
+ * Trocar o banco (página "Dados do navegador") também acontece aqui, e só
+ * aqui: este worker tem a trava e os arquivos do VFS, e qualquer outra
+ * conexão seria recusada. Depois da troca ele não atende mais nada; a página
+ * recarrega, e o worker novo abre o banco novo.
  */
+
+/** Com o que a página "Dados do navegador" substitui o banco. */
+export type Substituto = { por: "arquivo"; bytes: Uint8Array } | { por: "exemplo" } | { por: "vazio" };
 
 export type Pedido =
   | { id: number; tipo: "abrir" }
   | { id: number; tipo: "consultar"; dados: { sql: string; params: unknown[] } }
-  | { id: number; tipo: "transacao"; dados: { instrucoes: { sql: string; params?: unknown[] }[] } };
+  | { id: number; tipo: "transacao"; dados: { instrucoes: { sql: string; params?: unknown[] }[] } }
+  | { id: number; tipo: "exportar" }
+  | { id: number; tipo: "conferir"; dados: { bytes: Uint8Array } }
+  | { id: number; tipo: "substituir"; dados: Substituto };
 
 export type Resposta = { id: number; ok: true; valor: unknown } | { id: number; ok: false; erro: string };
+
+export type { Resumo };
 
 /** O arquivo do banco dentro do VFS. */
 export const ARQUIVO = "/distribuicao.db";
@@ -31,10 +46,20 @@ export const ARQUIVO = "/distribuicao.db";
 /** O nome da trava que dá o banco a uma aba só (`travarOBanco`). */
 const TRAVA = "distribuicao.db";
 
+/**
+ * Quanto se espera pela trava. A recarga da página (a de toda troca de banco,
+ * inclusive) cria um worker novo antes de o antigo terminar de morrer; sem
+ * espera, o novo acharia a trava ainda presa e recusaria. Uma aba de fato
+ * aberta ao lado nunca a solta, e é recusada depois desse tempo.
+ */
+const ESPERA_DA_TRAVA = 2000;
+
 interface Aberto {
   sqlite3: Sqlite3Static;
   db: Database;
   persistente: boolean;
+  /** O VFS, quando o banco está no armazenamento de origem; é por ele que se troca o arquivo. */
+  pool: SAHPoolUtil | null;
 }
 
 /**
@@ -57,7 +82,8 @@ async function temArmazenamento(): Promise<boolean> {
 /**
  * Uma aba por vez no banco, garantido por uma trava exclusiva (Web Locks)
  * tomada ANTES de instalar o VFS e mantida pela vida do worker: o navegador a
- * solta sozinho quando a aba fecha ou recarrega.
+ * solta sozinho quando a aba fecha ou recarrega. Devolve a função que a solta
+ * antes disso (abertura que falhou).
  *
  * O VFS sozinho não basta. Ele recusa a segunda aba quando os arquivos do pool
  * já existem (cada um só aceita um acesso síncrono), mas na primeira abertura,
@@ -71,49 +97,60 @@ async function temArmazenamento(): Promise<boolean> {
  * Sem a API de travas (navegador antigo) segue sem ela: é a proteção do VFS de
  * antes, que só falha na primeira abertura simultânea.
  */
-function travarOBanco(): Promise<void> {
+function travarOBanco(): Promise<() => void> {
   const travas = (navigator as { locks?: LockManager }).locks;
-  if (!travas) return Promise.resolve();
+  if (!travas) return Promise.resolve(() => {});
   return new Promise((pegou, recusou) => {
     travas
-      .request(TRAVA, { ifAvailable: true }, (trava) => {
-        if (!trava) {
-          recusou(new Error("o banco já está em uso por outra aba"));
-          return;
-        }
-        pegou();
-        // Nunca resolve: a trava fica com este worker até ele terminar.
-        return new Promise<never>(() => {});
-      })
+      // A promessa devolvida segura a trava até `soltar` ser chamada, o que em
+      // geral não acontece: ela fica com este worker até ele terminar.
+      .request(TRAVA, { signal: AbortSignal.timeout(ESPERA_DA_TRAVA) }, () => new Promise<void>((soltar) => pegou(soltar)))
       .catch(recusou);
   });
 }
 
-async function abrir(): Promise<Aberto> {
-  const sqlite3 = await sqlite3InitModule();
-  let db: Database;
-  let persistente = false;
-  if (await temArmazenamento()) {
+async function abrirNoArmazenamento(sqlite3: Sqlite3Static): Promise<Aberto> {
+  let soltar = () => {};
+  let pool: SAHPoolUtil | null = null;
+  let db: Database | null = null;
+  try {
     try {
-      await travarOBanco();
-      const pool = await sqlite3.installOpfsSAHPoolVfs({});
+      soltar = await travarOBanco();
+      pool = await sqlite3.installOpfsSAHPoolVfs({});
       db = new pool.OpfsSAHPoolDb(ARQUIVO);
-      persistente = true;
     } catch (e) {
       // Com o armazenamento disponível, cair para a memória esconderia o
       // problema e faria o usuário trabalhar num banco que some. O caso comum
-      // é o app aberto em outra aba: o VFS só aceita uma por vez.
+      // é o app aberto em outra aba: a trava (e o VFS) só aceitam uma por vez.
       throw new Error(
         "Não foi possível abrir o banco deste navegador. Se o aplicativo já está aberto em outra aba, " +
           `feche-a e recarregue esta página. (${e instanceof Error ? e.message : String(e)})`,
       );
     }
-  } else {
-    db = new sqlite3.oo1.DB(":memory:");
+    db.exec("PRAGMA foreign_keys = ON");
+    await migrar(db, migracoesDoApp());
+    return { sqlite3, db, persistente: true, pool };
+  } catch (e) {
+    // A aba que não abriu não pode ficar com o banco: solta os arquivos do VFS
+    // e a trava, para outra aba (ou esta, recarregada) conseguir abrir.
+    try {
+      (db as Database | null)?.close();
+      (pool as SAHPoolUtil | null)?.pauseVfs();
+    } catch {
+      /* o erro que importa é o primeiro */
+    }
+    soltar();
+    throw e;
   }
+}
+
+async function abrir(): Promise<Aberto> {
+  const sqlite3 = await sqlite3InitModule();
+  if (await temArmazenamento()) return abrirNoArmazenamento(sqlite3);
+  const db = new sqlite3.oo1.DB(":memory:");
   db.exec("PRAGMA foreign_keys = ON");
   await migrar(db, migracoesDoApp());
-  return { sqlite3, db, persistente };
+  return { sqlite3, db, persistente: false, pool: null };
 }
 
 const aberto = abrir();
@@ -121,9 +158,40 @@ const aberto = abrir();
 // promessa rejeitada sem ninguém olhando.
 aberto.catch(() => {});
 
+/** Depois de uma troca, o banco aberto não é mais o do arquivo: nada mais é atendido. */
+let trocado = false;
+
+/**
+ * Monta o banco novo à parte, já migrado, e só então fecha o atual e grava a
+ * imagem do novo no lugar do arquivo, pelo próprio VFS. Uma recusa na
+ * montagem (arquivo que não é banco, checksum que não bate) não toca no banco.
+ *
+ * Em memória só "vazio" faz sentido: a troca termina numa recarga, e a
+ * recarga apaga o banco em memória — que é exatamente começar vazio.
+ */
+async function substituir(a: Aberto, s: Substituto): Promise<void> {
+  if (!a.persistente && s.por !== "vazio")
+    throw new Error("Este navegador não guarda os dados: o banco trocado sumiria na recarga que termina a troca.");
+  let novo: Database | null = null;
+  if (s.por === "arquivo") novo = await abrirArquivo(a.sqlite3, s.bytes);
+  else if (s.por === "exemplo") {
+    // Import dinâmico: os dados de exemplo só são baixados por quem os pede.
+    const massa = (await import("../../testes/massa/engenharia_v9.sql?raw")).default;
+    novo = await montarExemplo(a.sqlite3, massa);
+  } else if (a.persistente) novo = await montarVazio(a.sqlite3);
+
+  const imagem = novo ? exportar(a.sqlite3, novo) : null;
+  novo?.close();
+  trocado = true;
+  a.db.close();
+  if (a.pool && imagem) await a.pool.importDb(ARQUIVO, imagem);
+}
+
 async function atender(pedido: Pedido): Promise<Resposta> {
   try {
-    const { sqlite3, db, persistente } = await aberto;
+    const a = await aberto;
+    if (trocado) throw new Error("O banco deste navegador foi trocado: recarregue a página.");
+    const { sqlite3, db, persistente } = a;
     switch (pedido.tipo) {
       case "abrir":
         return { id: pedido.id, ok: true, valor: { persistente } };
@@ -131,6 +199,17 @@ async function atender(pedido: Pedido): Promise<Resposta> {
         return { id: pedido.id, ok: true, valor: consultar(sqlite3, db, pedido.dados.sql, pedido.dados.params) };
       case "transacao":
         return { id: pedido.id, ok: true, valor: transacao(sqlite3, db, pedido.dados.instrucoes) };
+      case "exportar":
+        return { id: pedido.id, ok: true, valor: exportar(sqlite3, db) };
+      case "conferir": {
+        const conferido = await abrirArquivo(sqlite3, pedido.dados.bytes);
+        const resumo = resumir(conferido);
+        conferido.close();
+        return { id: pedido.id, ok: true, valor: resumo };
+      }
+      case "substituir":
+        await substituir(a, pedido.dados);
+        return { id: pedido.id, ok: true, valor: null };
     }
   } catch (e) {
     return { id: pedido.id, ok: false, erro: e instanceof Error ? e.message : String(e) };
