@@ -184,3 +184,71 @@ test("desktop → navegador: um banco como o desktop o grava entra pela importa�
     { n: 0 },
   ]);
 });
+
+/**
+ * Entra no começo do módulo do worker: depois do sinal do teste, as próximas
+ * `vezes` gravações grandes saem curtas (4096 bytes), como num disco cheio.
+ * As páginas do SQLite têm 4096 bytes; a gravação maior é a da imagem inteira
+ * do banco, na troca.
+ */
+const GRAVACAO_CURTA = `{
+  let restam = 0;
+  new BroadcastChannel("teste-gravacao").onmessage = (e) => { restam = e.data; };
+  const gravar = FileSystemSyncAccessHandle.prototype.write;
+  FileSystemSyncAccessHandle.prototype.write = function (dados, opcoes) {
+    if (restam > 0 && dados.byteLength > 4096) {
+      restam--;
+      gravar.call(this, dados.subarray(0, 4096), opcoes);
+      return 4096;
+    }
+    return gravar.call(this, dados, opcoes);
+  };
+}
+`;
+
+async function comGravacaoCurta(page: Page) {
+  await page.route(/\/src\/banco\/trabalhador\.ts/, async (rota) => {
+    const resposta = await rota.fetch();
+    await rota.fulfill({ response: resposta, body: GRAVACAO_CURTA + (await resposta.text()) });
+  });
+}
+
+const encurtar = (page: Page, vezes: number) =>
+  page.evaluate((vezes) => new BroadcastChannel("teste-gravacao").postMessage(vezes), vezes);
+
+test("a gravação da troca falha: o banco anterior fica, e continua lá depois de recarregar", async ({ page }) => {
+  await comGravacaoCurta(page);
+  await page.goto("/");
+  await cadastrarProfessor(page, "Ana Souza");
+  await dados(page);
+  await marcar(page);
+  await encurtar(page, 1);
+  await page.getByRole("button", { name: "Carregar dados de exemplo" }).click();
+  await confirmar(page, "Carregar o exemplo");
+  await expect(page.getByText("A troca falhou; o banco anterior foi mantido.")).toBeVisible();
+
+  // Sem recarga, e o app segue no banco anterior.
+  expect(await page.evaluate(() => (window as unknown as Record<string, unknown>).__antes)).toBe(true);
+  await expect(noBanco(page, "SELECT nome FROM professores")).resolves.toEqual([{ nome: "Ana Souza" }]);
+  await expect(page.getByRole("button", { name: "Carregar dados de exemplo" })).toBeEnabled();
+
+  await page.reload();
+  await irPara(page, "Professores");
+  await expect(page.getByRole("row", { name: /Ana Souza/ })).toBeVisible();
+  await expect(noBanco(page, "SELECT nome FROM professores")).resolves.toEqual([{ nome: "Ana Souza" }]);
+});
+
+test("a gravação da troca e a do banco anterior falham: o aviso diz o que fazer", async ({ page }) => {
+  await comGravacaoCurta(page);
+  await page.goto("/");
+  await cadastrarProfessor(page, "Ana Souza");
+  await dados(page);
+  await marcar(page);
+  await encurtar(page, 99);
+  await page.getByRole("button", { name: "Começar vazio" }).click();
+  await confirmar(page, "Apagar e começar vazio");
+  await expect(
+    page.getByText("A troca falhou e o banco anterior não pôde ser regravado. Importe uma cópia exportada."),
+  ).toBeVisible();
+  expect(await page.evaluate(() => (window as unknown as Record<string, unknown>).__antes)).toBe(true);
+});

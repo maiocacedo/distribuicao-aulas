@@ -9,6 +9,13 @@ import { historico } from "../grade";
 
 const MOTIVO = "motivo-trocar-banco";
 
+/**
+ * O maior arquivo que vale a pena ler. Um banco deste aplicativo tem centenas
+ * de kB; acima disto o arquivo não é um banco dele, e lê-lo inteiro na
+ * memória só travaria a página.
+ */
+const LIMITE_DO_ARQUIVO = 200 * 1024 * 1024;
+
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
 
 const textoDoErro = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -67,8 +74,16 @@ export default function DadosDoNavegador() {
   }
 
   async function trocar(s: Substituto) {
-    const r = await trabalhar(() => arquivoDoBanco.substituir(s));
-    if (!r.ok) return;
+    // Sem `trabalhar`: depois de uma troca bem-sucedida os botões ficam parados
+    // até a página sair, em vez de voltarem por um instante antes da recarga.
+    setTrabalhando(true);
+    try {
+      await arquivoDoBanco.substituir(s);
+    } catch (e) {
+      setTrabalhando(false);
+      avisar.erro(textoDoErro(e));
+      return;
+    }
     // O histórico guarda escritas do banco que acabou de sair. A recarga já o
     // zeraria; limpar antes é o que garante que nada o use no meio do caminho.
     historico.limpar();
@@ -76,7 +91,13 @@ export default function DadosDoNavegador() {
   }
 
   async function importar(arquivo: File) {
-    const bytes = new Uint8Array(await arquivo.arrayBuffer());
+    if (arquivo.size > LIMITE_DO_ARQUIVO)
+      return avisar.erro("Arquivo grande demais para ser um banco deste aplicativo.");
+    // A leitura pode falhar (o arquivo sumiu ou mudou entre escolher e ler):
+    // a falha vira aviso, não erro solto na tela.
+    const lido = await trabalhar(async () => new Uint8Array(await arquivo.arrayBuffer()));
+    if (!lido.ok) return;
+    const bytes = lido.valor;
     // Confere antes de perguntar: um arquivo que não serve é recusado sem
     // pedir confirmação de nada, e a confirmação diz o que vai entrar.
     const conferido = await trabalhar<Resumo>(() => arquivoDoBanco.conferir(bytes));
@@ -206,7 +227,9 @@ export default function DadosDoNavegador() {
             const arquivo = e.currentTarget.files?.[0];
             // Limpa para que escolher o mesmo arquivo de novo também avise.
             e.currentTarget.value = "";
-            if (arquivo) void importar(arquivo);
+            // Nada aqui pode virar promessa rejeitada solta: a rede global de
+            // erro trocaria a tela inteira por uma falha.
+            if (arquivo) importar(arquivo).catch((erro) => avisar.erro(textoDoErro(erro)));
           }}
         />
       </Secao>

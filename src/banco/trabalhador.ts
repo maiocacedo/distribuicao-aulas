@@ -109,6 +109,12 @@ function travarOBanco(): Promise<() => void> {
   });
 }
 
+/** O motivo entre parênteses: a espera da trava vencida é a outra aba, dito em português. */
+function motivoDaRecusa(e: unknown): string {
+  if (e instanceof DOMException && e.name === "TimeoutError") return "o banco está em uso em outra aba";
+  return e instanceof Error ? e.message : String(e);
+}
+
 async function abrirNoArmazenamento(sqlite3: Sqlite3Static): Promise<Aberto> {
   let soltar = () => {};
   let pool: SAHPoolUtil | null = null;
@@ -124,7 +130,7 @@ async function abrirNoArmazenamento(sqlite3: Sqlite3Static): Promise<Aberto> {
       // é o app aberto em outra aba: a trava (e o VFS) só aceitam uma por vez.
       throw new Error(
         "Não foi possível abrir o banco deste navegador. Se o aplicativo já está aberto em outra aba, " +
-          `feche-a e recarregue esta página. (${e instanceof Error ? e.message : String(e)})`,
+          `feche-a e recarregue esta página. (${motivoDaRecusa(e)})`,
       );
     }
     db.exec("PRAGMA foreign_keys = ON");
@@ -166,6 +172,15 @@ let trocado = false;
  * imagem do novo no lugar do arquivo, pelo próprio VFS. Uma recusa na
  * montagem (arquivo que não é banco, checksum que não bate) não toca no banco.
  *
+ * A gravação é o ponto frágil: o `importDb` escreve por cima do arquivo e, se
+ * a escrita sai curta (disco cheio, cota do site), desassocia o arquivo — o
+ * banco anterior some junto. Por isso a imagem do anterior é guardada antes de
+ * fechá-lo e, se a gravação falha, regravada e reaberta neste mesmo worker: o
+ * app segue no banco de antes, sem recarga, como se a troca não tivesse sido
+ * pedida (o histórico de desfazer ainda é desse banco). Se nem a regravação
+ * der certo, não há banco a reabrir; aí sim o worker para e o aviso manda
+ * importar uma cópia.
+ *
  * Em memória só "vazio" faz sentido: a troca termina numa recarga, e a
  * recarga apaga o banco em memória — que é exatamente começar vazio.
  */
@@ -182,9 +197,30 @@ async function substituir(a: Aberto, s: Substituto): Promise<void> {
 
   const imagem = novo ? exportar(a.sqlite3, novo) : null;
   novo?.close();
-  trocado = true;
+  const { pool } = a;
+  if (!pool || !imagem) {
+    trocado = true;
+    a.db.close();
+    return;
+  }
+
+  const anterior = exportar(a.sqlite3, a.db);
   a.db.close();
-  if (a.pool && imagem) await a.pool.importDb(ARQUIVO, imagem);
+  try {
+    await pool.importDb(ARQUIVO, imagem);
+  } catch (falha) {
+    try {
+      await pool.importDb(ARQUIVO, anterior);
+      a.db = new pool.OpfsSAHPoolDb(ARQUIVO);
+      a.db.exec("PRAGMA foreign_keys = ON");
+    } catch {
+      trocado = true;
+      throw new Error("A troca falhou e o banco anterior não pôde ser regravado. Importe uma cópia exportada.");
+    }
+    console.error("troca do banco:", falha);
+    throw new Error("A troca falhou; o banco anterior foi mantido.");
+  }
+  trocado = true;
 }
 
 async function atender(pedido: Pedido): Promise<Resposta> {

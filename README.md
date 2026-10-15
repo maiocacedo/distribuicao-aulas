@@ -96,10 +96,15 @@ Numa janela anônima, somem ao fechar a janela; se o navegador não oferece
 armazenamento, o app avisa no topo de toda tela.
 
 A página **Dados do navegador**, que só existe nesse modo, exporta o banco
-num arquivo `.db` (o mesmo formato do desktop, que o abre se for copiado para a
-pasta de dados dele com o nome `distribuicao.db`), importa um `.db` exportado
+num arquivo `.db` no mesmo formato do desktop, importa um `.db` exportado
 daqui ou do desktop, carrega os dados de exemplo da massa de teste e recomeça
 com um banco vazio.
+
+O banco do desktop é `%APPDATA%\br.edu.utfpr.distribuicaoaulas\distribuicao.db`.
+Para levar os dados do navegador ao desktop, feche o aplicativo instalado,
+guarde uma cópia desse arquivo e ponha o exportado no lugar, com o nome
+`distribuicao.db`. No outro sentido, feche o aplicativo instalado antes de
+copiar o arquivo dele e importe a cópia na página.
 
 O banco abre em uma aba por vez. Não há sincronização entre navegadores ou
 máquinas nem vários usuários: para levar os dados, exporte e importe.

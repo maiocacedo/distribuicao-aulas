@@ -6,7 +6,8 @@ import { migracoesDoApp, migrar } from "./migracoes";
  * no lugar do banco (um arquivo importado, o exemplo, um banco vazio) e o que
  * ela baixa. Tudo é montado e conferido num banco em memória, à parte; o
  * banco de verdade só é trocado (em `trabalhador.ts`) quando o novo está
- * pronto, já migrado. Uma recusa no meio não toca no que o usuário tem.
+ * pronto, já migrado. Uma recusa na montagem não toca no que o usuário tem; a
+ * falha na gravação do novo é tratada lá (o anterior é regravado).
  *
  * O arquivo exportado é o mesmo formato que o desktop grava, com o mesmo
  * `_sqlx_migrations`: copiado para a pasta do aplicativo instalado, abre lá.

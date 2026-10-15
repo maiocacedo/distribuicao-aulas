@@ -136,6 +136,7 @@ test("duas abas abrindo juntas: uma abre, a outra pede para fechar a primeira", 
 
   const [aberta, recusada] = estados[0] === "aberta" ? [a, b] : [b, a];
   await expect(recusada.getByText(/aberto em outra aba/)).toBeVisible();
+  await expect(recusada.getByText(/(o banco está em uso em outra aba)/)).toBeVisible();
   await cadastrarProfessor(aberta, "Ana Souza");
 
   // Fechada a que abriu, a outra abre ao recarregar, e com o que foi gravado.
@@ -167,4 +168,32 @@ test("a aba que pega a trava e não consegue abrir a solta para a próxima", asy
   await outra.goto("/");
   await expect(outra.locator("#curso-ativo")).toHaveText("Curso");
   await expect(outra.getByText("Falha ao abrir o banco")).toHaveCount(0);
+});
+
+test("a abertura espera a trava ser solta, como na recarga logo depois de uma troca", async ({ page }) => {
+  // A página segura a trava antes de o app carregar, como o worker da página
+  // anterior que ainda não terminou de morrer.
+  await page.addInitScript(() => {
+    void navigator.locks.request(
+      "distribuicao.db",
+      () =>
+        new Promise<void>((soltar) => {
+          (window as unknown as Record<string, unknown>).__soltarTrava = soltar;
+        }),
+    );
+  });
+  await page.goto("/");
+  // Solta assim que o worker pede a trava — ou assim que o app desiste dela.
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const { pending } = await navigator.locks.query();
+        const pedida = (pending ?? []).some((p) => p.name === "distribuicao.db");
+        return pedida || document.body.innerText.includes("Falha ao abrir o banco");
+      }),
+    )
+    .toBe(true);
+  await page.evaluate(() => (window as unknown as { __soltarTrava: () => void }).__soltarTrava());
+  await expect(page.locator("#curso-ativo")).toHaveText("Curso");
+  expect(await page.getByText("Falha ao abrir o banco").count()).toBe(0);
 });
