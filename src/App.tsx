@@ -17,7 +17,7 @@ import { Seletor } from "@/componentes/seletor";
 import { Toaster } from "@/componentes/ui/sonner";
 import { TooltipProvider } from "@/componentes/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { consultar } from "./db";
+import { bancoEmMemoria, consultar } from "./db";
 import { historico } from "./grade";
 import type { Curso } from "./tipos";
 import Cursos from "./paginas/Cursos";
@@ -134,6 +134,10 @@ function App() {
   const [cursoId, setCursoId] = useState<number | null>(null);
   const [pagina, setPagina] = useState<string>("periodos");
   const [erro, setErro] = useState<string | null>(null);
+  // Só o banco do navegador pode estar em memória (janela anônima, navegador
+  // sem armazenamento de origem): aí o aviso fica à vista o tempo todo, porque
+  // o que se fizer some ao fechar a página.
+  const [emMemoria, setEmMemoria] = useState(false);
 
   const carregarCursos = useCallback(async () => {
     const lista = await consultar<Curso>(
@@ -149,6 +153,11 @@ function App() {
   useEffect(() => {
     carregarCursos().catch((e) => setErro(String(e)));
   }, [carregarCursos]);
+
+  useEffect(() => {
+    // A falha de abertura já aparece pela carga dos cursos.
+    bancoEmMemoria().then(setEmMemoria, () => {});
+  }, []);
 
   // O histórico guarda a grade de um curso: trocar de curso o zera, para o
   // desfazer nunca agir sobre uma grade que não está na tela.
@@ -242,6 +251,11 @@ function App() {
         {/* `min-w-0`: sem ele a coluna `1fr` não encolhe abaixo do conteúdo e
             uma tela larga alargaria a janela em vez de rolar dentro da coluna. */}
         <main className="min-w-0 px-5 pb-10 pt-5">
+          {emMemoria && (
+            <Alerta tom="aviso">
+              Este navegador não guarda os dados: o que você fizer some ao fechar a página.
+            </Alerta>
+          )}
           {semCurso && atual.id !== "cursos" ? (
             <>
               <h1 className="text-xl font-bold">Nenhum curso</h1>
