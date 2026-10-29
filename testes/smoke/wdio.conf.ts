@@ -44,9 +44,12 @@ export const config: WebdriverIO.Config = {
   // tauri-driver repassa o ambiente ao app que abre.
   beforeSession() {
     pasta = mkdtempSync(join(tmpdir(), "distribuicao-smoke-"));
+    const banco = join(pasta, "smoke.db");
+    // O spec roda neste mesmo processo e confere que o app criou este arquivo.
+    process.env.SMOKE_BANCO = banco;
     driver = spawn(join(homedir(), ".cargo", "bin", "tauri-driver"), WINDOWS ? ["--native-driver", EDGE] : [], {
       stdio: [null, process.stdout, process.stderr],
-      env: { ...process.env, DISTRIBUICAO_BANCO: join(pasta, "smoke.db") },
+      env: { ...process.env, DISTRIBUICAO_BANCO: banco },
     });
   },
 

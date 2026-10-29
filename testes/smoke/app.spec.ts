@@ -1,21 +1,23 @@
+import { existsSync } from "node:fs";
 import { $, browser, expect } from "@wdio/globals";
 
 // Isolamento: o app de debug só usa o banco temporário se o binário for recente.
-// Um binário velho apontaria para o banco real do usuário, então checamos antes.
-// O WebDriver aguarda a Promise devolvida por `browser.execute` neste ambiente
-// (Edge + tauri-driver), por isso não foi preciso `executeAsync`.
+// Um binário velho apontaria para o banco real do usuário, então conferimos que
+// o app criou o arquivo temporário que o wdio.conf.ts lhe passou. Não dá para
+// perguntar ao app pelo comando `banco`: o Tauri recusa um `invoke` feito pelo
+// `browser.execute` ("Origin header is not a valid URL"), porque o script do
+// WebDriver chega sem uma origem válida.
 before(async () => {
-  const url = await browser.execute(() =>
-    (window as unknown as { __TAURI_INTERNALS__: { invoke: (c: string) => Promise<string> } }).__TAURI_INTERNALS__.invoke("banco"),
-  );
-  if (typeof url !== "string" || !url.includes("distribuicao-smoke-")) {
-    throw new Error(
-      `O app não está usando o banco temporário do smoke (banco: ${String(url)}).
-` +
-        "Um binário de debug desatualizado pode estar apontando para o banco REAL. " +
-        "Recompile com: npm run tauri build -- --debug --no-bundle",
-    );
-  }
+  const caminho = process.env.SMOKE_BANCO;
+  if (!caminho) throw new Error("SMOKE_BANCO não definido: é o wdio.conf.ts que cria o banco temporário.");
+  await $("nav").waitForDisplayed();
+  await browser.waitUntil(() => existsSync(caminho), {
+    timeout: 10_000,
+    timeoutMsg:
+      `O app não criou o banco temporário do smoke (${caminho}).\n` +
+      "Um binário de debug desatualizado pode estar apontando para o banco REAL. " +
+      "Recompile com: npm run tauri build -- --debug --no-bundle",
+  });
 });
 
 const ir = async (rotulo: string) => (await $("nav")).$(`button=${rotulo}`).click();
