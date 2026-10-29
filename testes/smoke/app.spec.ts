@@ -1,4 +1,6 @@
 import { existsSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { $, browser, expect } from "@wdio/globals";
 
 // Isolamento: o app de debug só usa o banco temporário se o binário for recente.
@@ -10,7 +12,21 @@ import { $, browser, expect } from "@wdio/globals";
 before(async () => {
   const caminho = process.env.SMOKE_BANCO;
   if (!caminho) throw new Error("SMOKE_BANCO não definido: é o wdio.conf.ts que cria o banco temporário.");
-  await $("nav").waitForDisplayed();
+  try {
+    await $("nav").waitForDisplayed({ timeout: 20_000 });
+  } catch (e) {
+    // Sem a barra lateral não há o que testar: diga o que a janela mostra.
+    const foto = join(tmpdir(), "smoke-sem-barra.png");
+    await browser.saveScreenshot(foto).catch(() => undefined);
+    const url = await browser.getUrl().catch((erro) => `(sem URL: ${String(erro)})`);
+    const texto = await browser
+      .execute(() => document.body?.innerText ?? "(sem body)")
+      .catch((erro) => `(sem texto: ${String(erro)})`);
+    throw new Error(
+      `A barra lateral não apareceu em 20 s.\nURL: ${url}\nCaptura: ${foto}\n` +
+        `Texto da janela:\n${String(texto).slice(0, 1500)}\n(${String(e)})`,
+    );
+  }
   await browser.waitUntil(() => existsSync(caminho), {
     timeout: 10_000,
     timeoutMsg:
