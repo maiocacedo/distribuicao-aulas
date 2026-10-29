@@ -1,31 +1,76 @@
-import Database from "@tauri-apps/plugin-sql";
-import { invoke } from "@tauri-apps/api/core";
+import { motorTauri } from "./banco/tauri";
+import type { Substituto } from "./banco/trabalhador";
 
 /**
- * Leituras vão pela pool do plugin; escritas vão pelo comando `transacao` do
- * lado Rust, que envolve tudo numa transação: salvar uma disciplina escreve em
- * várias tabelas, e falhar no meio deixaria o banco num estado que nenhuma
- * tela sabe representar.
+ * A fronteira com o banco. Por baixo há dois motores com a mesma semântica: o
+ * do desktop (o plugin SQL do Tauri e o comando `transacao` do Rust, em
+ * `banco/tauri.ts`) e o do navegador (SQLite em WebAssembly num worker, em
+ * `banco/navegador.ts`). Quem usa o banco não sabe qual está rodando.
  *
- * O nome do banco vem do Rust (comando `banco`): em debug ele pode apontar
- * para outro arquivo, e as migrações são registradas por esse mesmo nome.
+ * A escolha é em tempo de execução: a mesma compilação serve ao Tauri e a um
+ * navegador comum. O motor do navegador entra por import dinâmico, e o desktop
+ * nunca baixa o WebAssembly.
  */
-let nome: Promise<string> | null = null;
-let conexao: Promise<Database> | null = null;
-
-function banco(): Promise<string> {
-  if (!nome) nome = invoke<string>("banco");
-  return nome;
+export interface Motor {
+  /** O nome do banco: a URL do sqlx no desktop, o arquivo no armazenamento do navegador. */
+  banco(): Promise<string>;
+  consultar<T>(sql: string, params: unknown[]): Promise<T[]>;
+  transacao(instrucoes: Instrucao[]): Promise<ResultadoEscrita>;
+  /** true quando nada do que se grava sobrevive a fechar a página. */
+  emMemoria(): Promise<boolean>;
 }
 
-function db(): Promise<Database> {
-  if (!conexao) conexao = banco().then((b) => Database.load(b));
-  return conexao;
+let doNavegador: Promise<typeof import("./banco/navegador")> | null = null;
+
+function moduloDoNavegador() {
+  if (!doNavegador) doNavegador = import("./banco/navegador");
+  return doNavegador;
 }
 
-export async function consultar<T>(sql: string, params: unknown[] = []): Promise<T[]> {
-  const d = await db();
-  return d.select<T[]>(sql, params);
+function navegador(): Promise<Motor> {
+  return moduloDoNavegador().then((m) => m.motorNavegador);
+}
+
+const viaNavegador: Motor = {
+  banco: () => navegador().then((m) => m.banco()),
+  consultar: <T,>(sql: string, params: unknown[]) => navegador().then((m) => m.consultar<T>(sql, params)),
+  transacao: (instrucoes) => navegador().then((m) => m.transacao(instrucoes)),
+  emMemoria: () => navegador().then((m) => m.emMemoria()),
+};
+
+/** O Tauri injeta `__TAURI_INTERNALS__` antes de qualquer script da página. */
+export function noNavegador(): boolean {
+  return !("__TAURI_INTERNALS__" in globalThis);
+}
+
+function motor(): Motor {
+  return noNavegador() ? viaNavegador : motorTauri;
+}
+
+export type { Resumo, Substituto } from "./banco/trabalhador";
+
+/**
+ * O banco do navegador como arquivo (página "Dados do navegador"). Só existe
+ * fora do Tauri: no desktop o banco é um arquivo no disco, e quem o copia é o
+ * usuário.
+ */
+export const arquivoDoBanco = {
+  exportar: () => moduloDoNavegador().then((m) => m.arquivoDoBanco.exportar()),
+  conferir: (bytes: Uint8Array) => moduloDoNavegador().then((m) => m.arquivoDoBanco.conferir(bytes)),
+  substituir: (s: Substituto) => moduloDoNavegador().then((m) => m.arquivoDoBanco.substituir(s)),
+};
+
+export function banco(): Promise<string> {
+  return motor().banco();
+}
+
+/** Se o banco vive só na memória da página (navegador sem armazenamento de origem). */
+export function bancoEmMemoria(): Promise<boolean> {
+  return motor().emMemoria();
+}
+
+export function consultar<T>(sql: string, params: unknown[] = []): Promise<T[]> {
+  return motor().consultar<T>(sql, params);
 }
 
 export interface Instrucao {
@@ -38,9 +83,40 @@ export interface ResultadoEscrita {
   lastInsertId: number;
 }
 
+/**
+ * De onde vem uma escrita: a grade tem desfazer; cadastro invalida o histórico.
+ *
+ * `"grade"` é só do histórico (`historico.executarNaGrade` e o desfazer). Uma
+ * escrita de grade feita direto por `transacao` com essa origem não zera a pilha
+ * nem entra nela, e o desfazer seguinte a reverteria sem aviso. As telas usam
+ * `historico.executarNaGrade`.
+ */
+export type Origem = "grade" | "cadastro";
+
+const ouvintes = new Set<(origem: Origem) => void>();
+
+/** Avisa a cada escrita concluída, venha de qual motor vier. Devolve a função que cancela a assinatura. */
+export function aoEscrever(ouvinte: (origem: Origem) => void): () => void {
+  ouvintes.add(ouvinte);
+  return () => ouvintes.delete(ouvinte);
+}
+
 /** Tudo ou nada: uma falha no meio desfaz as instruções anteriores. */
-export async function transacao(instrucoes: Instrucao[]): Promise<ResultadoEscrita> {
-  return invoke<ResultadoEscrita>("transacao", { banco: await banco(), instrucoes });
+export async function transacao(
+  instrucoes: Instrucao[],
+  opcoes: { origem?: Origem } = {},
+): Promise<ResultadoEscrita> {
+  const resultado = await motor().transacao(instrucoes);
+  // Cada ouvinte é protegido: a gravação já aconteceu, e um ouvinte que lança não
+  // pode fazer quem gravou achar que falhou (nem impedir que os seguintes saibam).
+  ouvintes.forEach((o) => {
+    try {
+      o(opcoes.origem ?? "cadastro");
+    } catch (e) {
+      console.error("ouvinte de escrita falhou", e);
+    }
+  });
+  return resultado;
 }
 
 export function executar(sql: string, params: unknown[] = []): Promise<ResultadoEscrita> {

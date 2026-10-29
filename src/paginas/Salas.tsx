@@ -1,45 +1,75 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ColumnDef, ColumnFiltersState } from "@tanstack/react-table";
+import { Pencil, Trash2 } from "lucide-react";
 import { consultar, executar, transacao, type Instrucao } from "../db";
 import { Ocupacao } from "../regras/ocupacao";
 import { reatribuirSalas } from "../regras/reatribuir";
 import type { AulaOcupada, FatiaRegras } from "../regras/tipos";
 import { DIAS, TIPOS_SALA, type Sala } from "../tipos";
-import {
-  BotaoIcone,
-  CabecalhoLista,
-  Campo,
-  Erro,
-  Lapis,
-  Lixeira,
-  Modal,
-  Ordenavel,
-  Vazio,
-  comparar,
-  mensagemErro,
-  type Ordem,
-} from "../componentes/ui";
+import { Alerta } from "@/componentes/alerta";
+import { BarraDeFiltros, type DefinicaoDeFiltro } from "@/componentes/barra-de-filtros";
+import { BotaoIcone } from "@/componentes/botao-icone";
+import { CabecalhoPagina } from "@/componentes/cabecalho-pagina";
+import { Campo } from "@/componentes/campo";
+import { useConfirmar } from "@/componentes/confirmacao";
+import { DialogoFormulario, useAlterado } from "@/componentes/dialogo-formulario";
+import { EstadoVazio } from "@/componentes/estado-vazio";
+import { Seletor, type Opcao } from "@/componentes/seletor";
+import { TabelaDados, pertence, useTabela } from "@/componentes/tabela-dados";
+import { avisar } from "@/componentes/toasts";
+import { Button } from "@/componentes/ui/button";
+import { Input } from "@/componentes/ui/input";
+import { mensagemErro } from "@/lib/erros";
 
 interface Linha extends Sala {
   n_disciplinas: number;
   n_aulas: number;
 }
 
-type Campo = "nome" | "tipo" | "capacidade" | "n_disciplinas" | "n_aulas";
-
 const vazio = (): Sala => ({ id: 0, nome: "", tipo: "Sala de Aula", capacidade: 40 });
 
 /** Id que nenhum curso tem: a sala é da instituição, e esta tela não monta a grade de curso nenhum. */
 const NENHUM_CURSO = 0;
 
+/** Mensagem de validação por campo do formulário; fica junto do campo, não no alerta. */
+type ErrosDeCampo = Partial<Record<"nome" | "tipo" | "capacidade", string>>;
+
+const SEM_ERROS: ErrosDeCampo = {};
+
+/** O `id` é o da coluna filtrada, que usa `pertence` como `filterFn`. */
+const DEFINICOES_DE_FILTRO: DefinicaoDeFiltro[] = [
+  { id: "tipo", titulo: "Tipo", opcoes: TIPOS_SALA.map((t) => ({ valor: t, rotulo: t })) },
+];
+
+/** Zero vira travessão: numa coluna de contagens, o que salta é quem tem algo. */
+const contagem = (n: number) => n || "—";
+
+/** O que a mudança de tipo faz com as aulas da sala: o que gravar e o que contar ao usuário. */
+interface PlanoDeAulas {
+  instrucoes: Instrucao[];
+  /** Aulas que passam para outra sala. */
+  trocadas: number;
+  /** Dessas, as que estavam fixadas. */
+  fixadas: number;
+}
+
+const SEM_MUDANCA: PlanoDeAulas = { instrucoes: [], trocadas: 0, fixadas: 0 };
+
 export default function Salas() {
+  const confirmar = useConfirmar();
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [edicao, setEdicao] = useState<Sala | null>(null);
   const [erro, setErro] = useState("");
+  const [erroDoFormulario, setErroDoFormulario] = useState("");
+  const [errosDeCampo, setErrosDeCampo] = useState<ErrosDeCampo>(SEM_ERROS);
+  const [salvando, setSalvando] = useState(false);
   const [carregando, setCarregando] = useState(true);
-  const [ordem, setOrdem] = useState<Ordem<Campo>>({ campo: "nome", desc: false });
   const [busca, setBusca] = useState("");
+  // Estado, e não uma lista montada no corpo: o `useTabela` compara por referência.
+  const [filtros, setFiltros] = useState<ColumnFiltersState>([]);
+  const alterado = useAlterado(edicao);
 
-  async function carregar() {
+  const carregar = useCallback(async () => {
     setLinhas(
       await consultar<Linha>(`
         SELECT s.*,
@@ -50,19 +80,22 @@ export default function Salas() {
         ORDER BY s.nome COLLATE NOCASE`),
     );
     setCarregando(false);
-  }
-
-  useEffect(() => {
-    carregar().catch((e) => setErro(String(e)));
+    setErro("");
   }, []);
 
-  const visiveis = useMemo(() => {
-    const termo = busca.trim().toLowerCase();
-    const recorte = termo
-      ? linhas.filter((l) => l.nome.toLowerCase().includes(termo))
-      : linhas;
-    return comparar(recorte, ordem, (l) => l.nome);
-  }, [linhas, ordem, busca]);
+  // A falha de carga aparece na página, venha da abertura da tela ou da recarga
+  // depois de gravar: nos dois casos o que está errado é a lista.
+  const recarregar = useCallback(() => carregar().catch((e) => setErro(String(e))), [carregar]);
+
+  useEffect(() => {
+    void recarregar();
+  }, [recarregar]);
+
+  const abrir = useCallback((s: Sala) => {
+    setErroDoFormulario("");
+    setErrosDeCampo(SEM_ERROS);
+    setEdicao(s);
+  }, []);
 
   /**
    * O que mudar o tipo da sala faz com as aulas que estão nela: a aula cuja
@@ -71,8 +104,8 @@ export default function Salas() {
    * confirmação. Vale para todos os cursos — a sala é da instituição.
    * `null` = o usuário cancelou e nada deve ser gravado.
    */
-  async function prepararAulas(salaId: number, tipo: string): Promise<Instrucao[] | null> {
-    if (linhas.find((l) => l.id === salaId)?.tipo === tipo) return [];
+  async function prepararAulas(salaId: number, tipo: string): Promise<PlanoDeAulas | null> {
+    if (linhas.find((l) => l.id === salaId)?.tipo === tipo) return SEM_MUDANCA;
     const atingidas = await consultar<{
       curso_id: number;
       periodo: number;
@@ -100,7 +133,7 @@ export default function Salas() {
         ORDER BY c.nome COLLATE NOCASE, a.curso_id, a.periodo, a.dia, a.hora`,
       [salaId, tipo],
     );
-    if (atingidas.length === 0) return [];
+    if (atingidas.length === 0) return SEM_MUDANCA;
 
     // A sala entra já com o tipo novo: é contra ele que as outras são comparadas.
     const salas = (await consultar<{ id: number; tipo: string }>("SELECT id, tipo FROM salas ORDER BY id")).map(
@@ -163,211 +196,281 @@ export default function Salas() {
       const MAXIMO = 10;
       const quais = semSala
         .slice(0, MAXIMO)
-        .map((x) => `- ${x.a.curso}, ${x.a.periodo}º período, ${DIAS[x.a.dia]} ${x.a.codigo} — ${x.a.disciplina}`);
+        .map((x) => `${x.a.curso}, ${x.a.periodo}º período, ${DIAS[x.a.dia]} ${x.a.codigo} — ${x.a.disciplina}`);
       if (semSala.length > MAXIMO) quais.push(`… e mais ${semSala.length - MAXIMO}`);
       if (
-        !confirm(
-          `${semSala.length} aula(s) serão apagadas, porque não há outra sala do tipo exigido livre no horário` +
+        !(await confirmar({
+          titulo: "Apagar aulas sem sala?",
+          descricao:
+            `${semSala.length} aula(s) serão apagadas, porque não há outra sala do tipo exigido livre no horário` +
             (fixadas ? ` (${fixadas} fixada(s))` : "") +
-            `:\n\n${quais.join("\n")}` +
-            (trocas.length ? `\n\nOutras ${trocas.length} aula(s) trocam de sala.` : "") +
-            "\n\nContinuar?",
-        )
+            "." +
+            (trocas.length ? ` Outras ${trocas.length} aula(s) trocam de sala.` : ""),
+          itens: quais,
+          confirmar: `Salvar e apagar ${semSala.length} aula(s)`,
+          perigo: true,
+        }))
       )
         return null;
     }
 
     const chave = (a: (typeof atingidas)[number]) => [a.curso_id, a.periodo, a.dia, a.hora];
-    return [
-      ...semSala.map((x) => ({
-        sql: "DELETE FROM alocacoes WHERE curso_id = ? AND periodo = ? AND dia = ? AND hora = ?",
-        params: chave(x.a),
-      })),
-      ...trocas.map((t) => ({
-        sql: "UPDATE alocacoes SET sala_id = ? WHERE curso_id = ? AND periodo = ? AND dia = ? AND hora = ?",
-        params: [t.sala, ...chave(t.item.a)],
-      })),
-    ];
+    return {
+      instrucoes: [
+        ...semSala.map((x) => ({
+          sql: "DELETE FROM alocacoes WHERE curso_id = ? AND periodo = ? AND dia = ? AND hora = ?",
+          params: chave(x.a),
+        })),
+        ...trocas.map((t) => ({
+          sql: "UPDATE alocacoes SET sala_id = ? WHERE curso_id = ? AND periodo = ? AND dia = ? AND hora = ?",
+          params: [t.sala, ...chave(t.item.a)],
+        })),
+      ],
+      trocadas: trocas.length,
+      fixadas: trocas.filter((t) => t.item.a.fixada).length,
+    };
   }
 
   async function salvar(s: Sala) {
-    setErro("");
+    // Cada tentativa começa limpa. O erro de campo também sai aqui, e não só ao
+    // mudar o campo: um controle que não limpa o próprio erro ao mudar deixaria
+    // a mensagem velha (e o `aria-invalid`) sobreviver a uma nova tentativa.
+    setErroDoFormulario("");
+    setErrosDeCampo(SEM_ERROS);
     const nome = s.nome.trim();
     const tipo = s.tipo.trim();
-    if (!nome) return setErro("O nome é obrigatório.");
-    if (!tipo) return setErro("O tipo é obrigatório.");
-    if (!Number.isFinite(s.capacidade) || s.capacidade < 0) {
-      return setErro("Capacidade inválida.");
-    }
+    // Validação de campo: a mensagem vai para o campo e o diálogo leva o foco até o primeiro.
+    const erros: ErrosDeCampo = {};
+    if (!nome) erros.nome = "O nome é obrigatório.";
+    if (!tipo) erros.tipo = "O tipo é obrigatório.";
+    // `min` e `step` do campo numérico barravam negativo e decimal no navegador.
+    if (!Number.isInteger(s.capacidade) || s.capacidade < 0) erros.capacidade = "Capacidade inválida.";
+    if (Object.keys(erros).length > 0) return setErrosDeCampo(erros);
+    setSalvando(true);
+    let plano = SEM_MUDANCA;
     try {
       if (s.id) {
         // Tudo o que consulta o banco fica dentro do `try`, e as aulas mudam
         // na mesma transação da sala: ou vale tudo, ou nada.
-        const aulas = await prepararAulas(s.id, tipo);
-        if (!aulas) return;
+        const preparado = await prepararAulas(s.id, tipo);
+        if (!preparado) return;
+        plano = preparado;
         await transacao([
           {
             sql: "UPDATE salas SET nome = ?, tipo = ?, capacidade = ? WHERE id = ?",
             params: [nome, tipo, s.capacidade, s.id],
           },
-          ...aulas,
+          ...plano.instrucoes,
         ]);
       } else {
-        await executar(
-          "INSERT INTO salas (nome, tipo, capacidade) VALUES (?, ?, ?)",
-          [nome, tipo, s.capacidade],
-        );
+        await executar("INSERT INTO salas (nome, tipo, capacidade) VALUES (?, ?, ?)", [nome, tipo, s.capacidade]);
       }
-      setEdicao(null);
-      await carregar();
     } catch (e) {
-      setErro(mensagemErro(e, "A sala"));
+      return setErroDoFormulario(mensagemErro(e, "A sala"));
+    } finally {
+      setSalvando(false);
     }
+    // Só chega aqui o que foi gravado. A recarga fica fora do `try`: se ela
+    // falhar, a sala está salva e o formulário já fechou; a falha é da lista e
+    // aparece na página, não num diálogo que não existe mais.
+    setEdicao(null);
+    // Aula que trocou de sala sem ninguém ter pedido: a tela conta, e conta
+    // também quando a mesma gravação apagou outras (o diálogo só avisou do que
+    // ia acontecer; o aviso diz o que aconteceu, com as fixadas).
+    if (plano.trocadas > 0)
+      avisar.sucesso(
+        `${plano.trocadas} aula(s) mudaram de sala`,
+        plano.fixadas ? `${plano.fixadas} delas estavam fixadas.` : undefined,
+      );
+    await recarregar();
   }
 
-  async function remover(l: Linha) {
-    if (l.n_aulas > 0 || l.n_disciplinas > 0) {
-      setErro(
-        `${l.nome} está em uso: ${l.n_aulas} aula(s) na grade e ` +
-          `${l.n_disciplinas} disciplina(s) que a exigem.`,
-      );
-      return;
-    }
-    if (!confirm(`Remover a sala ${l.nome}?`)) return;
-    setErro("");
-    try {
-      await executar("DELETE FROM salas WHERE id = ?", [l.id]);
-      await carregar();
-    } catch (e) {
-      setErro(mensagemErro(e, "A sala"));
-    }
-  }
+  const remover = useCallback(
+    async (l: Linha) => {
+      if (l.n_aulas > 0 || l.n_disciplinas > 0) {
+        avisar.erro(
+          `${l.nome} está em uso: ${l.n_aulas} aula(s) na grade e ` +
+            `${l.n_disciplinas} disciplina(s) que a exigem.`,
+        );
+        return;
+      }
+      if (!(await confirmar({ titulo: `Remover a sala ${l.nome}?`, confirmar: "Remover sala", perigo: true }))) return;
+      try {
+        await executar("DELETE FROM salas WHERE id = ?", [l.id]);
+      } catch (e) {
+        return avisar.erro(mensagemErro(e, "A sala"));
+      }
+      // Fora do `try`, como em `salvar`: falha da recarga não é falha da remoção.
+      await recarregar();
+    },
+    [confirmar, recarregar],
+  );
+
+  // As colunas não podem ser recriadas a cada desenho: ver `useTabela`.
+  const colunas = useMemo<ColumnDef<Linha, any>[]>(
+    () => [
+      {
+        accessorKey: "nome",
+        header: "Nome",
+        cell: ({ row }) => <span className="font-semibold">{row.original.nome}</span>,
+      },
+      { accessorKey: "tipo", header: "Tipo", filterFn: pertence },
+      {
+        accessorKey: "capacidade",
+        header: "Capacidade",
+        meta: { numerico: true },
+        sortDescFirst: true,
+      },
+      {
+        accessorKey: "n_disciplinas",
+        header: "Exigida por",
+        meta: { numerico: true },
+        sortDescFirst: true,
+        cell: ({ row }) => contagem(row.original.n_disciplinas),
+      },
+      {
+        accessorKey: "n_aulas",
+        header: "Aulas",
+        meta: { numerico: true },
+        sortDescFirst: true,
+        cell: ({ row }) => contagem(row.original.n_aulas),
+      },
+      {
+        id: "acoes",
+        enableSorting: false,
+        header: () => <span className="sr-only">Ações</span>,
+        cell: ({ row }) => (
+          <>
+            <BotaoIcone rotulo="Editar" icone={Pencil} aoClicar={() => abrir(row.original)} />
+            <BotaoIcone rotulo="Remover" icone={Trash2} perigo aoClicar={() => void remover(row.original)} />
+          </>
+        ),
+      },
+    ],
+    [abrir, remover],
+  );
+
+  const tabela = useTabela({
+    dados: linhas,
+    colunas,
+    ordemInicial: [{ id: "nome", desc: false }],
+    desempate: (l) => l.nome,
+    busca,
+    // O tipo também é buscado: quem digita "laboratório" quer as salas desse tipo.
+    textoDeBusca: (l) => `${l.nome} ${l.tipo}`,
+    filtros,
+  });
+
+  // Um valor antigo fora da lista continua visível, para editar a sala não
+  // trocar o tipo dela sem querer.
+  const tipos: Opcao<string>[] = edicao
+    ? [...new Set<string>([...TIPOS_SALA, edicao.tipo])].filter(Boolean).map((t) => ({ valor: t, rotulo: t }))
+    : [];
 
   return (
     <>
-      <CabecalhoLista
+      <CabecalhoPagina
         titulo="Salas"
         escopo="Instituição · comuns a todos os cursos"
-        contagem={`${visiveis.length} de ${linhas.length}`}
-        filtro={busca}
-        aoFiltrar={setBusca}
+        // Antes da carga seria "0 de 0". A altura do cabeçalho vem da busca: o texto só some.
+        contagem={carregando ? undefined : `${tabela.getRowModel().rows.length} de ${linhas.length}`}
+        busca={busca}
+        aoBuscar={setBusca}
       >
-        <button className="primario" onClick={() => setEdicao(vazio())}>
-          Nova sala
-        </button>
-      </CabecalhoLista>
+        <Button onClick={() => abrir(vazio())}>Nova sala</Button>
+      </CabecalhoPagina>
 
-      <Erro>{erro}</Erro>
+      <Alerta tom="erro">{erro}</Alerta>
 
-      {carregando ? null : linhas.length === 0 ? (
-        <Vazio>
-          Nenhuma sala cadastrada. Disciplinas que não ocupam sala não precisam
-          de nenhuma aqui.
-        </Vazio>
-      ) : (
-        <table className="lista">
-          <thead>
-            <tr>
-              <Ordenavel campo="nome" ordem={ordem} aoOrdenar={setOrdem}>
-                Nome
-              </Ordenavel>
-              <Ordenavel campo="tipo" ordem={ordem} aoOrdenar={setOrdem}>
-                Tipo
-              </Ordenavel>
-              <Ordenavel campo="capacidade" ordem={ordem} aoOrdenar={setOrdem} numerico>
-                Capacidade
-              </Ordenavel>
-              <Ordenavel campo="n_disciplinas" ordem={ordem} aoOrdenar={setOrdem} numerico>
-                Exigida por
-              </Ordenavel>
-              <Ordenavel campo="n_aulas" ordem={ordem} aoOrdenar={setOrdem} numerico>
-                Aulas
-              </Ordenavel>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {visiveis.map((l) => (
-              <tr key={l.id}>
-                <td className="forte">{l.nome}</td>
-                <td>{l.tipo}</td>
-                <td className="num">{l.capacidade}</td>
-                <td className="num">{l.n_disciplinas || "—"}</td>
-                <td className="num">{l.n_aulas || "—"}</td>
-                <td className="acoes">
-                  <BotaoIcone rotulo="Editar" aoClicar={() => setEdicao(l)}>
-                    <Lapis />
-                  </BotaoIcone>
-                  <BotaoIcone rotulo="Remover" perigo aoClicar={() => remover(l)}>
-                    <Lixeira />
-                  </BotaoIcone>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* Sem sala nenhuma não há o que filtrar. */}
+      {linhas.length > 0 && (
+        <BarraDeFiltros definicoes={DEFINICOES_DE_FILTRO} valor={filtros} aoMudar={setFiltros} />
+      )}
+
+      {carregando ? null : (
+        <TabelaDados
+          tabela={tabela}
+          vazio={
+            <EstadoVazio>
+              {linhas.length === 0 ? (
+                "Nenhuma sala cadastrada. Disciplinas que não ocupam sala não precisam de nenhuma aqui."
+              ) : (
+                <>
+                  Nenhuma sala encontrada.{" "}
+                  <Button
+                    variant="link"
+                    onClick={() => {
+                      setFiltros([]);
+                      setBusca("");
+                    }}
+                  >
+                    Limpar busca e filtros
+                  </Button>
+                </>
+              )}
+            </EstadoVazio>
+          }
+        />
       )}
 
       {edicao && (
-        <Modal
+        <DialogoFormulario
           titulo={edicao.id ? "Editar sala" : "Nova sala"}
+          alterado={alterado}
+          salvando={salvando}
+          erro={erroDoFormulario}
           aoFechar={() => setEdicao(null)}
+          aoSalvar={() => void salvar(edicao)}
         >
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              salvar(edicao);
-            }}
-          >
-            <Campo rotulo="Nome">
-              <input
+          <Campo rotulo="Nome" erro={errosDeCampo.nome}>
+            {(a) => (
+              <Input
+                {...a}
                 autoFocus
                 value={edicao.nome}
-                onChange={(e) => setEdicao({ ...edicao, nome: e.target.value })}
+                onChange={(e) => {
+                  setEdicao({ ...edicao, nome: e.target.value });
+                  // Quem voltou a digitar no campo já leu a mensagem dele.
+                  setErrosDeCampo((erros) => ({ ...erros, nome: undefined }));
+                }}
               />
-            </Campo>
+            )}
+          </Campo>
 
-            <Campo
-              rotulo="Tipo"
-              dica="É por aqui que uma disciplina exige laboratório sem exigir uma sala específica."
-            >
-              <select
-                value={edicao.tipo}
-                onChange={(e) => setEdicao({ ...edicao, tipo: e.target.value })}
-              >
-                {/* Um valor antigo fora da lista continua visível, para
-                    editar a sala não trocar o tipo dela sem querer. */}
-                {[...new Set<string>([...TIPOS_SALA, edicao.tipo])]
-                  .filter(Boolean)
-                  .map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-              </select>
-            </Campo>
+          <Campo
+            rotulo="Tipo"
+            dica="É por aqui que uma disciplina exige laboratório sem exigir uma sala específica."
+            erro={errosDeCampo.tipo}
+          >
+            {(a) => (
+              <Seletor
+                {...a}
+                className="w-full"
+                valor={edicao.tipo}
+                opcoes={tipos}
+                aoMudar={(tipo) => {
+                  setEdicao({ ...edicao, tipo });
+                  setErrosDeCampo((erros) => ({ ...erros, tipo: undefined }));
+                }}
+              />
+            )}
+          </Campo>
 
-            <Campo rotulo="Capacidade">
-              <input
+          <Campo rotulo="Capacidade" erro={errosDeCampo.capacidade}>
+            {(a) => (
+              <Input
+                {...a}
                 type="number"
                 min={0}
                 value={edicao.capacidade}
-                onChange={(e) =>
-                  setEdicao({ ...edicao, capacidade: Number(e.target.value) })
-                }
+                onChange={(e) => {
+                  setEdicao({ ...edicao, capacidade: Number(e.target.value) });
+                  setErrosDeCampo((erros) => ({ ...erros, capacidade: undefined }));
+                }}
               />
-            </Campo>
-
-            <div className="rodape-modal">
-              <button type="button" onClick={() => setEdicao(null)}>
-                Cancelar
-              </button>
-              <button type="submit" className="primario">
-                Salvar
-              </button>
-            </div>
-          </form>
-        </Modal>
+            )}
+          </Campo>
+        </DialogoFormulario>
       )}
     </>
   );

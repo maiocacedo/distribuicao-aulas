@@ -1,0 +1,129 @@
+import { describe, expect, it } from "vitest";
+import type { Motivo } from "../../regras/tipos";
+import type { Professor } from "../../tipos";
+import { fraseDasSalas, motivosParaMostrar, novo, recusaDeQuemSaiu, validarRascunho, type Rascunho } from "./salvar";
+
+it("omite o motivo de sala quando a aula tem outro", () => {
+  const sala = { regra: "sala-invalida" } as Motivo;
+  const oferta = { regra: "D16" } as Motivo;
+  expect(motivosParaMostrar([sala, oferta])).toEqual([oferta]);
+  expect(motivosParaMostrar([sala])).toEqual([sala]);
+  expect(motivosParaMostrar([])).toEqual([]);
+});
+
+describe("validarRascunho", () => {
+  const rascunho = (mudancas: Partial<Rascunho> = {}): Rascunho => ({
+    ...novo(1, 1),
+    nome: "Cálculo",
+    aulas_semanais: 4,
+    fatias: [{ professor_id: 1, aulas: 4 }],
+    ...mudancas,
+  });
+
+  it("deixa passar o rascunho completo", () => {
+    expect(validarRascunho(rascunho())).toBeNull();
+  });
+
+  it("acusa o nome vazio no campo do nome", () => {
+    expect(validarRascunho(rascunho({ nome: "  " }))).toEqual({ nome: "O nome é obrigatório." });
+  });
+
+  it("acusa as aulas por semana fora de 1 a 40 ou fracionadas", () => {
+    for (const aulas_semanais of [0, 41, 2.5]) {
+      const fatias = [{ professor_id: 1, aulas: aulas_semanais }];
+      expect(validarRascunho(rascunho({ aulas_semanais, fatias }))?.aulas).toBe("Use um número inteiro de 1 a 40.");
+    }
+    expect(validarRascunho(rascunho({ aulas_semanais: 40, fatias: [{ professor_id: 1, aulas: 40 }] }))).toBeNull();
+  });
+
+  it("sem fatia, acusa o grupo e aponta o botão de adicionar", () => {
+    expect(validarRascunho(rascunho({ fatias: [] }))).toEqual({
+      fatias: { mensagem: "Atribua a disciplina a pelo menos um professor.", controle: "adicionar", posicoes: [] },
+    });
+  });
+
+  it("acusa a fatia com aulas que não são um inteiro de 1 para cima", () => {
+    const fatias = [
+      { professor_id: 1, aulas: 4 },
+      { professor_id: 2, aulas: 0 },
+    ];
+    expect(validarRascunho(rascunho({ fatias }))?.fatias).toEqual({
+      mensagem: "Cada fatia precisa de um número inteiro de aulas, 1 ou mais.",
+      controle: "aulas",
+      posicoes: [1],
+    });
+  });
+
+  it("acusa a soma das fatias que não fecha com a disciplina, em todas as caixas de aulas", () => {
+    const fatias = [
+      { professor_id: 1, aulas: 2 },
+      { professor_id: 2, aulas: 1 },
+    ];
+    expect(validarRascunho(rascunho({ fatias }))?.fatias).toEqual({
+      mensagem: "As fatias dos professores somam 3 aula(s), mas a disciplina tem 4. Os dois têm de fechar.",
+      controle: "aulas",
+      posicoes: [0, 1],
+    });
+  });
+
+  it("acusa a fatia sem professor no seletor dela", () => {
+    const fatias = [
+      { professor_id: 1, aulas: 2 },
+      { professor_id: 0, aulas: 2 },
+    ];
+    expect(validarRascunho(rascunho({ fatias }))?.fatias).toEqual({
+      mensagem: "Há uma fatia sem professor escolhido.",
+      controle: "professor",
+      posicoes: [1],
+    });
+  });
+
+  it("devolve juntas as recusas de campos diferentes", () => {
+    const erros = validarRascunho(rascunho({ nome: "", aulas_semanais: 0, fatias: [] }));
+    expect(Object.keys(erros ?? {}).sort()).toEqual(["aulas", "fatias", "nome"]);
+  });
+});
+
+describe("recusaDeQuemSaiu", () => {
+  const professores = [
+    { id: 1, nome: "Ana Souza" },
+    { id: 2, nome: "Bruno Lima" },
+  ] as Professor[];
+  const aulasDe = (...ids: number[]) => ids.map((professor_id) => ({ professor_id }));
+
+  it("não recusa quando todo professor com aula na grade continua na disciplina", () => {
+    expect(recusaDeQuemSaiu(aulasDe(1, 1, 2), [{ professor_id: 1, aulas: 2 }, { professor_id: 2, aulas: 2 }], professores)).toBeNull();
+    expect(recusaDeQuemSaiu([], [], professores)).toBeNull();
+  });
+
+  it("recusa dizendo quem saiu e quantas aulas dele ainda estão na grade", () => {
+    expect(recusaDeQuemSaiu(aulasDe(1, 2, 1), [{ professor_id: 2, aulas: 4 }], professores)).toBe(
+      "A. Souza ainda tem 2 aula(s) desta disciplina na grade. Tire-as na grade antes de tirá-lo da disciplina.",
+    );
+  });
+
+  it("com mais de um, uma frase para cada, na ordem da lista de professores", () => {
+    expect(recusaDeQuemSaiu(aulasDe(2, 1), [], professores)).toBe(
+      "A. Souza ainda tem 1 aula(s) desta disciplina na grade. Tire-as na grade antes de tirá-lo da disciplina. " +
+        "B. Lima ainda tem 1 aula(s) desta disciplina na grade. Tire-as na grade antes de tirá-lo da disciplina.",
+    );
+  });
+});
+
+describe("fraseDasSalas", () => {
+  it("não diz nada quando nenhuma aula mexe com a sala", () => {
+    expect(fraseDasSalas(0, 0)).toBe("");
+  });
+
+  it("diz que as aulas trocam de sala", () => {
+    expect(fraseDasSalas(2, 0)).toBe("Outras 2 aula(s) trocam de sala.");
+  });
+
+  it("diz que as aulas ficam sem sala quando só perdem a sala", () => {
+    expect(fraseDasSalas(0, 3)).toBe("Outras 3 aula(s) ficam sem sala.");
+  });
+
+  it("com as duas coisas, uma frase para cada", () => {
+    expect(fraseDasSalas(2, 3)).toBe("Outras 2 aula(s) trocam de sala. Outras 3 aula(s) ficam sem sala.");
+  });
+});

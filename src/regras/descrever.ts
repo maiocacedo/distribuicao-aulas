@@ -56,3 +56,10 @@ export function descrever(m: Motivo, n: Nomes): string {
       return m.salaId == null ? "Aula sem sala" : `Sala ${n.sala(m.salaId)} fora do requisito`;
   }
 }
+
+/**
+ * Aula cuja fatia (disciplina, professor) saiu do cadastro. Não é regra de
+ * célula — não há fatia para perguntar ao `impedimento` —, mas a grade manual
+ * precisa de um texto para listá-la no diagnóstico.
+ */
+export const AULA_ORFA = "este professor não leciona mais a disciplina";

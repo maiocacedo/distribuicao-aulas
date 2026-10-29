@@ -14,6 +14,12 @@ export type Resposta = { ok: true; valor: unknown } | { ok: false; erro: string 
 export interface OpcoesPonte {
   /** Toda consulta ou instrução cujo SQL casar com isto falha. */
   falharQuando?: RegExp;
+  /**
+   * Como `falharQuando`, mas só da `vez`-ésima execução em diante (1 = desde a
+   * primeira): deixa a carga inicial passar e derruba a recarga que vem depois
+   * de uma gravação.
+   */
+  falharAPartirDe?: { quando: RegExp; vez: number };
   /** Cada comando recebido é anotado aqui, na ordem — para contar escritas. */
   registro?: string[];
 }
@@ -34,8 +40,11 @@ export function converter(v: unknown): Valor {
 }
 
 export function criarPonte(db: DatabaseSync, opcoes: OpcoesPonte = {}) {
+  let vezes = 0;
   function verificar(sql: string) {
     if (opcoes.falharQuando?.test(sql)) throw new Error(`falha simulada: ${sql}`);
+    if (opcoes.falharAPartirDe?.quando.test(sql) && ++vezes >= opcoes.falharAPartirDe.vez)
+      throw new Error(`falha simulada: ${sql}`);
   }
 
   function transacao(instrucoes: Instrucao[]) {

@@ -12,6 +12,40 @@ Sucessor do programa em JavaFX que vive em
 React + TypeScript (Vite) numa janela Tauri v2, com SQLite local via
 `tauri-plugin-sql`. O banco é um arquivo, copiável de uma máquina para outra.
 
+A interface é feita com Tailwind CSS v4 e componentes do shadcn/ui (sobre
+Radix), tabelas com TanStack Table (v8), arrastar e soltar com dnd-kit, ícones
+do lucide-react e avisos (toasts) com Sonner. `src/estilos/tema.css` é a fonte
+dos tokens (cores, tipografia, raios, claro e escuro) e das três regras do
+design: identidade nunca é cor; nenhum estado depende só de cor; desabilitado
+rebaixa texto e borda, nunca `opacity` no bloco. Leia o cabeçalho dele antes de
+mexer em estilo. O spec do desenho é
+`docs/superpowers/specs/2026-10-11-refatoracao-visual-design.md`.
+
+## O que a interface faz
+
+- **Disciplinas e Salas** têm busca e filtros por coluna, com um chip por valor
+  marcado e "Limpar filtros". Em Disciplinas os filtros são Período, Tipo
+  (inclui "Sem tipo"), Optativa, Ofertada e Turno forçado (inclui "Segue o
+  período"), e a busca olha também os professores da disciplina. Em Salas, o
+  filtro é por Tipo.
+- **Grade manual.** Para alocar, arraste uma pendência para uma célula ou
+  escolha a pendência e clique na célula. Para mover, arraste a aula para outra
+  célula. Para remover, use o botão "Remover aula" ou arraste a aula para o
+  painel de pendências. O cadeado (ou o botão direito sobre a aula) fixa a aula:
+  ela não é arrastada nem removida, e "Limpar período" e o gerador a respeitam.
+  Esc cancela o arrasto ou solta a pendência escolhida.
+- **Desfazer.** As duas grades têm o botão "Desfazer" (com a dica "Desfazer:
+  …") e o atalho Ctrl+Z, que valem para toda ação da grade. Remover ou mover uma
+  aula, limpar o período e aplicar a grade gerada abrem também um aviso com o
+  mesmo botão. O histórico é de um curso e dura a sessão: trocar de curso, ou gravar
+  qualquer coisa fora da grade (professor, sala, disciplina, indisponibilidade,
+  regra), o zera.
+- **Grade automática.** "Gerar grade" mostra o resultado sem gravar nada, com
+  um comparativo que diz, em cada medida, se a grade gerada é melhor, pior ou
+  igual à atual;
+  "Aplicar esta grade" grava, entra no histórico (dá para desfazer) e oferece
+  "Abrir a grade manual".
+
 ## Antes de começar
 
 Além do Node.js (22.13 ou mais novo), o lado Tauri compila Rust de verdade, então
@@ -45,18 +79,55 @@ Um arquivo de migração já publicado nunca é editado — bancos existentes n�
 executariam de novo. Toda alteração de esquema é um arquivo novo com o próximo
 número, acrescentado também à lista em `lib.rs`.
 
+## Rodar no navegador
+
+O desktop continua sendo o modo principal. Para abrir o app sem instalar nada,
+num navegador comum:
+
+```bash
+npm install
+npm run dev
+```
+
+e abra <http://localhost:1420>. Fora do Tauri, o app usa um banco próprio do
+navegador (SQLite em WebAssembly, no armazenamento do site): os dados ficam
+naquele navegador, naquela máquina, e somem se os dados do site forem limpos.
+Numa janela anônima, somem ao fechar a janela; se o navegador não oferece
+armazenamento, o app avisa no topo de toda tela.
+
+A página **Dados do navegador**, que só existe nesse modo, exporta o banco
+num arquivo `.db` no mesmo formato do desktop, importa um `.db` exportado
+daqui ou do desktop, carrega os dados de exemplo da massa de teste e recomeça
+com um banco vazio.
+
+O banco do desktop é `%APPDATA%\br.edu.utfpr.distribuicaoaulas\distribuicao.db`.
+Para levar os dados do navegador ao desktop, feche o aplicativo instalado,
+guarde uma cópia desse arquivo e ponha o exportado no lugar, com o nome
+`distribuicao.db`. No outro sentido, feche o aplicativo instalado antes de
+copiar o arquivo dele e importe a cópia na página.
+
+O banco abre em uma aba por vez. Não há sincronização entre navegadores ou
+máquinas nem vários usuários: para levar os dados, exporte e importe.
+
 ## Testes
 
-Três camadas de teste, mais o benchmark, todas sobre a mesma massa anonimizada (`testes/massa/`):
+Cinco camadas de teste (unidade, interface, capturas, navegador e binário real), mais o
+benchmark, sobre a mesma massa anonimizada (`testes/massa/`):
 
 ```bash
 npm run typecheck      # tipos do app e dos testes
-npm test               # Vitest: solver, auditor, ponte de IPC (segundos)
+npm test               # Vitest: regras, solver e auditor, histórico de desfazer, db,
+                       # ações da grade, validação de Disciplinas, ponte de IPC (segundos)
 npm run test:e2e       # Playwright: a interface no Chromium, sem compilar Rust
+npm run test:visual    # capturas de cada tela, claro e escuro (só local, Windows)
+npm run test:navegador # Playwright: o app no navegador, com o banco do navegador de verdade
 npm run test:smoke     # binário real (Windows); exige build debug e drivers
 npm run bench:solver   # compara solvers em cenários × sementes
 ```
 
+- `npm run test:visual` — compara cada tela, no claro e no escuro, com as capturas de
+  `testes/visual/__capturas__/`. Mudança visual de
+  propósito: `npm run test:visual -- -g "<tela>" --update-snapshots` e confira as imagens.
 - **Massa.** `testes/massa/engenharia_v9.sql` vem do banco real, com nomes de
   professores trocados por `Professor NN` e observações apagadas. Para
   regenerar: `python scripts/anonimizar_massa.py distribuicao.db`. O script
@@ -71,7 +142,10 @@ npm run bench:solver   # compara solvers em cenários × sementes
   `cargo install --git https://github.com/chippers/msedgedriver-tool` e
   `msedgedriver-tool` na raiz. Depois:
   `npm run tauri build -- --debug --no-bundle && npm run test:smoke`. O banco
-  do smoke é temporário (`DISTRIBUICAO_BANCO`, só em debug); o seu não é tocado.
+  do smoke é temporário: o build de debug atual lê `DISTRIBUICAO_BANCO` e usa
+  esse arquivo no lugar do seu. Um binário compilado antes desse suporte abriria
+  o banco real, por isso o smoke recusa o binário mais antigo que
+  `src-tauri/src/lib.rs` e confere o banco em uso antes de gravar.
 - **Falha esperada.** Todos os bugs conhecidos do subprojeto de regras e
   integridade foram corrigidos: não restam testes marcados com `it.fails` ou
   `test.fail`. Ao descobrir um bug novo, a convenção é escrever o teste com essa
@@ -90,6 +164,10 @@ npm run bench:solver   # compara solvers em cenários × sementes
 | `scripts/migrar.py` | Converte o banco do programa antigo. Uso pontual. |
 | `src/db.ts` | Conexão com o SQLite e utilitários de consulta. |
 | `src/tipos.ts` | Tipos do domínio, espelhando o esquema. |
+| `src/estilos/` | `tema.css` (tokens, camadas e as três regras do design) e `grade.css` (as malhas: Indisponibilidades e grade manual). |
+| `src/componentes/` | Componentes próprios (diálogo de formulário, confirmação, tabela, filtros, seletor, avisos); `ui/` guarda os do shadcn. |
+| `src/paginas/` | Uma tela por arquivo (ou pasta, quando é grande). |
+| `src/grade/` | O histórico de desfazer das grades e o botão que o usa. |
 | `src/regras/` | Regras duras de célula, compartilhadas pelo gerador e pela grade manual. |
 | `src/solver/` | O gerador automático e o auditor independente (`conferir.ts`). |
 | `src-tauri/` | Lado Rust: plugin SQL, migrações e o comando `transacao`, a única escrita do app. |

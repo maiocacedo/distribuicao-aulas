@@ -67,4 +67,12 @@ describe("ponte de IPC", () => {
     });
     expect(r).toEqual({ ok: false, erro: "falha simulada: SELECT * FROM pai" });
   });
+
+  it("falha só a partir da vez pedida", () => {
+    const ponte = criarPonte(bancoMinimo(), { falharAPartirDe: { quando: /FROM pai/, vez: 2 } });
+    const ler = () => ponte("plugin:sql|select", { query: "SELECT * FROM pai", values: [] });
+    expect(ler().ok).toBe(true);
+    expect(ler()).toEqual({ ok: false, erro: "falha simulada: SELECT * FROM pai" });
+    expect(ler().ok).toBe(false);
+  });
 });

@@ -29,7 +29,8 @@ Professores e salas são da instituição, e um professor ou uma sala **não est
 em dois lugares no mesmo horário em curso nenhum** (D2, D3). O gerador monta um
 curso por vez e trata as aulas dos outros cursos como ocupação fixa. A grade
 manual mostra quem ocupa o horário ("A. Souza em Beta (1º)") e lista, num
-diagnóstico, as aulas gravadas antes desta regra que a violam.
+diagnóstico, as aulas gravadas antes desta regra que a violam e a aula cujo
+professor não leciona mais a disciplina.
 
 O compromisso de um professor fora de qualquer curso continua sendo a
 **indisponibilidade** dele: declara-se os horários uma vez e todo curso os
@@ -98,9 +99,11 @@ próprios blocos, e as restrições de professor se aplicam ao dono da fatia.
 
 O mesmo módulo, `src/regras/`, serve ao gerador e à grade manual: as regras de
 célula (D1–D8, D13–D16) são decididas num lugar só, e a grade manual mostra o
-motivo quando recusa uma célula. D9 e D10 dependem da fatia inteira; na grade
-manual aparecem como **aviso na pendência** (a fatia está sempre incompleta
-durante a montagem à mão), não como bloqueio. D9, D10 e D12 são estruturais do
+motivo quando recusa uma célula. D9 e D10 dependem da fatia inteira. Na grade
+manual, D9 bloqueia só o excesso: com todas as aulas da fatia já alocadas,
+nenhuma célula a aceita ("N de N aulas já alocadas"); a falta não bloqueia,
+porque durante a montagem à mão a fatia está sempre incompleta. D10 aparece
+como **aviso na pendência**. D9, D10 e D12 são estruturais do
 gerador. O auditor `src/solver/conferir.ts` reimplementa todas de forma
 independente, para que um erro no módulo de regras não passe despercebido.
 
@@ -306,13 +309,15 @@ isso passar em silêncio:
   imediato. Se a disciplina não exige mais sala, a aula fica sem sala; se exige,
   recebe uma sala válida e livre, preferindo a da aula vizinha do mesmo professor.
   Só quando não há sala livre a aula entra na confirmação de apagar. Se só houve
-  reatribuições, não há diálogo.
+  reatribuições, não há diálogo; um aviso diz quantas aulas mudaram de sala e
+  quantas eram fixadas.
 - **Mudar o tipo de uma sala** reatribui as aulas atingidas — as que estão nela e
   cuja disciplina exige um tipo diferente do novo (D7) — em **todos os cursos**,
   porque a sala é da instituição: cada uma recebe outra sala válida e livre no
   mesmo horário, pela mesma regra da edição de disciplina. Só as que não acharem
   sala entram na confirmação de apagar, que lista curso, período, dia, horário e
-  disciplina. Se só houve reatribuições, não há diálogo; cancelar não muda nada.
+  disciplina. Se só houve reatribuições, não há diálogo; um aviso diz quantas
+  aulas mudaram de sala e quantas eram fixadas. Cancelar não muda nada.
 - **Baixar `max_dias_semana`** abaixo dos dias que o professor já usa é recusado,
   com explicação: não há como escolher sozinho qual dia sai.
 

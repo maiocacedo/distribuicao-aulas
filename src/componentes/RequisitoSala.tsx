@@ -1,5 +1,9 @@
 import { TIPOS_SALA, type Sala } from "../tipos";
-import { Campo } from "./ui";
+import { Alerta } from "@/componentes/alerta";
+import { Campo } from "@/componentes/campo";
+import { Marcador } from "@/componentes/marcador";
+import { Seletor, type Opcao } from "@/componentes/seletor";
+import { Button } from "@/componentes/ui/button";
 
 /**
  * O requisito de sala de uma disciplina, como uma escolha de quatro modos
@@ -39,6 +43,19 @@ const DESCRICAO: Record<Modo, string> = {
   especificas:
     "Apenas as salas marcadas. Salas cadastradas depois não entram sozinhas.",
 };
+
+const MODOS: Opcao<Modo>[] = [
+  { valor: "nenhuma", rotulo: "Não ocupa sala" },
+  { valor: "qualquer", rotulo: "Qualquer sala" },
+  { valor: "tipo", rotulo: "Qualquer sala de um tipo" },
+  { valor: "especificas", rotulo: "Salas específicas" },
+];
+
+/** Preferência gravada em `disciplina_salas`: 1 = ideal, 2 = aceitável. */
+const PREFERENCIAS: Opcao<number>[] = [
+  { valor: 1, rotulo: "ideal" },
+  { valor: 2, rotulo: "aceitável" },
+];
 
 export function RequisitoSala({
   valor,
@@ -102,49 +119,56 @@ export function RequisitoSala({
     );
   });
 
+  const aceitaveis = valor.aceitaveis ?? [];
+
   return (
-    <fieldset>
-      <legend>Sala</legend>
+    // O fio é sombra interna, como nos painéis: não conta na largura.
+    <fieldset className="min-w-0 rounded-lg px-3.5 pt-3 pb-3.5 shadow-[inset_0_0_0_1px_var(--line)]">
+      <legend className="px-1.5 text-xs font-semibold text-tx2">Sala</legend>
 
-      <Campo rotulo="Requisito" dica={DESCRICAO[modo]}>
-        <select value={modo} onChange={(e) => trocarModo(e.target.value as Modo)}>
-          <option value="nenhuma">Não ocupa sala</option>
-          <option value="qualquer">Qualquer sala</option>
-          <option value="tipo">Qualquer sala de um tipo</option>
-          {permitirEspecificas && <option value="especificas">Salas específicas</option>}
-        </select>
-      </Campo>
-
-      {modo === "tipo" && (
-        <Campo rotulo="Tipo exigido">
-          <select
-            value={valor.tipo_sala ?? ""}
-            onChange={(e) => aoMudar({ ...valor, tipo_sala: e.target.value }, modo)}
-          >
-            {TIPOS_SALA.map((t) => (
-              <option key={t} value={t}>
-                {t}
-                {" — "}
-                {salas.filter((s) => s.tipo === t).length} sala(s) hoje
-              </option>
-            ))}
-          </select>
+      <div className="flex flex-col gap-4">
+        <Campo rotulo="Requisito" dica={DESCRICAO[modo]}>
+          {(a) => (
+            <Seletor
+              {...a}
+              className="w-full"
+              valor={modo}
+              opcoes={permitirEspecificas ? MODOS : MODOS.filter((m) => m.valor !== "especificas")}
+              aoMudar={trocarModo}
+            />
+          )}
         </Campo>
-      )}
 
-      {modo === "especificas" && (
-        <>
-          <div className="grade-salas">
-            {salas.map((s) => {
-              const marcada = marcadas.includes(s.id);
-              const aceitaveis = valor.aceitaveis ?? [];
-              return (
-                <div key={s.id} className="escolha-sala">
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={marcada}
-                      onChange={() =>
+        {modo === "tipo" && (
+          <Campo rotulo="Tipo exigido">
+            {(a) => (
+              <Seletor
+                {...a}
+                className="w-full"
+                valor={valor.tipo_sala}
+                opcoes={TIPOS_SALA.map((t): Opcao<string | null> => ({
+                  valor: t,
+                  rotulo: `${t} — ${salas.filter((s) => s.tipo === t).length} sala(s) hoje`,
+                }))}
+                aoMudar={(tipo_sala) => aoMudar({ ...valor, tipo_sala }, modo)}
+              />
+            )}
+          </Campo>
+        )}
+
+        {modo === "especificas" && (
+          <>
+            <div className="grid grid-cols-2 gap-2">
+              {salas.map((s) => {
+                const marcada = marcadas.includes(s.id);
+                return (
+                  // A preferência fica ao lado da sala marcada, sem empurrar a grade.
+                  <div key={s.id} className="flex items-start justify-between gap-2">
+                    <Marcador
+                      rotulo={s.nome}
+                      descricao={`${s.tipo} · ${s.capacidade}`}
+                      marcado={marcada}
+                      aoMudar={() =>
                         aoMudar(
                           {
                             ...valor,
@@ -155,74 +179,61 @@ export function RequisitoSala({
                         )
                       }
                     />
-                    <span>
-                      {s.nome}
-                      <em>
-                        {s.tipo} · {s.capacidade}
-                      </em>
-                    </span>
-                  </label>
-                  {marcada && (
-                    <select
-                      className="embutido"
-                      aria-label={`Preferência por ${s.nome}`}
-                      value={aceitaveis.includes(s.id) ? 2 : 1}
-                      onChange={(e) =>
-                        aoMudar(
-                          {
-                            ...valor,
-                            aceitaveis:
-                              Number(e.target.value) === 2
-                                ? [...aceitaveis, s.id]
-                                : aceitaveis.filter((x) => x !== s.id),
-                          },
-                          modo,
-                        )
-                      }
-                    >
-                      <option value={1}>ideal</option>
-                      <option value={2}>aceitável</option>
-                    </select>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                    {marcada && (
+                      <Seletor
+                        rotulo={`Preferência por ${s.nome}`}
+                        className="w-[104px] shrink-0"
+                        valor={aceitaveis.includes(s.id) ? 2 : 1}
+                        opcoes={PREFERENCIAS}
+                        aoMudar={(preferencia) =>
+                          aoMudar(
+                            {
+                              ...valor,
+                              aceitaveis:
+                                preferencia === 2 ? [...aceitaveis, s.id] : aceitaveis.filter((x) => x !== s.id),
+                            },
+                            modo,
+                          )
+                        }
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
 
-          {marcadas.length === 0 && (
-            <p className="aviso">
-              Nenhuma sala marcada. Assim, na prática, qualquer sala serve —
-              marque as que valem.
+            {marcadas.length === 0 && (
+              <Alerta tom="aviso" className="mb-0">
+                Nenhuma sala marcada. Assim, na prática, qualquer sala serve — marque as que valem.
+              </Alerta>
+            )}
+
+            <p className="max-w-[68ch] text-xs leading-normal text-tx2">
+              O gerador e a grade manual tentam primeiro as salas ideais; as aceitáveis entram quando nenhuma ideal
+              está livre.
             </p>
-          )}
 
-          <p className="explica">
-            O gerador e a grade manual tentam primeiro as salas ideais; as
-            aceitáveis entram quando nenhuma ideal está livre.
-          </p>
-
-          {equivaleATipo && (
-            <p className="aviso">
-              Você marcou exatamente todas as salas do tipo{" "}
-              <strong>{equivaleATipo}</strong>. Se a intenção é "qualquer sala
-              deste tipo", troque o requisito acima: assim as salas cadastradas
-              no futuro passam a valer sozinhas.{" "}
-              <button
-                type="button"
-                className="ligacao"
-                onClick={() =>
-                  aoMudar(
-                    { ...valor, exige_sala: 1, tipo_sala: equivaleATipo, salas: [], aceitaveis: [] },
-                    "tipo",
-                  )
-                }
-              >
-                Trocar
-              </button>
-            </p>
-          )}
-        </>
-      )}
+            {equivaleATipo && (
+              <Alerta tom="aviso" className="mb-0">
+                Você marcou exatamente todas as salas do tipo <strong>{equivaleATipo}</strong>. Se a intenção é
+                "qualquer sala deste tipo", troque o requisito acima: assim as salas cadastradas no futuro passam a
+                valer sozinhas.{" "}
+                <Button
+                  // Sem isto o clique enviaria o formulário em que o requisito está.
+                  type="button"
+                  variant="link"
+                  className="h-auto border-0 px-0 align-baseline text-base underline"
+                  onClick={() =>
+                    aoMudar({ ...valor, exige_sala: 1, tipo_sala: equivaleATipo, salas: [], aceitaveis: [] }, "tipo")
+                  }
+                >
+                  Trocar
+                </Button>
+              </Alerta>
+            )}
+          </>
+        )}
+      </div>
     </fieldset>
   );
 }

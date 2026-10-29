@@ -1,0 +1,181 @@
+/*
+ * Sistema visual — Distribuição de Aulas
+ *
+ * Os valores vêm do design em `docs/design/`. Três regras dele que não devem
+ * ser desfeitas sem pensar:
+ *
+ * 1. Identidade nunca é cor. Com 55 disciplinas e 22 professores, matiz vira
+ *    ruído: disciplina, professor e sala são sempre texto. A cor carrega três
+ *    significados fixos — acento (apto/seleção/ação), negativo (impedimento) e
+ *    âmbar (tolerado). Não acrescente uma quarta sem um significado novo.
+ * 2. Nenhum estado depende só de cor. Tracejado, listras, cadeado e rebaixo
+ *    carregam o significado junto.
+ * 3. Desabilitado rebaixa texto e borda; nunca `opacity` no bloco inteiro —
+ *    isso embaça também o texto que explica por que está desabilitado.
+ *
+ * Claro e escuro remapeiam os mesmos papéis. A geometria não muda.
+ */
+
+/* A ordem das camadas decide quem vence sem depender de especificidade:
+   `components` (o `grade.css`) vence o reset de `base` e perde para os
+   utilitários, que ajustam um ponto de uso sem briga. */
+@layer theme, base, components, utilities;
+
+@import "tailwindcss" source("../");
+@import "tw-animate-css";
+@import "./grade.css" layer(components);
+
+:root {
+  color-scheme: light dark;
+
+  --bg: #f2f2f4; /* fundo da janela, atrás dos painéis */
+  --panel: #fbfbfc; /* barras, painéis, cabeçalhos */
+  --inset: #ececef; /* células vazias, campos, poços */
+  --card: #ffffff; /* aulas na grade */
+  --line: #dddee3; /* hairlines, malha, trilhas */
+  --lineS: #b4b8c2; /* aula travada, separações mais firmes */
+  /* Contorno de controle — desvio deliberado do design.
+     O `--lineS` dele dá 1,99:1 contra o campo e o dropdown não se lê como
+     clicável. Subi até cruzar os 3:1 da norma (#8F939E) e ficou pesado demais
+     na prática; recuei um passo, para 2,59:1. Fica acima do design e abaixo da
+     norma — escolha consciente, guiada por quem usa a ferramenta. */
+  --lineC: #9ca1ae;
+  --tx: #1b1d23; /* conteúdo principal */
+  --tx2: #565b66; /* metadados, rótulos */
+  --tx3: #8f939e; /* dicas, horários, desabilitado */
+  --acc: #3d5ab9; /* seleção, apto, ação primária, foco */
+  --onAcc: #ffffff;
+  --accBg: #eaeef9; /* célula apta, item selecionado */
+  --accLine: #93a5dc;
+  --neg: #a63d33; /* impedimento, remoção, soma errada */
+  --off: #edebe3; /* fora do turno do período */
+  --warnDot: #c29224; /* marcador de aula tolerada fora do turno */
+  --hover: rgba(27, 29, 35, 0.05);
+  --stripe: rgba(27, 29, 35, 0.07);
+  --shadow: rgba(20, 22, 28, 0.08);
+
+  --r: 4px; /* raio de controles */
+  --rp: 6px; /* raio de painéis */
+
+  /* Os nomes do shadcn apontam para os papéis acima. `--card` já existe com
+     esse nome e serve aos dois. */
+  --background: var(--bg);
+  --foreground: var(--tx);
+  --card-foreground: var(--tx);
+  --popover: var(--card);
+  --popover-foreground: var(--tx);
+  --primary: var(--acc);
+  --primary-foreground: var(--onAcc);
+  --secondary: var(--inset);
+  --secondary-foreground: var(--tx);
+  --muted: var(--inset);
+  --muted-foreground: var(--tx2);
+  --accent: var(--hover);
+  --accent-foreground: var(--tx);
+  --destructive: var(--neg);
+  --border: var(--line);
+  --input: var(--lineC);
+  --ring: var(--acc);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121316;
+    --panel: #1a1c20;
+    --inset: #141519;
+    --card: #25282f;
+    --line: #2c2f36;
+    --lineS: #4a4e59;
+    --lineC: #626775; /* 2,61:1 contra o campo escuro — mesmo passo do claro */
+    --tx: #e8eaef;
+    --tx2: #a6abb5;
+    --tx3: #6e737d;
+    --acc: #93a9f0;
+    --onAcc: #101523;
+    --accBg: #20283f;
+    --accLine: #4c5fa6;
+    --neg: #e29188;
+    --off: #191813;
+    --warnDot: #d8b04c;
+    --hover: rgba(232, 234, 239, 0.06);
+    --stripe: rgba(232, 234, 239, 0.08);
+    --shadow: rgba(0, 0, 0, 0.35);
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Papéis sem par no shadcn. */
+  --color-panel: var(--panel);
+  --color-poco: var(--inset);
+  --color-line: var(--line);
+  --color-line-s: var(--lineS);
+  --color-tx2: var(--tx2);
+  --color-tx3: var(--tx3);
+  --color-acc-bg: var(--accBg);
+  --color-acc-line: var(--accLine);
+  --color-off: var(--off);
+  --color-warn: var(--warnDot);
+  --color-stripe: var(--stripe);
+  --color-sombra: var(--shadow);
+
+  --font-sans: "Segoe UI", system-ui, sans-serif;
+  /* Largura fixa para número e código: os dígitos de uma coluna caem um
+     embaixo do outro. */
+  --font-mono: Consolas, "Cascadia Mono", monospace;
+
+  /* A densidade do design: 13 px de base, controles com texto de 12,5 px.
+     `--line-height: normal` em cada tamanho: sem isto o `text-*` traria junto
+     a altura de linha do Tailwind, e não a natural da fonte, que o design usa. */
+  --text-xs: 11px;
+  --text-xs--line-height: normal;
+  --text-sm: 12.5px;
+  --text-sm--line-height: normal;
+  --text-base: 13px;
+  --text-base--line-height: normal;
+  --text-lg: 15px;
+  --text-lg--line-height: normal;
+  --text-xl: 17px;
+  --text-xl--line-height: normal;
+
+  --radius-sm: 4px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 8px;
+}
+
+@layer base {
+  body {
+    background: var(--bg);
+    color: var(--tx);
+    font-size: 13px;
+    /* A altura de linha do design é a natural da fonte; o padrão do Tailwind
+       (1,5) é mais folgado e deixaria toda tela mais alta que o design. */
+    line-height: normal;
+  }
+
+  /* Anel de foco próprio, afastado da borda e só com teclado — nunca o mesmo
+     desenho do hover, senão o teclado e o mouse ficam indistinguíveis. */
+  :focus-visible {
+    outline: 2px solid var(--acc);
+    outline-offset: 2px;
+  }
+}

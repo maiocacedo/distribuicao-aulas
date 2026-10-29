@@ -1,11 +1,11 @@
 import { expect, test } from "./fixtures";
-import { aceitarConfirmacoes, celula, contar, irPara } from "./paginas";
+import { celula, contar, escolher, escolhida, irPara, linhaCom, responderConfirmacoes } from "./paginas";
 
 test.describe("B2", () => {
   test.use({ semente: "INSERT INTO cursos (id, nome) VALUES (2, 'Zeta');" });
 
   test("B2: excluir curso com disciplinas remove tudo junto", async ({ page, banco }) => {
-    aceitarConfirmacoes(page);
+    await responderConfirmacoes(page);
     await irPara(page, "Gerenciar cursos");
     const linha = page.getByRole("row", { name: /Engenharia/ });
     await expect(linha).toBeVisible();
@@ -32,13 +32,10 @@ test("B3: mudar o período da disciplina leva as aulas junto", async ({ page, ba
   expect(antes).toBeGreaterThan(0);
 
   await irPara(page, "Disciplinas");
-  await page
-    .locator("tr", { has: page.getByText(d.nome, { exact: true }) })
-    .getByRole("button", { name: "Editar" })
-    .click();
-  const seletor = page.locator(".modal select").first();
-  await expect(seletor).toBeVisible();
-  await seletor.selectOption(String(novo));
+  await linhaCom(page, d.nome).getByRole("button", { name: "Editar" }).click();
+  const periodo = page.getByRole("dialog").getByRole("combobox", { name: "Período", exact: true });
+  await expect(periodo).toBeVisible();
+  await escolher(periodo, new RegExp(`^${novo}º`));
 
   await page.getByRole("button", { name: "Salvar" }).click();
   await expect
@@ -54,7 +51,7 @@ test("B8: limpar período preserva as aulas fixadas", async ({ page, banco }) =>
   banco.exec(`UPDATE alocacoes SET fixada = 1
                WHERE rowid = (SELECT rowid FROM alocacoes WHERE curso_id = 1 AND periodo = 1 LIMIT 1)`);
   await page.reload();
-  aceitarConfirmacoes(page);
+  await responderConfirmacoes(page);
   await irPara(page, "Manual");
   expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE curso_id = 1 AND periodo = 1 AND fixada = 1")).toBe(1);
   const limpar = page.getByRole("button", { name: "Limpar período" });
@@ -96,7 +93,7 @@ test.describe("I1 — sala", () => {
     await irPara(page, "Manual");
     const pendencia = page.getByRole("button", { name: /Cálculo/ });
     await pendencia.click();
-    await expect(pendencia).toHaveClass(/ativo/);
+    await expect(pendencia).toHaveAttribute("aria-pressed", "true");
     await expect(celula(page, "Segunda", "M1")).toContainText(/A01|Beta|ocupad/i, { timeout: 3_000 });
   });
 });
@@ -117,7 +114,7 @@ test.describe("I1 — professor", () => {
     await irPara(page, "Manual");
     const pendencia = page.getByRole("button", { name: /Cálculo/ });
     await pendencia.click();
-    await expect(pendencia).toHaveClass(/ativo/);
+    await expect(pendencia).toHaveAttribute("aria-pressed", "true");
     await expect(celula(page, "Segunda", "M1")).toContainText(/A\. Souza|Beta/, { timeout: 3_000 });
   });
 });
@@ -138,7 +135,7 @@ test.describe("B4 — grade manual", () => {
     await irPara(page, "Manual");
     const pendencia = page.getByRole("button", { name: /Cálculo/ });
     await pendencia.click();
-    await expect(pendencia).toHaveClass(/ativo/);
+    await expect(pendencia).toHaveAttribute("aria-pressed", "true");
     await expect(celula(page, "Terça", "M1")).toContainText(/máx|dias/i, { timeout: 3_000 });
   });
 });
@@ -160,23 +157,18 @@ test.describe("I2", () => {
     await irPara(page, "Regras");
     const semana = page.getByLabel("Semana");
     await expect(semana).toBeVisible();
-    const mensagem = new Promise<string>((resolve) =>
-      page.once("dialog", (d) => {
-        resolve(d.message());
-        d.dismiss();
-      }),
-    );
-    await semana.selectOption("5");
-    expect(await mensagem).toMatch(/aulas? no sábado/i);
-    await expect(semana).toHaveValue("6");
+    const mensagens = await responderConfirmacoes(page, "recusar");
+    await escolher(semana, "Segunda a sexta");
+    await expect.poll(() => mensagens.join("\n")).toMatch(/aulas? no sábado/i);
+    await expect.poll(() => escolhida(semana)).toBe("Segunda a sábado");
     expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE dia = 5")).toBe(1);
     expect(contar(banco, "SELECT valor FROM configuracao WHERE chave = 'dias_letivos'")).toBe(6);
   });
 
   test("I2: confirmar apaga as aulas do sábado e grava 5 dias", async ({ page, banco }) => {
-    aceitarConfirmacoes(page);
+    await responderConfirmacoes(page);
     await irPara(page, "Regras");
-    await page.getByLabel("Semana").selectOption("5");
+    await escolher(page.getByLabel("Semana"), "Segunda a sexta");
     await expect.poll(() => contar(banco, "SELECT valor FROM configuracao WHERE chave = 'dias_letivos'")).toBe(5);
     expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE dia = 5")).toBe(0);
   });
