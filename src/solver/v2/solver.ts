@@ -271,13 +271,24 @@ export function* resolverEmPassos(
   }
 
   let passos = 0;
+  /** O único sorteio da busca: a mesma semente repete a mesma grade. */
+  const sorteio = aleatorio(opcoes.semente ?? 12345);
 
   /**
    * Coloca os blocos de uma fatia, um dia diferente para cada.
    * Dias distintos por construção: 2+2 no mesmo dia seria 4 seguidas, que é
    * outro padrão — e a tabela de padrões é quem decide se 4 vale.
    */
-  function colocarBlocos(e: Estado, f: Fatia, partes: number[], i: number, usados: Set<number>, saida: Bloco[]): boolean {
+  function colocarBlocos(
+    e: Estado,
+    f: Fatia,
+    partes: number[],
+    i: number,
+    usados: Set<number>,
+    saida: Bloco[],
+    topK: number,
+    evitar?: Bloco[],
+  ): boolean {
     if (i === partes.length) return true;
     const tam = partes[i];
     const proibidos = diasProibidos.get(idDe(f));
@@ -309,11 +320,28 @@ export function* resolverEmPassos(
     }
     candidatos.sort((a, b) => a.nota - b.nota);
 
+    // Fase 2: em vez de sempre o melhor, sorteia entre os K melhores — é o que
+    // tira a busca do mesmo ótimo local. A posição que a fatia já ocupava vai
+    // para o fim antes do sorteio: sem isso, a "nova" tentativa repetiria a
+    // antiga quase sempre. O sorteado vai à frente; os demais seguem em ordem
+    // de nota, para o retrocesso continuar completo. Com K = 1 (Fase 1) nada
+    // disso roda e nenhum número é sorteado.
+    if (topK > 1 && candidatos.length > 1) {
+      if (evitar) {
+        const igual = (c: { b: Bloco }) =>
+          evitar.some((a) => a.dia === c.b.dia && a.horaInicio === c.b.horaInicio && a.tamanho === c.b.tamanho);
+        candidatos.sort((a, b) => Number(igual(a)) - Number(igual(b)));
+      }
+      const k = Math.min(topK, candidatos.length);
+      const [escolhido] = candidatos.splice(Math.floor(sorteio() * k), 1);
+      candidatos.unshift(escolhido);
+    }
+
     for (const c of candidatos) {
       ocupar(e, f, c.b, true);
       usados.add(c.b.dia);
       saida.push(c.b);
-      if (colocarBlocos(e, f, partes, i + 1, usados, saida)) return true;
+      if (colocarBlocos(e, f, partes, i + 1, usados, saida, topK, evitar)) return true;
       saida.pop();
       usados.delete(c.b.dia);
       ocupar(e, f, c.b, false);
@@ -322,10 +350,10 @@ export function* resolverEmPassos(
     return false;
   }
 
-  function colocarFatia(e: Estado, f: Fatia): boolean {
+  function colocarFatia(e: Estado, f: Fatia, topK = 1, evitar?: Bloco[]): boolean {
     for (const padrao of padroesDe(f, problema)) {
       const saida: Bloco[] = [];
-      if (colocarBlocos(e, f, padrao.partes, 0, new Set(), saida)) {
+      if (colocarBlocos(e, f, padrao.partes, 0, new Set(), saida, topK, evitar)) {
         e.colocados.set(idDe(f), saida);
         return true;
       }
@@ -417,11 +445,38 @@ export function* resolverEmPassos(
     return saida;
   }
 
-  const sorteio = aleatorio(opcoes.semente ?? 12345);
-  const colocadas = [...fatiasEfetivas.values()].filter((f) => estado.colocados.has(idDe(f)));
+  let colocadas = [...fatiasEfetivas.values()].filter((f) => estado.colocados.has(idDe(f)));
   const iniciais = materializar(estado, problema, fatiasEfetivas);
-  const custo = new CustoIncremental(problema, pesos, iniciais);
-  let melhor = custoTotal(problema, iniciais, pesos);
+  let custo = new CustoIncremental(problema, pesos, iniciais);
+  /** Custo da grade corrente, que com o LAHC pode estar acima do melhor visto. */
+  let atual = custoTotal(problema, iniciais, pesos);
+  let melhor = atual;
+  // A melhor grade vista: o LAHC aceita pioras, então o estado final pode não ser ela.
+  let melhorColocados = new Map(estado.colocados);
+  let melhorFaltantes = [...faltantes];
+
+  const TOP_K = 5;
+  const CHANCE_DE_FALTANTE = 0.1;
+  const RODADAS_SEM_MELHORA = 600;
+  // Janela do LAHC: curta demais vira subida pura, longa demais aceita lixo.
+  const L = Math.max(50, Math.min(250, Math.floor(rodadas / 8)));
+  const historico: number[] = new Array(L).fill(atual);
+
+  /** Volta à melhor grade vista: refaz a ocupação, as listas e o custo incremental. */
+  function restaurarMelhor() {
+    for (const id of [...estado.colocados.keys()]) retirarFatia(estado, fatiasEfetivas.get(id)!);
+    for (const [id, blocos] of melhorColocados) {
+      const f = fatiasEfetivas.get(id)!;
+      for (const b of blocos) ocupar(estado, f, b, true);
+      estado.colocados.set(id, blocos);
+    }
+    faltantes.splice(0, faltantes.length, ...melhorFaltantes);
+    colocadas = [...fatiasEfetivas.values()].filter((f) => estado.colocados.has(idDe(f)));
+    // Recriar é mais simples que desfazer fatia por fatia, e só acontece
+    // quando a busca estagna ou termina.
+    custo = new CustoIncremental(problema, pesos, materializar(estado, problema, fatiasEfetivas));
+    atual = melhor;
+  }
 
   let interrompido = false;
   // Fim da construção: a primeira grade completa já existe e pode ser vista.
@@ -429,31 +484,82 @@ export function* resolverEmPassos(
     interrompido = true;
   }
 
-  for (let r = 0; !interrompido && r < rodadas && colocadas.length > 0; r++) {
-    const f = colocadas[Math.floor(sorteio() * colocadas.length)];
-    const anterior = estado.colocados.get(idDe(f))!;
-    const aulasAnteriores = aulasDe(f, anterior);
-    retirarFatia(estado, f);
-    custo.remover(aulasAnteriores);
+  let semMelhora = 0;
+  for (let r = 0; !interrompido && r < rodadas; r++) {
+    // Faltante que não coube na construção pode caber depois que o resto se mexeu.
+    const tentaveis = faltantes.filter((x) => fatiasEfetivas.has(idDe(x.fatia)));
+    if (colocadas.length === 0 && tentaveis.length === 0) break;
     const antesDosPassos = passos;
     try {
-      if (!colocarFatia(estado, f)) {
-        // Não recolocou: devolve exatamente onde estava.
-        for (const b of anterior) ocupar(estado, f, b, true);
-        estado.colocados.set(idDe(f), anterior);
-        custo.adicionar(aulasAnteriores);
+      if (tentaveis.length > 0 && (colocadas.length === 0 || sorteio() < CHANCE_DE_FALTANTE)) {
+        const alvo = tentaveis[Math.floor(sorteio() * tentaveis.length)];
+        if (colocarFatia(estado, alvo.fatia, TOP_K)) {
+          faltantes.splice(faltantes.indexOf(alvo), 1);
+          colocadas.push(alvo.fatia);
+          custo.adicionar(aulasDe(alvo.fatia, estado.colocados.get(idDe(alvo.fatia))!));
+          // Uma fatia a menos faltando vale mais que qualquer custo: o custo não
+          // vê faltantes, e a grade com menos faltantes passa a ser a melhor.
+          atual = custo.total();
+          melhor = atual;
+          melhorColocados = new Map(estado.colocados);
+          melhorFaltantes = [...faltantes];
+          historico.fill(atual);
+          semMelhora = 0;
+        }
       } else {
-        const aulasNovas = aulasDe(f, estado.colocados.get(idDe(f))!);
-        custo.adicionar(aulasNovas);
-        const agora = custo.total();
-        if (agora <= melhor) {
-          melhor = agora;
+        // Mexe em duas fatias do mesmo período de uma vez: sozinha, a fatia que
+        // está no contraturno não tem como entrar no turno porque quem o ocupa
+        // (uma optativa, outra obrigatória) também está parada. Tirar as duas e
+        // recolocá-las em ordem sorteada é o passo que desfaz isso. Medido na
+        // massa real (sementes 1 a 6, 4000 rodadas): uma fatia por vez 780 de
+        // custo médio, par em metade das rodadas 725, par sempre 662. Período
+        // com uma fatia só cai no movimento simples.
+        const grupo = [colocadas[Math.floor(sorteio() * colocadas.length)]];
+        const vizinhas = colocadas.filter((g) => g !== grupo[0] && g.periodo === grupo[0].periodo);
+        if (vizinhas.length > 0) grupo.push(vizinhas[Math.floor(sorteio() * vizinhas.length)]);
+        if (sorteio() < 0.5) grupo.reverse();
+        const anteriores = grupo.map((g) => estado.colocados.get(idDe(g))!);
+        const aulasAnteriores = grupo.map((g, k) => aulasDe(g, anteriores[k]));
+        for (const g of grupo) retirarFatia(estado, g);
+        for (const aulas of aulasAnteriores) custo.remover(aulas);
+        const aulasNovas: Alocacao[][] = [];
+        let recolocou = true;
+        for (let k = 0; k < grupo.length && recolocou; k++) {
+          recolocou = colocarFatia(estado, grupo[k], TOP_K, anteriores[k]);
+          if (recolocou) {
+            aulasNovas.push(aulasDe(grupo[k], estado.colocados.get(idDe(grupo[k]))!));
+            custo.adicionar(aulasNovas[k]);
+          }
+        }
+        // Devolve o grupo exatamente onde estava (na falha ou na rejeição).
+        const desfazer = () => {
+          for (let k = aulasNovas.length - 1; k >= 0; k--) custo.remover(aulasNovas[k]);
+          for (const g of grupo) retirarFatia(estado, g);
+          grupo.forEach((g, k) => {
+            for (const b of anteriores[k]) ocupar(estado, g, b, true);
+            estado.colocados.set(idDe(g), anteriores[k]);
+            custo.adicionar(aulasAnteriores[k]);
+          });
+        };
+        if (!recolocou) {
+          desfazer();
         } else {
-          custo.remover(aulasNovas);
-          retirarFatia(estado, f);
-          for (const b of anterior) ocupar(estado, f, b, true);
-          estado.colocados.set(idDe(f), anterior);
-          custo.adicionar(aulasAnteriores);
+          const agora = custo.total();
+          // LAHC: aceita também uma piora, desde que não passe do custo que a
+          // busca tinha L rodadas atrás.
+          if (agora <= atual || agora <= historico[r % L]) atual = agora;
+          else desfazer();
+        }
+        if (atual < historico[r % L]) historico[r % L] = atual;
+        if (atual < melhor) {
+          melhor = atual;
+          melhorColocados = new Map(estado.colocados);
+          semMelhora = 0;
+        } else if (++semMelhora >= RODADAS_SEM_MELHORA) {
+          // Muito tempo sem ganho: a deriva do LAHC não está levando a lugar
+          // nenhum, volta ao melhor ponto e recomeça dali.
+          restaurarMelhor();
+          semMelhora = 0;
         }
       }
     } finally {
@@ -462,14 +568,17 @@ export function* resolverEmPassos(
       // seguintes estouravam o teto em cascata).
       passos = antesDosPassos;
     }
-    // O cede fica fora do try: a rodada já terminou e o estado é o melhor visto
-    // (só se aceita custo igual ou menor), então parar aqui devolve uma grade válida.
+    // O cede fica fora do try: a rodada já terminou. `melhorCusto` é o melhor
+    // visto, não o corrente; parar aqui restaura essa grade abaixo.
     if ((r + 1) % 100 === 0) {
       if ((yield { fase: "melhoria", rodada: r + 1, rodadas, melhorCusto: melhor }) === "parar") {
         interrompido = true;
       }
     }
   }
+
+  // O estado corrente pode estar acima do melhor: devolve sempre a melhor grade.
+  if (atual !== melhor) restaurarMelhor();
 
   return {
     completo: faltantes.length === 0,
