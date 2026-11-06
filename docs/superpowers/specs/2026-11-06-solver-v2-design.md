@@ -127,3 +127,7 @@ Cede o controle uma vez ao fim da construção e a cada 100 rodadas de melhoria.
 - Calibração dos pesos.
 - Trocar o v1 pelo v2 como padrão — decisão do usuário depois de ver o benchmark.
 - Solvers externos (MIP, MaxSAT).
+- Troca de sala (Task 7) e IFS + CBS (Task 8): implementados, medidos e descartados em 2026-11-06. O cenário
+  "3 salas + 1 dia indisponível" é inviável por capacidade (185 aulas com sala para 180 vagas, sem sábado
+  possível) e o v2 já ocupa as 180; os dois só mudavam a trajetória, piorando custo e tempo. Detalhes no
+  `v2-progresso.md`.

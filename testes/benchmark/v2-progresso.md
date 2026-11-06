@@ -208,3 +208,19 @@ A troca reduz as faltantes da construção (5 → 4), mas ficou desligada na Fas
 inicial diferente levou a Fase 2 a fechar pior de forma sistemática. O IFS + CBS (Task 8) ataca as faltantes
 de forma mais geral; a troca pode voltar depois, ligada também na Fase 2. O patch ficou guardado fora do git
 (`.superpowers/sdd/sp3/task-7-troca-de-sala.patch`).
+
+## Task 8 — IFS + CBS na Fase 1 (descartada) e a capacidade do cenário de 3 salas
+
+Duas versões feitas pelo Codex (uma simplificada, depois a completa: posições por bloco, conjunto de conflito,
+CBS por posição, teto de 12 × fatias, guarda da maior cobertura), revisadas como corretas (0 violações,
+`custo === custoTotal`), e **descartadas por decisão do usuário (2026-11-06)**: no cenário "3 salas + 1 dia
+indisponível", sementes 1–6, o IFS completo manteve as 2 faltantes, subiu o custo médio de 1244,7 para 1400,7
+(1434, 1354, 1338, 1418, 1410, 1450) e levou 8,6–14 s por execução (até 5,7× o v1). Patches guardados fora do git
+(`.superpowers/sdd/sp3/task-8-*.patch`).
+
+**Por que nada ganhava faltantes nesse cenário: ele é inviável por capacidade.** As 185 aulas que exigem sala
+aceitam qualquer uma das 3 salas (todas laboratórios); 3 salas × 12 horários × 5 dias úteis = 180. O sábado não
+ajuda: nenhuma fatia com sala permite sábado. Pelo menos 5 aulas não cabem. O v2 coloca as 180 (100% da
+capacidade) e deixa de fora exatamente 5 aulas (Introdução à Ciência da Computação, 3; Libras 1, 2); o v1 deixa 4
+fatias. A meta do spec para esse cenário ("0 faltantes, ou o mínimo, com a inviabilidade explicada") está
+cumprida pelo v2 sem IFS.
