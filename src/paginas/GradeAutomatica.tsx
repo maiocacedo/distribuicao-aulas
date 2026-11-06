@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { consultar, type Instrucao } from "../db";
 import { carregarProblema } from "../solver/carregar";
-import { resolver } from "../solver/solver";
+import { gerarGrade, type Geracao, type VersaoGerador } from "../solver/gerador";
 import { buracos } from "../solver/custo";
 import type { Alocacao, Problema, Resultado } from "../solver/tipos";
+import type { Progresso } from "../solver/v2/solver";
 import { Alerta } from "@/componentes/alerta";
 import { CabecalhoPagina } from "@/componentes/cabecalho-pagina";
 import { useConfirmar } from "@/componentes/confirmacao";
 import { EstadoVazio } from "@/componentes/estado-vazio";
 import { Secao } from "@/componentes/secao";
+import { Seletor } from "@/componentes/seletor";
 import { avisar } from "@/componentes/toasts";
 import { Button } from "@/componentes/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/componentes/ui/table";
@@ -17,6 +19,11 @@ import { historico } from "../grade";
 import { BotaoDesfazer } from "../grade/BotaoDesfazer";
 import { desfazerEAvisar } from "../grade/desfazer";
 import { useHistorico } from "../grade/useHistorico";
+
+const OPCOES_DE_GERADOR: { valor: VersaoGerador; rotulo: string }[] = [
+  { valor: "v1", rotulo: "Atual (v1)" },
+  { valor: "v2", rotulo: "Novo (v2)" },
+];
 
 interface Medidas {
   aulas: number;
@@ -104,9 +111,12 @@ export default function GradeAutomatica({
   const [lido, setLido] = useState<Carga | null>(null);
   const [gerado, setGerado] = useState<Gerado | null>(null);
   const [gerando, setGerando] = useState(false);
+  const [versaoGerador, setVersaoGerador] = useState<VersaoGerador>("v1");
+  const [progresso, setProgresso] = useState<Progresso | null>(null);
   const [aplicando, setAplicando] = useState(false);
   const [aplicadoEm, setAplicadoEm] = useState<number | null>(null);
   const [erro, setErro] = useState("");
+  const geracaoAtiva = useRef<Geracao | null>(null);
 
   // Só o que é do curso na tela conta: o resto é de um curso que já saiu, e
   // aplicá-lo gravaria a grade de um curso no outro.
@@ -116,9 +126,18 @@ export default function GradeAutomatica({
 
   // O curso de agora, para quem acorda depois de um `await` (a carga, a
   // geração, a gravação) saber se a tela ainda é a do curso que o chamou.
+  // Ao trocar de curso ou desmontar a página, interrompe a geração em andamento.
   const cursoAtual = useRef(cursoId);
   useEffect(() => {
     cursoAtual.current = cursoId;
+    return () => {
+      if (geracaoAtiva.current) {
+        geracaoAtiva.current.parar();
+        geracaoAtiva.current = null;
+        setGerando(false);
+        setProgresso(null);
+      }
+    };
   }, [cursoId]);
   // Cada carga leva um número: a que chega depois de outra mais nova não vale.
   const geracao = useRef(0);
@@ -169,24 +188,38 @@ export default function GradeAutomatica({
 
   function gerar() {
     if (!carga) return;
+    geracaoAtiva.current?.parar();
     setErro("");
     // O resultado de antes fica à vista até o novo chegar (sem ele a página
     // encolhe e volta a crescer), mas parado: "Aplicar" e "Descartar" ficam
     // desabilitados enquanto se gera, e `aplicar` confere de novo.
     setAplicadoEm(null);
+    setProgresso(null);
     setGerando(true);
-    // Um quadro antes de bloquear: sem isto o "gerando…" nunca chega à tela,
-    // porque o solver roda no mesmo thread que desenha.
-    setTimeout(() => {
-      try {
-        const feito = resolver(carga.problema);
-        if (cursoAtual.current === cursoId) setGerado({ cursoId, resultado: feito });
-      } catch (e) {
-        setErro(String(e));
-      } finally {
-        setGerando(false);
+    const ativa = gerarGrade(carga.problema, versaoGerador, (p) => {
+      if (geracaoAtiva.current === ativa && cursoAtual.current === cursoId) {
+        setProgresso(p);
       }
-    }, 30);
+    });
+    geracaoAtiva.current = ativa;
+    void ativa.resultado
+      .then((feito) => {
+        if (geracaoAtiva.current === ativa && cursoAtual.current === cursoId) {
+          setGerado({ cursoId, resultado: feito });
+        }
+      })
+      .catch((e) => {
+        if (geracaoAtiva.current === ativa && cursoAtual.current === cursoId) {
+          setErro(String(e));
+        }
+      })
+      .finally(() => {
+        if (geracaoAtiva.current === ativa) {
+          geracaoAtiva.current = null;
+          setGerando(false);
+          setProgresso(null);
+        }
+      });
   }
 
   async function aplicar() {
@@ -286,10 +319,16 @@ export default function GradeAutomatica({
   // pouso: o motivo fica à vista, ao lado, e antes dos botões, para não os
   // empurrar quando aparece. É também o motivo de "Aplicar" e "Descartar",
   // lá embaixo, enquanto se aplica ou se gera.
+  const textoGerando =
+    versaoGerador === "v2"
+      ? progresso?.fase === "melhoria"
+        ? `Melhorando: rodada ${progresso.rodada} de ${progresso.rodadas}, custo ${progresso.melhorCusto}`
+        : "Montando a grade…"
+      : "Gerando a grade…";
   const motivo = aplicando
     ? "Aplicando a grade…"
     : gerando
-      ? "Gerando a grade…"
+      ? textoGerando
       : semFatias
         ? "Não há o que distribuir."
         : "";
@@ -322,9 +361,21 @@ export default function GradeAutomatica({
           </span>
         )}
         <BotaoDesfazer />
+        <Seletor
+          rotulo="Gerador"
+          valor={versaoGerador}
+          opcoes={OPCOES_DE_GERADOR}
+          aoMudar={setVersaoGerador}
+          desabilitado={gerando}
+        />
         <Button onClick={gerar} disabled={gerando || aplicando || semFatias} aria-describedby={motivo ? MOTIVO : undefined}>
           {gerando ? "Gerando…" : "Gerar grade"}
         </Button>
+        {gerando && versaoGerador === "v2" && (
+          <Button variant="outline" onClick={() => geracaoAtiva.current?.parar()}>
+            Parar
+          </Button>
+        )}
       </CabecalhoPagina>
 
       <Alerta tom="erro">{erro}</Alerta>
@@ -360,6 +411,11 @@ export default function GradeAutomatica({
 
           {resultado && (
             <Secao titulo="Resultado">
+              {resultado.interrompido && (
+                <Alerta tom="aviso">
+                  Geração parada antes do fim: esta é a melhor grade encontrada até ali.
+                </Alerta>
+              )}
               {!resultado.completo && (
                 <Alerta tom="aviso">
                   {resultado.faltantes.length} fatia(s) não couberam. A grade gerada é parcial — o resto

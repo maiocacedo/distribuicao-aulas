@@ -4,7 +4,7 @@ import { conferir } from "../../src/solver/conferir";
 import { DIAS } from "../../src/tipos";
 import { lerAlocacoes, lerDe } from "../suporte/banco";
 import { expect, test } from "./fixtures";
-import { celula, contar, gerarEAplicar, irPara, responderConfirmacoes } from "./paginas";
+import { celula, contar, escolher, gerarEAplicar, irPara, responderConfirmacoes } from "./paginas";
 
 const umaLinha = <T,>(banco: DatabaseSync, sql: string, ...params: (number | string)[]) => {
   const linha = banco.prepare(sql).get(...params);
@@ -88,3 +88,28 @@ test("indisponibilidade marcada por arrasto é respeitada pelo gerador", async (
   expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE professor_id = ?", id)).toBeGreaterThan(0);
   expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE professor_id = ? AND dia = ? AND hora <= 2", id, dia)).toBe(0);
 });
+
+test("gera com o Novo (v2) e aplica uma grade que o auditor aprova", async ({ page, banco }) => {
+  await responderConfirmacoes(page);
+  await irPara(page, "Automática");
+  await escolher(page.getByRole("combobox", { name: "Gerador" }), "Novo (v2)");
+  await gerarEAplicar(page);
+  const total = contar(
+    banco,
+    "SELECT SUM(dp.aulas) FROM disciplina_professores dp JOIN disciplinas d ON d.id = dp.disciplina_id WHERE d.curso_id = 1",
+  );
+  expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE curso_id = 1")).toBe(total);
+  const problema = await carregarProblema(1, lerDe(banco));
+  expect(conferir(problema, lerAlocacoes(banco, 1))).toEqual([]);
+});
+
+test("para a geração do v2 no meio e mostra a melhor grade encontrada até ali", async ({ page }) => {
+  await irPara(page, "Automática");
+  await escolher(page.getByRole("combobox", { name: "Gerador" }), "Novo (v2)");
+  await page.getByRole("button", { name: "Gerar grade" }).click();
+  await page.getByRole("button", { name: "Parar" }).click();
+  await expect(
+    page.getByText("Geração parada antes do fim: esta é a melhor grade encontrada até ali."),
+  ).toBeVisible();
+});
+
