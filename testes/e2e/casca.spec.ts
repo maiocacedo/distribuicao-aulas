@@ -9,18 +9,63 @@ test.describe("navegação", () => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Professores");
   });
 
-  test("Gerenciar cursos também é marcado quando ativo", async ({ page }) => {
-    await irPara(page, "Gerenciar cursos");
-    const item = page.getByRole("navigation").getByRole("button", { name: "Gerenciar cursos", exact: true });
+  test("Geral também é marcado quando ativo, e abre em Cursos", async ({ page }) => {
+    await irPara(page, "Geral");
+    const item = page.getByRole("navigation").getByRole("button", { name: "Geral", exact: true });
     await expect(item).toHaveAttribute("aria-current", "page");
+    await expect(page.getByRole("tab", { name: "Cursos" })).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Cursos");
   });
 
-  test("no desktop não há página de dados do navegador", async ({ page }) => {
-    const barra = page.getByRole("navigation");
-    // O item sairia no mesmo desenho dos outros: com eles à vista, a ausência vale.
-    await expect(barra.getByRole("button", { name: "Gerenciar cursos", exact: true })).toBeVisible();
-    expect(await barra.getByRole("button", { name: "Dados do navegador" }).count()).toBe(0);
-    expect(await barra.getByText("este navegador").count()).toBe(0);
+  test("no desktop, Dados exporta e importa, sem exemplo nem banco vazio", async ({ page }) => {
+    await irPara(page, "Dados");
+    await expect(page.getByRole("button", { name: "Exportar banco" })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Importar banco…" })).toBeEnabled();
+    expect(await page.getByRole("button", { name: "Carregar dados de exemplo" }).count()).toBe(0);
+    expect(await page.getByRole("button", { name: "Começar vazio" }).count()).toBe(0);
+  });
+
+  test("Sobre abre com o contato e fecha", async ({ page }) => {
+    await page.getByRole("navigation").getByRole("button", { name: "Sobre" }).click();
+    const janela = page.getByRole("dialog", { name: "Distribuição de Aulas" });
+    await expect(janela.getByRole("link", { name: /@/ })).toBeVisible();
+    await expect(janela.getByRole("img", { name: /UTFPR/ })).toBeVisible();
+    await janela.getByRole("button", { name: "Fechar" }).first().click();
+    await expect(janela).toHaveCount(0);
+  });
+});
+
+test.describe("preferências", () => {
+  test("tema, destaque e acessibilidade valem na hora e sobrevivem à recarga", async ({ page }) => {
+    const raiz = page.locator("html");
+    await irPara(page, "Aparência");
+    await page.getByRole("radio", { name: "Escuro" }).check();
+    await page.getByRole("radio", { name: "Violeta" }).check();
+    await expect(raiz).toHaveAttribute("data-modo", "escuro");
+    await expect(raiz).toHaveAttribute("data-acento", "violeta");
+
+    await irPara(page, "Acessibilidade");
+    await page.getByRole("radio", { name: "125%" }).check();
+    await page.getByLabel("Alto contraste").click();
+    await page.getByLabel("Reduzir animações").click();
+    await expect(raiz).toHaveAttribute("data-contraste", "alto");
+    await expect(raiz).toHaveAttribute("data-movimento", "reduzido");
+    expect(await raiz.evaluate((h) => h.style.zoom)).toBe("1.25");
+
+    await page.reload();
+    await expect(raiz).toHaveAttribute("data-modo", "escuro");
+    await expect(raiz).toHaveAttribute("data-acento", "violeta");
+    await expect(raiz).toHaveAttribute("data-contraste", "alto");
+    expect(await raiz.evaluate((h) => h.style.zoom)).toBe("1.25");
+
+    // A barra lateral cabe na janela mesmo com o zoom: o pé fica à vista.
+    await expect(page.getByRole("navigation").getByRole("button", { name: "Sobre" })).toBeInViewport();
+
+    await irPara(page, "Acessibilidade");
+    await page.getByRole("button", { name: "restaurar todas as preferências" }).click();
+    await expect(raiz).toHaveAttribute("data-acento", "azul");
+    await expect(raiz).toHaveAttribute("data-contraste", "normal");
+    expect(await raiz.evaluate((h) => h.style.zoom)).toBe("");
   });
 });
 

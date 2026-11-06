@@ -15,7 +15,7 @@ test.describe("turnos do curso", () => {
 
   test("tirar a tarde com aula na tarde confirma e apaga", async ({ page, banco }) => {
     const mensagens = await responderConfirmacoes(page);
-    await irPara(page, "Gerenciar cursos");
+    await irPara(page, "Cursos");
     await page.getByRole("row", { name: /Engenharia/ }).getByRole("button", { name: "Editar" }).click();
     await page.getByRole("checkbox", { name: "Tarde", exact: true }).uncheck();
     await page.getByRole("button", { name: "Salvar" }).click();
@@ -25,7 +25,7 @@ test.describe("turnos do curso", () => {
 
   test("cancelar a remoção do turno não muda nada", async ({ page, banco }) => {
     const mensagens = await responderConfirmacoes(page, "recusar");
-    await irPara(page, "Gerenciar cursos");
+    await irPara(page, "Cursos");
     await page.getByRole("row", { name: /Engenharia/ }).getByRole("button", { name: "Editar" }).click();
     await page.getByRole("checkbox", { name: "Tarde", exact: true }).uncheck();
     await page.getByRole("button", { name: "Salvar" }).click();
@@ -38,7 +38,7 @@ test.describe("turnos do curso", () => {
   });
 
   test("as caixas de turno formam um grupo rotulado", async ({ page }) => {
-    await irPara(page, "Gerenciar cursos");
+    await irPara(page, "Cursos");
     await page.getByRole("row", { name: /Engenharia/ }).getByRole("button", { name: "Editar" }).click();
     const grupo = page.getByRole("group", { name: "Turnos" });
     await expect(grupo.getByRole("checkbox", { name: "Manhã", exact: true })).toBeChecked();
@@ -50,7 +50,7 @@ test.describe("conversão de horas do curso", () => {
   test.use({ semMassa: true, semente: "UPDATE cursos SET nome = 'Engenharia', horas_por_aula_semanal = 15 WHERE id = 1;" });
 
   test("zero é recusado junto do campo, sem a bolha do navegador", async ({ page, banco }) => {
-    await irPara(page, "Gerenciar cursos");
+    await irPara(page, "Cursos");
     await page.getByRole("row", { name: /Engenharia/ }).getByRole("button", { name: "Editar" }).click();
     const campo = page.getByLabel("Horas de currículo por aula semanal");
     await campo.fill("0");
@@ -71,7 +71,7 @@ test.describe("turno do curso em uso", () => {
   });
 
   test("tirar um turno que um período usa é recusado", async ({ page, banco }) => {
-    await irPara(page, "Gerenciar cursos");
+    await irPara(page, "Cursos");
     await page.getByRole("row", { name: /Engenharia/ }).getByRole("button", { name: "Editar" }).click();
     await page.getByRole("checkbox", { name: "Tarde", exact: true }).uncheck();
     await page.getByRole("button", { name: "Salvar" }).click();
@@ -437,7 +437,7 @@ test.describe("contagem do cabeçalho durante a carga", () => {
     ["Professores", "FROM professores p", "0 de 0", "0 de 0"],
     ["Salas", "FROM salas s", "0 de 0", "0 de 0"],
     ["Tipos de disciplina", "FROM tipos_disciplina t", "0 tipo(s)", "0 tipo(s)"],
-    ["Gerenciar cursos", "FROM cursos c", "0 curso(s)", "1 curso(s)"],
+    ["Cursos", "FROM cursos c", "0 curso(s)", "1 curso(s)"],
   ] as const) {
     test(`${tela}: sem número enquanto a lista não chega`, async ({ page }) => {
       const consultas = await segurarConsultas(page, consulta);
@@ -540,7 +540,7 @@ test.describe("turno do curso usado por disciplina com turno forçado", () => {
   });
 
   test("tirar o turno é recusado e diz qual disciplina o usa", async ({ page, banco }) => {
-    await irPara(page, "Gerenciar cursos");
+    await irPara(page, "Cursos");
     await page.getByRole("row", { name: /Engenharia/ }).getByRole("button", { name: "Editar" }).click();
     await page.getByRole("checkbox", { name: "Tarde", exact: true }).uncheck();
     await page.getByRole("button", { name: "Salvar" }).click();

@@ -78,8 +78,11 @@
   --ring: var(--acc);
 }
 
+/* Escuro: pelo sistema operacional enquanto o tema é "sistema" (é o que vale
+   também no primeiro desenho, antes do script), ou por escolha em Geral ›
+   Aparência. `data-modo` é escrito por `src/preferencias.ts`. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-modo="claro"]) {
     --bg: #121316;
     --panel: #1a1c20;
     --inset: #141519;
@@ -101,6 +104,103 @@
     --stripe: rgba(232, 234, 239, 0.08);
     --shadow: rgba(0, 0, 0, 0.35);
   }
+}
+
+:root[data-modo="escuro"] {
+  --bg: #121316;
+  --panel: #1a1c20;
+  --inset: #141519;
+  --card: #25282f;
+  --line: #2c2f36;
+  --lineS: #4a4e59;
+  --lineC: #626775; /* 2,61:1 contra o campo escuro — mesmo passo do claro */
+  --tx: #e8eaef;
+  --tx2: #a6abb5;
+  --tx3: #6e737d;
+  --acc: #93a9f0;
+  --onAcc: #101523;
+  --accBg: #20283f;
+  --accLine: #4c5fa6;
+  --neg: #e29188;
+  --off: #191813;
+  --warnDot: #d8b04c;
+  --hover: rgba(232, 234, 239, 0.06);
+  --stripe: rgba(232, 234, 239, 0.08);
+  --shadow: rgba(0, 0, 0, 0.35);
+}
+
+:root[data-modo="claro"] {
+  color-scheme: light;
+}
+
+:root[data-modo="escuro"] {
+  color-scheme: dark;
+}
+
+/* Cores de destaque. Só trocam o matiz do acento, que continua com o mesmo
+   significado (seleção, apto, ação, foco) — a regra 1 do cabeçalho vale.
+   Âmbar e vermelho ficam de fora: já são "tolerado" e "impedimento". Cada
+   acento passa de 4,5:1 contra o painel, no claro e no escuro. */
+:root[data-acento="verde"] {
+  --acc: #1d7354;
+  --accBg: #e3f1eb;
+  --accLine: #86c2a9;
+}
+:root[data-acento="violeta"] {
+  --acc: #6a43b5;
+  --accBg: #efe9fa;
+  --accLine: #b39ce0;
+}
+:root[data-acento="grafite"] {
+  --acc: #3d4452;
+  --accBg: #eaecf0;
+  --accLine: #a1a7b4;
+}
+:root[data-modo="escuro"][data-acento="verde"] {
+  --acc: #7dcfae;
+  --onAcc: #0b1e17;
+  --accBg: #162e27;
+  --accLine: #3c876a;
+}
+:root[data-modo="escuro"][data-acento="violeta"] {
+  --acc: #b8a0f1;
+  --onAcc: #190f2e;
+  --accBg: #29213f;
+  --accLine: #6852a6;
+}
+:root[data-modo="escuro"][data-acento="grafite"] {
+  --acc: #c4c9d3;
+  --onAcc: #14161a;
+  --accBg: #2a2d34;
+  --accLine: #5b616e;
+}
+
+/* Alto contraste: texto, rótulos e contornos sobem até passar com folga das
+   normas (texto 7:1, contornos 3:1). O acento fica — já passa de 4,5:1. */
+:root[data-modo="claro"][data-contraste="alto"] {
+  --bg: #ffffff;
+  --panel: #ffffff;
+  --inset: #f0f0f2;
+  --line: #8a8f9a;
+  --lineS: #5d626d;
+  --lineC: #4d525c;
+  --tx: #000000;
+  --tx2: #2b2e35;
+  --tx3: #474b55;
+  --stripe: rgba(0, 0, 0, 0.14);
+}
+:root[data-modo="escuro"][data-contraste="alto"] {
+  --bg: #000000;
+  --panel: #0b0c0e;
+  --inset: #000000;
+  --card: #1c1e23;
+  --line: #6a6f7b;
+  --lineS: #8b909c;
+  --lineC: #9aa0ac;
+  --tx: #ffffff;
+  --tx2: #dadde3;
+  --tx3: #b6bac4;
+  --stripe: rgba(255, 255, 255, 0.16);
 }
 
 @theme inline {
@@ -178,4 +278,34 @@
     outline: 2px solid var(--acc);
     outline-offset: 2px;
   }
+
+  /* Foco reforçado: mais grosso, com um halo do fundo em volta, para achar
+     o foco de longe e sobre qualquer fundo. */
+  :root[data-foco="reforcado"] :focus-visible {
+    outline: 3px solid var(--acc);
+    outline-offset: 3px;
+    box-shadow: 0 0 0 6px var(--bg);
+  }
+}
+
+/* Reduzir animações: pela escolha em Geral › Acessibilidade ou pelo sistema
+   operacional. Duração quase zero, e não `none`, para que quem espera o fim
+   de uma animação (Radix, Sonner) continue recebendo o evento. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+:root[data-movimento="reduzido"] *,
+:root[data-movimento="reduzido"] ::before,
+:root[data-movimento="reduzido"] ::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
 }

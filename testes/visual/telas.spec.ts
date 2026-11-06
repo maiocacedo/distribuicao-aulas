@@ -14,7 +14,7 @@ const TELAS: { id: string; rotulo: string; pronta: (p: Page) => Locator }[] = [
   { id: "grade-manual", rotulo: "Manual", // Só existe com as aulas carregadas (a massa tem aulas no 1º período).
     pronta: (p) => p.getByText(/^[1-9]\d* de \d+ posições ocupadas$/) },
   { id: "grade-automatica", rotulo: "Automática", pronta: (p) => p.getByRole("button", { name: "Gerar grade" }) },
-  { id: "cursos", rotulo: "Gerenciar cursos", pronta: (p) => p.getByRole("row").nth(1) },
+  { id: "cursos", rotulo: "Geral", pronta: (p) => p.getByRole("row").nth(1) },
 ];
 
 /**
@@ -27,7 +27,7 @@ const TELAS: { id: string; rotulo: string; pronta: (p: Page) => Locator }[] = [
  *
  * Antes de fotografar, repinta a barra lateral. Os itens dela ficam em posição
  * fracionária: acima deles estão o gatilho do curso, com 17,84 px de altura de
- * linha, e o atalho "Gerenciar cursos", com 26,66 px. Em parte das execuções a
+ * linha, e (até sair para Geral) o atalho de cursos, com 26,66 px. Em parte das execuções a
  * camada da barra fica com os ícones rasterizados de um desenho anterior (1 a
  * 5 níveis de cor em alguns pixels de três ícones), e isso não se corrige
  * sozinho: fica igual por quanto tempo se espere. Reservar a altura da caixa

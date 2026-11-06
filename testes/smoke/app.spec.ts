@@ -40,7 +40,7 @@ const ir = async (rotulo: string) => (await $("nav")).$(`button=${rotulo}`).clic
 
 describe("binário real", () => {
   it("abre com as migrações aplicadas pelo sqlx", async () => {
-    await ir("Gerenciar cursos");
+    await ir("Geral");
     await expect($("td=Curso")).toBeDisplayed();
   });
 

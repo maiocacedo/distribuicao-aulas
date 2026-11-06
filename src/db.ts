@@ -50,7 +50,7 @@ function motor(): Motor {
 export type { Resumo, Substituto } from "./banco/trabalhador";
 
 /**
- * O banco do navegador como arquivo (página "Dados do navegador"). Só existe
+ * O banco do navegador como arquivo (Geral › Dados). Só existe
  * fora do Tauri: no desktop o banco é um arquivo no disco, e quem o copia é o
  * usuário.
  */

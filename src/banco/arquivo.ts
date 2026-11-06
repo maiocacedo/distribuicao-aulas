@@ -2,7 +2,7 @@ import type { Database, Sqlite3Static } from "@sqlite.org/sqlite-wasm";
 import { migracoesDoApp, migrar } from "./migracoes";
 
 /**
- * O banco do navegador como arquivo: o que a página "Dados do navegador" põe
+ * O banco do navegador como arquivo: o que a aba Geral › Dados põe
  * no lugar do banco (um arquivo importado, o exemplo, um banco vazio) e o que
  * ela baixa. Tudo é montado e conferido num banco em memória, à parte; o
  * banco de verdade só é trocado (em `trabalhador.ts`) quando o novo está

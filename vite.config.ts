@@ -9,6 +9,10 @@ const host = process.env.TAURI_DEV_HOST;
 // https://vite.dev/config/
 export default defineConfig(async () => ({
   plugins: [react(), tailwindcss()],
+  // A versão que a janela "Sobre" mostra. `npm run` põe a do package.json no
+  // ambiente; fora dele, "dev".
+  // @ts-expect-error process is a nodejs global
+  define: { __VERSAO__: JSON.stringify(process.env.npm_package_version ?? "dev") },
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
 
   // O SQLite em WebAssembly do banco do navegador acha o `sqlite3.wasm` por

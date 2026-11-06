@@ -4,28 +4,28 @@ import {
   CalendarCog,
   CalendarRange,
   CalendarX,
-  Database,
   DoorOpen,
-  GraduationCap,
   Layers,
+  Settings,
   Sparkles,
   Tags,
   Users,
   type LucideIcon,
 } from "lucide-react";
 import { Alerta } from "@/componentes/alerta";
+import { LogoUtfpr } from "@/componentes/logo-utfpr";
+import { Sobre } from "@/componentes/sobre";
 import { Seletor } from "@/componentes/seletor";
 import { Toaster } from "@/componentes/ui/sonner";
 import { TooltipProvider } from "@/componentes/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { bancoEmMemoria, consultar, noNavegador } from "./db";
+import { bancoEmMemoria, consultar } from "./db";
 import { historico } from "./grade";
 import type { Curso } from "./tipos";
-import Cursos from "./paginas/Cursos";
-import DadosDoNavegador from "./paginas/DadosDoNavegador";
 import Disciplinas from "./paginas/disciplinas";
 import GradeAutomatica from "./paginas/GradeAutomatica";
 import GradeManual from "./paginas/grade-manual";
+import Geral, { type Aba } from "./paginas/geral";
 import Indisponibilidades from "./paginas/Indisponibilidades";
 import Instituicao from "./paginas/Instituicao";
 import Periodos from "./paginas/Periodos";
@@ -33,7 +33,13 @@ import Professores from "./paginas/Professores";
 import Salas from "./paginas/Salas";
 import Tipos from "./paginas/Tipos";
 
-type Props = { cursoId: number; aoMudarCursos: () => void; aoNavegar: (id: string) => void };
+type Props = {
+  cursoId: number;
+  aoMudarCursos: () => void;
+  aoNavegar: (id: string) => void;
+  aba: Aba;
+  aoMudarAba: (a: Aba) => void;
+};
 
 type Pagina = {
   id: string;
@@ -121,28 +127,19 @@ const GRUPOS: { titulo: string; paginas: Pagina[] }[] = [
   },
 ];
 
-const PAGINA_CURSOS: Pagina = {
-  id: "cursos",
-  rotulo: "Gerenciar cursos",
-  icone: GraduationCap,
-  componente: (p) => <Cursos aoMudarLista={p.aoMudarCursos} />,
-  semCurso: true,
-};
-
 /**
- * Só no navegador, onde o banco não é um arquivo que o usuário vê: é a página
- * que diz onde os dados ficam e que os exporta e troca. No desktop o item nem
- * existe.
+ * Geral fica no pé da barra: cursos, aparência, acessibilidade e dados
+ * (exportar e importar o banco). Não é de um curso, por isso abre sem curso.
  */
-const PAGINA_DADOS: Pagina = {
-  id: "dados-navegador",
-  rotulo: "Dados do navegador",
-  icone: Database,
-  componente: () => <DadosDoNavegador />,
+const PAGINA_GERAL: Pagina = {
+  id: "geral",
+  rotulo: "Geral",
+  icone: Settings,
+  componente: (p) => <Geral aba={p.aba} aoMudarAba={p.aoMudarAba} aoMudarCursos={p.aoMudarCursos} />,
   semCurso: true,
 };
 
-const TODAS = [...GRUPOS.flatMap((g) => g.paginas), PAGINA_CURSOS, PAGINA_DADOS];
+const TODAS = [...GRUPOS.flatMap((g) => g.paginas), PAGINA_GERAL];
 
 function App() {
   const [cursos, setCursos] = useState<Curso[]>([]);
@@ -151,6 +148,7 @@ function App() {
   const [cursosLidos, setCursosLidos] = useState(false);
   const [cursoId, setCursoId] = useState<number | null>(null);
   const [pagina, setPagina] = useState<string>("periodos");
+  const [aba, setAba] = useState<Aba>("cursos");
   const [erro, setErro] = useState<string | null>(null);
   // Só o banco do navegador pode estar em memória (janela anônima, navegador
   // sem armazenamento de origem): aí o aviso fica à vista o tempo todo, porque
@@ -202,7 +200,14 @@ function App() {
     cursoId: cursoId ?? 0,
     aoMudarCursos: carregarCursos,
     aoNavegar: setPagina,
+    aba,
+    aoMudarAba: setAba,
   });
+
+  const abrirCursos = () => {
+    setAba("cursos");
+    setPagina("geral");
+  };
 
   const item = (p: Pagina, extra?: string) => (
     <button
@@ -224,7 +229,9 @@ function App() {
   return (
     <TooltipProvider delayDuration={400}>
       <div className="grid min-h-screen grid-cols-[216px_1fr]">
-        <nav className="flex flex-col gap-px border-r border-line bg-panel px-2.5 py-3">
+        {/* Presa à altura da janela, com rolagem própria: o pé da barra (Geral,
+            Sobre e o logo) fica sempre à vista, por mais longa que seja a página. */}
+        <nav className="sticky top-0 flex h-[calc(100dvh/var(--zoom,1))] flex-col gap-px overflow-y-auto border-r border-line bg-panel px-2.5 py-3">
           <strong className="px-2.5 pb-2.5 pt-0.5 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-tx3">
             Distribuição de Aulas
           </strong>
@@ -250,13 +257,6 @@ function App() {
               desabilitado={cursos.length === 0}
             />
           </div>
-          {/* Atalho discreto: menor e em cinza, sem o fundo de item, com a
-              altura de linha de 1,3333. */}
-          {item(
-            PAGINA_CURSOS,
-            "mx-0.5 h-auto w-[calc(100%-4px)] px-2 pb-[7px] pt-[5px] text-xs leading-[1.3333] text-tx3",
-          )}
-
           {GRUPOS.map((g) => (
             <div key={g.titulo} className="flex flex-col gap-px">
               <div className="px-2.5 pb-1 pt-4 text-[10px] uppercase tracking-[0.08em] text-tx3">
@@ -266,12 +266,12 @@ function App() {
             </div>
           ))}
 
-          {noNavegador() && (
-            <div className="flex flex-col gap-px">
-              <div className="px-2.5 pb-1 pt-4 text-[10px] uppercase tracking-[0.08em] text-tx3">este navegador</div>
-              {item(PAGINA_DADOS)}
-            </div>
-          )}
+          {/* O pé: empurrado para baixo pelo `mt-auto`, separado por um fio. */}
+          <div className="mt-auto flex flex-col gap-px border-t border-line pt-3">
+            {item(PAGINA_GERAL)}
+            <Sobre />
+            <LogoUtfpr className="mx-2.5 mt-3 w-24" />
+          </div>
         </nav>
 
         {/* `min-w-0`: sem ele a coluna `1fr` não encolhe abaixo do conteúdo e
@@ -285,7 +285,13 @@ function App() {
           {semCurso && !atual.semCurso ? (
             <>
               <h1 className="text-xl font-bold">Nenhum curso</h1>
-              <p className="mt-2 text-tx2">Crie um curso em "Gerenciar cursos" para começar.</p>
+              <p className="mt-2 text-tx2">
+                Crie um curso em{" "}
+                <button type="button" className="text-primary underline underline-offset-2" onClick={abrirCursos}>
+                  Geral › Cursos
+                </button>{" "}
+                para começar.
+              </p>
             </>
           ) : (
             conteudo

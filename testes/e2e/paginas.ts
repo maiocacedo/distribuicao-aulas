@@ -2,7 +2,15 @@ import { expect, type Locator, type Page } from "@playwright/test";
 import type { DatabaseSync } from "node:sqlite";
 import { converter } from "../suporte/ponte";
 
+/** As abas de Geral (no pé da barra lateral): `irPara(page, "Cursos")` abre Geral e a aba. */
+const ABAS_DE_GERAL = ["Cursos", "Aparência", "Acessibilidade", "Dados"];
+
 export async function irPara(page: Page, rotulo: string) {
+  if (ABAS_DE_GERAL.includes(rotulo)) {
+    await page.getByRole("navigation").getByRole("button", { name: "Geral", exact: true }).click();
+    await page.getByRole("tab", { name: rotulo, exact: true }).click();
+    return;
+  }
   await page.getByRole("navigation").getByRole("button", { name: rotulo, exact: true }).click();
 }
 

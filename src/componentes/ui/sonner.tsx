@@ -1,9 +1,9 @@
 import { Toaster as Sonner, type ToasterProps } from "sonner";
+import { modoResolvido, usePreferencias } from "@/preferencias";
 
 /**
- * Segue o tema do sistema, como o resto do app. A versão do CLI do shadcn
- * depende de `next-themes`, que aqui não entra: o tema vem de
- * `prefers-color-scheme`, não de uma escolha na interface.
+ * Segue o tema do app (Geral › Aparência). A versão do CLI do shadcn depende
+ * de `next-themes`, que aqui não entra: o tema vem de `src/preferencias.ts`.
  *
  * O botão de fechar (só o toast de erro tem) nasce com as cores do próprio
  * sonner: no tema escuro era um disco preto sobre o cartão. Recebe as do
@@ -14,9 +14,10 @@ import { Toaster as Sonner, type ToasterProps } from "sonner";
  * sai ao ser fechado) não receberia o clique que o fecha.
  */
 export function Toaster(props: ToasterProps) {
+  const preferencias = usePreferencias();
   return (
     <Sonner
-      theme="system"
+      theme={preferencias.tema === "sistema" ? "system" : modoResolvido(preferencias) === "escuro" ? "dark" : "light"}
       position="bottom-right"
       containerAriaLabel="Avisos"
       toastOptions={{
