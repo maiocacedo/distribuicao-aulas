@@ -59,6 +59,22 @@ describe("montar", () => {
     expect(db.selectValue("SELECT COUNT(*) FROM _sqlx_migrations")).toBe(migracoesDoApp().length);
   });
 
+  it("exemplo com o segundo curso: dois cursos, o segundo com períodos, disciplinas e professores da massa", async () => {
+    const segundo = readFileSync(fileURLToPath(new URL("./exemplo-segundo-curso.sql", import.meta.url)), "utf-8");
+    const db = await montarExemplo(sqlite3, MASSA, segundo);
+    expect(resumir(db).cursos).toBe(2);
+    // Os mesmos professores: o segundo curso disputa os da instituição, não traz outros.
+    expect(resumir(db).professores).toBe(naMassa("professores"));
+    expect(db.selectValue("SELECT COUNT(*) FROM periodos WHERE curso_id = 2")).toBe(4);
+    expect(db.selectValue("SELECT COUNT(*) FROM disciplinas WHERE curso_id = 2")).toBe(16);
+    // Toda disciplina do curso tem a carga inteira distribuída entre os professores.
+    expect(
+      db.selectValue(`SELECT COUNT(*) FROM disciplinas d WHERE curso_id = 2 AND aulas_semanais <>
+        (SELECT COALESCE(SUM(aulas), 0) FROM disciplina_professores dp WHERE dp.disciplina_id = d.id)`),
+    ).toBe(0);
+    expect(db.selectValue("PRAGMA foreign_key_check")).toBeUndefined();
+  });
+
   it("massa sem a linha da versão é recusada", async () => {
     await expect(montarExemplo(sqlite3, "INSERT INTO cursos (nome) VALUES ('x');")).rejects.toThrow(/esquema: N/);
   });

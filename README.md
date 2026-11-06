@@ -87,7 +87,10 @@ o que um exporta, o outro importa.
 - **No navegador:** "Exportar banco" baixa o `.db`; "Importar banco…" confere o
   arquivo, diz quantos cursos, professores e disciplinas ele tem, pede
   confirmação e troca o banco do navegador. Há também "Carregar dados de
-  exemplo" e "Começar vazio".
+  exemplo" e "Começar vazio". O exemplo tem dois cursos que dividem
+  professores e salas: Engenharia (a massa de teste, com a grade pronta) e
+  Sistemas de Informação (`src/banco/exemplo-segundo-curso.sql`, com a grade
+  por gerar).
 - **No executável:** "Exportar banco" grava o `.db` na pasta Downloads
   (`VACUUM INTO`, um arquivo só, consistente). "Importar banco…" confere o
   arquivo no Rust (integridade, registro de migrações, versão e checksum de

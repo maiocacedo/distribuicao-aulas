@@ -192,7 +192,8 @@ async function substituir(a: Aberto, s: Substituto): Promise<void> {
   else if (s.por === "exemplo") {
     // Import dinâmico: os dados de exemplo só são baixados por quem os pede.
     const massa = (await import("../../testes/massa/engenharia_v9.sql?raw")).default;
-    novo = await montarExemplo(a.sqlite3, massa);
+    const segundoCurso = (await import("./exemplo-segundo-curso.sql?raw")).default;
+    novo = await montarExemplo(a.sqlite3, massa, segundoCurso);
   } else if (a.persistente) novo = await montarVazio(a.sqlite3);
 
   const imagem = novo ? exportar(a.sqlite3, novo) : null;

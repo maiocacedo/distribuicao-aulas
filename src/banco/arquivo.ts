@@ -59,8 +59,11 @@ export async function montarVazio(sqlite3: Sqlite3Static): Promise<Database> {
  * `-- esquema: N` dela), a massa numa transação com a chave estrangeira
  * ligada, e as migrações restantes — que levam os dados da massa ao esquema
  * de hoje, como fariam com o banco de um usuário.
+ *
+ * `extra` roda por último, já no esquema de hoje, na mesma transação de tudo
+ * ou nada: é o segundo curso do exemplo (`exemplo-segundo-curso.sql`).
  */
-export async function montarExemplo(sqlite3: Sqlite3Static, massa: string): Promise<Database> {
+export async function montarExemplo(sqlite3: Sqlite3Static, massa: string, extra?: string): Promise<Database> {
   const versao = Number(/-- esquema: (\d+)/.exec(massa)?.[1]);
   if (!versao) throw new Error("os dados de exemplo não dizem a versão do esquema ('-- esquema: N')");
   const todas = migracoesDoApp();
@@ -76,6 +79,16 @@ export async function montarExemplo(sqlite3: Sqlite3Static, massa: string): Prom
       throw e;
     }
     await migrar(db, todas);
+    if (extra) {
+      db.exec("BEGIN");
+      try {
+        db.exec(extra);
+        db.exec("COMMIT");
+      } catch (e) {
+        db.exec("ROLLBACK");
+        throw e;
+      }
+    }
     return db;
   } catch (e) {
     db.close();

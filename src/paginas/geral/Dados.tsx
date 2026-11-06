@@ -138,7 +138,7 @@ export default function Dados() {
   async function carregarExemplo() {
     const ok = await confirmar({
       titulo: "Carregar os dados de exemplo?",
-      descricao: `${aviso} Entra no lugar dele um curso de exemplo, com professores, salas, disciplinas e grade.`,
+      descricao: `${aviso} Entram no lugar dele dois cursos de exemplo, que dividem os mesmos professores e salas: Engenharia, com a grade pronta, e Sistemas de Informação, com a grade por gerar.`,
       confirmar: "Carregar o exemplo",
       perigo: true,
     });
@@ -247,7 +247,7 @@ export default function Dados() {
               >
                 Carregar dados de exemplo
               </Button>
-              <span className="text-xs text-tx2">Um curso completo, com professores, salas e grade, para experimentar.</span>
+              <span className="text-xs text-tx2">Dois cursos com os mesmos professores e salas: um com a grade pronta, outro com a grade por gerar.</span>
               <Button
                 variant="outline"
                 onClick={() => void comecarVazio()}
