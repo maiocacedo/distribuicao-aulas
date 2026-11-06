@@ -57,7 +57,11 @@ os dias do professor e não de um bloco.
    calibração é uma etapa posterior, fora deste plano.
 6. **Etapas com benchmark depois de cada uma**, na ordem: esqueleto → Worker → nota marginal →
    custo incremental → Fase 2 (Top-K + LAHC) → troca de sala → IFS + CBS → vizinhanças N2/N4.
-7. **Execução por SDD**, delegando ao agy (Argon) as tarefas de contrato fechado e a subagentes
+7. **Fase 2 mistura N1 e N2 (decidido em 2026-11-06, durante a Task 6):** uma fatia por rodada perdia
+   nos cenários apertados e o par em toda rodada perdia na massa real; ficou o sorteio, com **32% de par e
+   6060 rodadas**, escolhido por intervalos cada vez menores (25–50%, depois 30/35/40%, depois 27/32%).
+   Método e tabela em `testes/benchmark/v2-progresso.md`, Task 6c.
+8. **Execução por SDD**, delegando ao agy (Argon) as tarefas de contrato fechado e a subagentes
    Claude as de algoritmo.
 
 ## Desenho

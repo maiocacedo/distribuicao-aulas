@@ -167,3 +167,30 @@ Varredura da chance de par (p) e das rodadas, a tempo comparável (N2 custa cerc
 | 0,75 | 4571 | 647,3 / 0 / 1,25× | 643,3 / 0 / 1,15× | 1297,3 / 2,3 / 1,21× |
 
 Padrão do v2: N1 com probabilidade 0,65 e N2 com 0,35, 5900 rodadas. Custo médio (sementes 1 a 3), v1 → v2: massa real 630,7 → 654,7 (com as sementes 1 a 6 da varredura, 695,0 → 627,0); 6 salas 917,3 → 631,3; 3 salas 1514,7 → 1170,7, com 2 faltantes em vez de 4. Violações: 0 em todos. Tempo do v2 em relação ao v1 na mesma execução: massa real 1,46× (a semente 1 do v1 foi atípica, 2,1 s), 6 salas 1,18×, 3 salas 1,12×. Por que p = 0,35 e 5900 rodadas: faltantes primeiro, o 3 salas fica em 2 faltantes a partir de p = 0,35 (com 0,25 sobra 2,3); entre os que chegam a 2, 0,35 tem o menor custo nesse cenário e no de 6 salas, e na massa real empata com uma fatia só (627,0 contra 620,7, diferença dentro do ruído entre sementes, que passa de 100). Acima disso a massa real e o 6 salas pioram, o que sugere que muitos pares tiram rodadas demais da exploração de uma fatia. A varredura é ruidosa (poucas sementes); 0,25 e 0,5 ficam muito próximos.
+
+## Task 6c — chance do par (N2): 32%, por intervalos cada vez menores
+
+Decisão do usuário (2026-11-06): **32% de chance de par por rodada, com 6060 rodadas** (8000 / 1,32, para
+gastar o mesmo tempo de 8000 rodadas de uma fatia só, já que o par custa cerca do dobro).
+
+Como foi decidido: busca por intervalos cada vez menores, sempre a tempo igual e nas mesmas sementes.
+
+1. Primeiro intervalo, 25% a 50% (Task 6b, sementes 1–6 na massa real e 1–3 nos outros): o ponto bom
+   ficou perto de 35%; abaixo de ~30% sobravam mais faltantes no cenário de 3 salas, acima de ~40% a massa
+   real e o de 6 salas pioravam.
+2. Estreitando em volta de 35%: 30%, 35% e 40%, sementes 1–6 nos três cenários. 40% perdeu em tudo; 30%
+   ganhou na massa real e 35% nos cenários apertados.
+3. Estreitando em volta de 30%: 27% e 32%. O pico ficou entre 30% e 32%; 32% foi o mais equilibrado.
+
+Custo médio, sementes 1–6 (faltantes médios entre parênteses):
+
+| Cenário | v1 | 27% | 30% | **32%** | 35% | 40% |
+|---|---|---|---|---|---|---|
+| Massa real | 695,0 | 622,7 | 594,3 | **607,7** | 627,0 | 659,0 |
+| 6 salas + 1 dia | 906,7 | 681,3 | 656,0 | **632,3** | 640,7 | 689,3 |
+| 3 salas + 1 dia | 1514,7 (4,0) | 1223,3 (2,3) | 1260,7 (2,2) | **1244,7 (2,0)** | 1181,7 (2,0) | 1284,0 (2,0) |
+| Massa real, sementes 1–3 (meta < 631) | 630,7 | 640,0 | 603,3 | **605,3** | 654,7 | 650,0 |
+
+Por que 32%: melhor no cenário de 6 salas, segundo na massa real (dentro do ruído do 30%) cumprindo a meta
+nas sementes 1–3, e 2,0 faltantes no cenário de 3 salas (o 30% fica com 2,2). A curva não é lisa (27% saiu
+pior que 30%): com 6 sementes, diferenças de ~15 pontos ainda são ruído.

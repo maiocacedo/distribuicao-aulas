@@ -117,11 +117,11 @@ export function* resolverEmPassos(
   const pesos = opcoes.pesos ?? PESOS_PADRAO;
   const maxPassos = opcoes.maxPassos ?? 300_000;
   // Mistura de N1 (uma fatia) e N2 (par) sorteada a cada rodada: o par custa
-  // cerca de o dobro, então 5900 rodadas com um terço de pares gastam o tempo de
-  // 8000 de uma fatia só. Com poucos pares a massa real fica igual à de uma
-  // fatia por vez; com muitos, os cenários apertados ganham mais, mas a massa
-  // real e o cenário de 6 salas pioram — um terço foi o ponto de equilíbrio.
-  const rodadas = opcoes.rodadasDeMelhoria ?? 5900;
+  // cerca do dobro, então as rodadas são as que gastam o tempo de 8000 de uma
+  // fatia só (8000 / 1,32). A chance do par foi escolhida estreitando o
+  // intervalo no benchmark (ver `testes/benchmark/v2-progresso.md`, Task 6c):
+  // poucos pares pioram os cenários apertados, muitos pioram a massa real.
+  const rodadas = opcoes.rodadasDeMelhoria ?? 6060;
   const comeco = Date.now();
 
   const turnoDaHora = new Map(problema.horarios.map((h) => [h.indice, h.turno]));
@@ -462,7 +462,7 @@ export function* resolverEmPassos(
 
   const TOP_K = 5;
   const CHANCE_DE_FALTANTE = 0.1;
-  const CHANCE_DE_PAR = 0.35;
+  const CHANCE_DE_PAR = 0.32;
   const RODADAS_SEM_MELHORA = 600;
   // Janela do LAHC: curta demais vira subida pura, longa demais aceita lixo.
   const L = Math.max(50, Math.min(250, Math.floor(rodadas / 8)));
