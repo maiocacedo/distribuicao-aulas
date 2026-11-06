@@ -80,3 +80,28 @@ A partir daqui as colunas `buracos turma` e `fora do turno` contam só as obriga
 Custo médio (sementes 1 a 3), v1 → v2: massa real 630,7 → 815,3 (pior); 6 salas 917,3 → 842,7 (melhor); 3 salas 1514,7 → 1500,0, mas com 5 faltantes em vez de 4. Violações: 0 em todos.
 
 Leitura (conferida pela revisão): a nota está exata — em 2.914 candidatos da construção na massa real, a nota de cada obrigatória bate com o Δ real de `custoTotal` em todas as parcelas. A piora na massa real vem do **contraturno**: 18 aulas obrigatórias fora do turno no v1 contra 21–27 no v2 (e `excessoContraturno` de 40 para 60), compensado só em parte por `optativaSemTurno` de 40 para 0. Buraco de turma das obrigatórias fica no mesmo nível (0–2). Com a nota exata, o contraturno a mais é miopia do guloso — hipótese ainda não confirmada: com as optativas agora preferindo o turno, as horas do turno faltam para as obrigatórias que vêm depois. A Fase 2 (Task 6) é quem deve recuperar; esta tarefa só alinha a régua.
+
+## Task 5 — custo incremental
+
+| solver | cenário | semente | completo | faltantes | custo | violações | buracos prof. | buracos turma (obrig.) | fora do turno (obrig.) | ms |
+|---|---|---|---|---|---|---|---|---|---|---|
+| atual | massa real | 1 | sim | 0 | 652 | 0 | 3 | 1 | 18 | 8902 |
+| atual | massa real | 2 | sim | 0 | 620 | 0 | 0 | 0 | 18 | 8428 |
+| atual | massa real | 3 | sim | 0 | 620 | 0 | 0 | 0 | 18 | 7726 |
+| atual | 6 salas + 1 dia indisponível | 1 | sim | 0 | 928 | 0 | 10 | 6 | 24 | 6856 |
+| atual | 6 salas + 1 dia indisponível | 2 | sim | 0 | 928 | 0 | 10 | 6 | 24 | 7284 |
+| atual | 6 salas + 1 dia indisponível | 3 | sim | 0 | 896 | 0 | 10 | 2 | 24 | 9418 |
+| atual | 3 salas + 1 dia indisponível | 1 | não | 4 | 1536 | 0 | 27 | 30 | 32 | 4678 |
+| atual | 3 salas + 1 dia indisponível | 2 | não | 4 | 1504 | 0 | 24 | 29 | 32 | 5202 |
+| atual | 3 salas + 1 dia indisponível | 3 | não | 4 | 1504 | 0 | 23 | 30 | 32 | 4712 |
+| v2 | massa real | 1 | sim | 0 | 690 | 0 | 0 | 0 | 21 | 4486 |
+| v2 | massa real | 2 | sim | 0 | 870 | 0 | 0 | 0 | 27 | 4301 |
+| v2 | massa real | 3 | sim | 0 | 886 | 0 | 0 | 2 | 27 | 4168 |
+| v2 | 6 salas + 1 dia indisponível | 1 | sim | 0 | 840 | 0 | 8 | 2 | 24 | 3424 |
+| v2 | 6 salas + 1 dia indisponível | 2 | sim | 0 | 832 | 0 | 7 | 2 | 24 | 3627 |
+| v2 | 6 salas + 1 dia indisponível | 3 | sim | 0 | 856 | 0 | 10 | 2 | 24 | 3693 |
+| v2 | 3 salas + 1 dia indisponível | 1 | não | 5 | 1500 | 0 | 30 | 15 | 34 | 2477 |
+| v2 | 3 salas + 1 dia indisponível | 2 | não | 5 | 1500 | 0 | 30 | 15 | 34 | 2401 |
+| v2 | 3 salas + 1 dia indisponível | 3 | não | 5 | 1500 | 0 | 30 | 15 | 34 | 2341 |
+
+Custo, faltantes, violações e as demais colunas idênticos aos da Task 4 em todas as linhas: a troca é só de desempenho. A máquina estava carregada nesta rodada (o v1 levou 2,2× o tempo da Task 4), então o tempo vale na comparação dentro da mesma execução: o v2 passou de 86% para cerca de 52% do tempo do v1 na massa real (4,3 s contra 8,4 s).

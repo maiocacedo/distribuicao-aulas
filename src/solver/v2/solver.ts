@@ -12,6 +12,7 @@ import {
   type Problema,
   type Resultado,
 } from "../tipos";
+import { CustoIncremental } from "./custoIncremental";
 
 export interface Opcoes {
   pesos?: Pesos;
@@ -399,9 +400,28 @@ export function* resolverEmPassos(
   }
 
   // ---- melhoria: tira uma fatia e recoloca, ficando com o que baratear ----
+  function aulasDe(f: Fatia, blocos: Bloco[]): Alocacao[] {
+    const saida: Alocacao[] = [];
+    for (const b of blocos) {
+      for (let i = 0; i < b.tamanho; i++) {
+        saida.push({
+          periodo: f.periodo,
+          dia: b.dia,
+          hora: problema.horarios[b.horaInicio + i].indice,
+          disciplinaId: f.disciplinaId,
+          professorId: f.professorId,
+          salaId: b.salaId,
+        });
+      }
+    }
+    return saida;
+  }
+
   const sorteio = aleatorio(opcoes.semente ?? 12345);
   const colocadas = [...fatiasEfetivas.values()].filter((f) => estado.colocados.has(idDe(f)));
-  let melhor = custoTotal(problema, materializar(estado, problema, fatiasEfetivas), pesos);
+  const iniciais = materializar(estado, problema, fatiasEfetivas);
+  const custo = new CustoIncremental(problema, pesos, iniciais);
+  let melhor = custoTotal(problema, iniciais, pesos);
 
   let interrompido = false;
   // Fim da construção: a primeira grade completa já existe e pode ser vista.
@@ -412,21 +432,28 @@ export function* resolverEmPassos(
   for (let r = 0; !interrompido && r < rodadas && colocadas.length > 0; r++) {
     const f = colocadas[Math.floor(sorteio() * colocadas.length)];
     const anterior = estado.colocados.get(idDe(f))!;
+    const aulasAnteriores = aulasDe(f, anterior);
     retirarFatia(estado, f);
+    custo.remover(aulasAnteriores);
     const antesDosPassos = passos;
     try {
       if (!colocarFatia(estado, f)) {
         // Não recolocou: devolve exatamente onde estava.
         for (const b of anterior) ocupar(estado, f, b, true);
         estado.colocados.set(idDe(f), anterior);
+        custo.adicionar(aulasAnteriores);
       } else {
-        const agora = custoTotal(problema, materializar(estado, problema, fatiasEfetivas), pesos);
+        const aulasNovas = aulasDe(f, estado.colocados.get(idDe(f))!);
+        custo.adicionar(aulasNovas);
+        const agora = custo.total();
         if (agora <= melhor) {
           melhor = agora;
         } else {
+          custo.remover(aulasNovas);
           retirarFatia(estado, f);
           for (const b of anterior) ocupar(estado, f, b, true);
           estado.colocados.set(idDe(f), anterior);
+          custo.adicionar(aulasAnteriores);
         }
       }
     } finally {
