@@ -15,6 +15,7 @@ import { conferir } from "../src/solver/conferir";
 import { buracos } from "../src/solver/custo";
 import { resolver } from "../src/solver/solver";
 import type { Alocacao, Problema, Resultado } from "../src/solver/tipos";
+import { resolver as resolverV2 } from "../src/solver/v2/solver";
 import { criarBanco, lerDe } from "../testes/suporte/banco";
 import { CENARIOS } from "../testes/suporte/cenarios";
 
@@ -23,8 +24,10 @@ interface Solver {
   resolver: (p: Problema, semente: number) => Resultado;
 }
 
-/** O solver v2 entra nesta lista, ao lado do atual. */
-const SOLVERS: Solver[] = [{ nome: "atual", resolver: (p, semente) => resolver(p, { semente }) }];
+const SOLVERS: Solver[] = [
+  { nome: "atual", resolver: (p, semente) => resolver(p, { semente }) },
+  { nome: "v2", resolver: (p, semente) => resolverV2(p, { semente }) },
+];
 const SEMENTES = [1, 2, 3];
 
 function argumento(nome: string): string | undefined {

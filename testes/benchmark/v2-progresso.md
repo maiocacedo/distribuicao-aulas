@@ -1,0 +1,28 @@
+# Benchmark do solver v2
+
+Cada tarefa do plano acrescenta uma seção com a saída do benchmark (`npm run bench:solver`) sobre a massa anonimizada.
+
+## Task 1 — esqueleto
+
+| solver | cenário | semente | completo | faltantes | custo | violações | buracos prof. | buracos turma | fora do turno | ms |
+|---|---|---|---|---|---|---|---|---|---|---|
+| atual | massa real | 1 | sim | 0 | 652 | 0 | 3 | 1 | 38 | 3447 |
+| atual | massa real | 2 | sim | 0 | 620 | 0 | 0 | 2 | 38 | 2869 |
+| atual | massa real | 3 | sim | 0 | 620 | 0 | 0 | 0 | 38 | 2989 |
+| atual | 6 salas + 1 dia indisponível | 1 | sim | 0 | 928 | 0 | 10 | 6 | 46 | 2423 |
+| atual | 6 salas + 1 dia indisponível | 2 | sim | 0 | 928 | 0 | 10 | 6 | 46 | 2674 |
+| atual | 6 salas + 1 dia indisponível | 3 | sim | 0 | 896 | 0 | 10 | 6 | 46 | 2360 |
+| atual | 3 salas + 1 dia indisponível | 1 | não | 4 | 1536 | 0 | 27 | 44 | 40 | 1583 |
+| atual | 3 salas + 1 dia indisponível | 2 | não | 4 | 1504 | 0 | 24 | 42 | 38 | 1872 |
+| atual | 3 salas + 1 dia indisponível | 3 | não | 4 | 1504 | 0 | 23 | 42 | 40 | 2764 |
+| v2 | massa real | 1 | sim | 0 | 652 | 0 | 3 | 1 | 38 | 3771 |
+| v2 | massa real | 2 | sim | 0 | 620 | 0 | 0 | 2 | 38 | 3593 |
+| v2 | massa real | 3 | sim | 0 | 620 | 0 | 0 | 0 | 38 | 3589 |
+| v2 | 6 salas + 1 dia indisponível | 1 | sim | 0 | 928 | 0 | 10 | 6 | 46 | 3217 |
+| v2 | 6 salas + 1 dia indisponível | 2 | sim | 0 | 928 | 0 | 10 | 6 | 46 | 3318 |
+| v2 | 6 salas + 1 dia indisponível | 3 | sim | 0 | 896 | 0 | 10 | 6 | 46 | 2779 |
+| v2 | 3 salas + 1 dia indisponível | 1 | não | 4 | 1536 | 0 | 27 | 44 | 40 | 2360 |
+| v2 | 3 salas + 1 dia indisponível | 2 | não | 4 | 1504 | 0 | 24 | 42 | 38 | 3016 |
+| v2 | 3 salas + 1 dia indisponível | 3 | não | 4 | 1504 | 0 | 23 | 42 | 40 | 3007 |
+
+Idêntico ao v1 em custo, faltantes e violações. Os tempos desta máquina (~3 s também no v1) estão acima dos ~1,2 s da linha de base de outubro: a meta de tempo compara com o v1 medido na mesma execução.
