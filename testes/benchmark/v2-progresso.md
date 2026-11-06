@@ -110,25 +110,24 @@ Custo, faltantes, violações e as demais colunas idênticos aos da Task 4 em to
 
 | solver | cenário | semente | completo | faltantes | custo | violações | buracos prof. | buracos turma (obrig.) | fora do turno (obrig.) | ms |
 |---|---|---|---|---|---|---|---|---|---|---|
-| atual | massa real | 1 | sim | 0 | 652 | 0 | 3 | 1 | 18 | 1497 |
-| atual | massa real | 2 | sim | 0 | 620 | 0 | 0 | 0 | 18 | 4084 |
-| atual | massa real | 3 | sim | 0 | 620 | 0 | 0 | 0 | 18 | 4342 |
-| atual | 6 salas + 1 dia indisponível | 1 | sim | 0 | 928 | 0 | 10 | 6 | 24 | 3968 |
-| atual | 6 salas + 1 dia indisponível | 2 | sim | 0 | 928 | 0 | 10 | 6 | 24 | 4090 |
-| atual | 6 salas + 1 dia indisponível | 3 | sim | 0 | 896 | 0 | 10 | 2 | 24 | 3989 |
-| atual | 3 salas + 1 dia indisponível | 1 | não | 4 | 1536 | 0 | 27 | 30 | 32 | 2774 |
-| atual | 3 salas + 1 dia indisponível | 2 | não | 4 | 1504 | 0 | 24 | 29 | 32 | 2581 |
-| atual | 3 salas + 1 dia indisponível | 3 | não | 4 | 1504 | 0 | 23 | 30 | 32 | 2540 |
-| v2 | massa real | 1 | sim | 0 | 656 | 0 | 13 | 9 | 14 | 6927 |
-| v2 | massa real | 2 | sim | 0 | 704 | 0 | 20 | 8 | 14 | 5868 |
-| v2 | massa real | 3 | sim | 0 | 686 | 0 | 11 | 6 | 15 | 5123 |
-| v2 | 6 salas + 1 dia indisponível | 1 | sim | 0 | 676 | 0 | 18 | 4 | 14 | 5624 |
-| v2 | 6 salas + 1 dia indisponível | 2 | sim | 0 | 664 | 0 | 18 | 10 | 12 | 6417 |
-| v2 | 6 salas + 1 dia indisponível | 3 | sim | 0 | 688 | 0 | 17 | 9 | 14 | 6664 |
-| v2 | 3 salas + 1 dia indisponível | 1 | não | 2 | 1308 | 0 | 26 | 15 | 30 | 3875 |
-| v2 | 3 salas + 1 dia indisponível | 2 | não | 2 | 1348 | 0 | 21 | 15 | 32 | 3106 |
-| v2 | 3 salas + 1 dia indisponível | 3 | não | 2 | 1174 | 0 | 18 | 10 | 29 | 2917 |
+| atual | massa real | 1 | sim | 0 | 652 | 0 | 3 | 1 | 18 | 2586 |
+| atual | massa real | 2 | sim | 0 | 620 | 0 | 0 | 0 | 18 | 4718 |
+| atual | massa real | 3 | sim | 0 | 620 | 0 | 0 | 0 | 18 | 4376 |
+| atual | 6 salas + 1 dia indisponível | 1 | sim | 0 | 928 | 0 | 10 | 6 | 24 | 3650 |
+| atual | 6 salas + 1 dia indisponível | 2 | sim | 0 | 928 | 0 | 10 | 6 | 24 | 3782 |
+| atual | 6 salas + 1 dia indisponível | 3 | sim | 0 | 896 | 0 | 10 | 2 | 24 | 3810 |
+| atual | 3 salas + 1 dia indisponível | 1 | não | 4 | 1536 | 0 | 27 | 30 | 32 | 2542 |
+| atual | 3 salas + 1 dia indisponível | 2 | não | 4 | 1504 | 0 | 24 | 29 | 32 | 2519 |
+| atual | 3 salas + 1 dia indisponível | 3 | não | 4 | 1504 | 0 | 23 | 30 | 32 | 2413 |
+| v2 | massa real | 1 | sim | 0 | 700 | 0 | 10 | 5 | 18 | 5322 |
+| v2 | massa real | 2 | sim | 0 | 544 | 0 | 10 | 8 | 12 | 5126 |
+| v2 | massa real | 3 | sim | 0 | 708 | 0 | 11 | 5 | 18 | 5346 |
+| v2 | 6 salas + 1 dia indisponível | 1 | sim | 0 | 808 | 0 | 5 | 1 | 24 | 4525 |
+| v2 | 6 salas + 1 dia indisponível | 2 | sim | 0 | 800 | 0 | 4 | 1 | 24 | 4208 |
+| v2 | 6 salas + 1 dia indisponível | 3 | sim | 0 | 808 | 0 | 6 | 0 | 24 | 4270 |
+| v2 | 3 salas + 1 dia indisponível | 1 | não | 5 | 1500 | 0 | 31 | 14 | 34 | 3072 |
+| v2 | 3 salas + 1 dia indisponível | 2 | não | 5 | 1500 | 0 | 31 | 14 | 34 | 3210 |
+| v2 | 3 salas + 1 dia indisponível | 3 | não | 5 | 1500 | 0 | 31 | 14 | 34 | 2956 |
 
-Custo médio (sementes 1 a 3), v1 → v2: massa real 630,7 → 682,0 (ainda pior, mas contra 815,3 antes); 6 salas 917,3 → 676,0 (bem melhor); 3 salas 1514,7 → 1276,7, com 2 faltantes em vez de 4. Violações: 0 em todos. Tempo do v2 em relação ao v1 na mesma execução: massa real 1,8×, 6 salas 1,6×, 3 salas 1,3× (o v1 da massa real teve uma semente atipicamente rápida, 1,5 s; a máquina oscila).
+Fase 2 com uma fatia por rodada e 8000 rodadas (padrão do v2). Custo médio (sementes 1 a 3), v1 → v2: massa real 630,7 → 650,7; 6 salas 917,3 → 805,3; 3 salas 1514,7 → 1500,0, com 5 faltantes em vez de 4 (o v2 não recoloca nenhuma faltante nesse cenário). Violações: 0 em todos. Tempo do v2 em relação ao v1 na mesma execução: massa real 1,35×, 6 salas 1,07×, 3 salas 1,24×. A meta do spec (massa real < 631) segue não atingida na média, mas a semente 2 chegou a 544. O par de fatias do mesmo período foi testado e fica adiado para a Task 9 (vizinhança N2): a tempo igual perdeu na massa real, 688,7 contra 620,7 (sementes 1 a 6, par com 4000 rodadas contra uma fatia com 8000). Contra o par, esta versão perde no cenário de 3 salas, onde o par chegava a 2 faltantes.
 
-Leitura: a meta do spec (massa real < 631) **não foi atingida**; o v2 ficou 8% acima do v1 na massa real, e só a semente 1 chegou perto (656). O ganho veio de duas coisas: Top-K + LAHC + restauração da melhor grade, e a recolocação de **duas fatias do mesmo período por rodada** (medido em seis sementes da massa real: uma fatia por vez 780 de custo médio, par em metade das rodadas 725, par sempre 662). O contraturno caiu de 21–27 para 14–15 aulas (abaixo das 18 do v1), mas o v2 paga em buracos: 11–20 de professor e 6–9 de turma contra 0–3 e 0–1 do v1. Ou seja, a busca ainda não converge em 4000 rodadas: o LAHC com janela de 250 deriva bastante e o v1, que só aceita melhora, desce mais fundo em buracos. Os faltantes caíram de 5 para 2 no cenário de 3 salas pela nova tentativa.
