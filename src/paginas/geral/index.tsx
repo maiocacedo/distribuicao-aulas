@@ -1,15 +1,17 @@
 import { Tabs } from "radix-ui";
-import { Accessibility, Database, GraduationCap, Palette, type LucideIcon } from "lucide-react";
+import type { ComponentType } from "react";
+import { Database, GraduationCap, Palette } from "lucide-react";
+import { IconeAcessibilidade } from "@/componentes/icone-acessibilidade";
 import { Acessibilidade, Aparencia } from "./Aparencia";
 import Cursos from "./Cursos";
 import Dados from "./Dados";
 
 export type Aba = "cursos" | "aparencia" | "acessibilidade" | "dados";
 
-const ABAS: { id: Aba; rotulo: string; icone: LucideIcon }[] = [
+const ABAS: { id: Aba; rotulo: string; icone: ComponentType<{ className?: string; "aria-hidden"?: boolean }> }[] = [
   { id: "cursos", rotulo: "Cursos", icone: GraduationCap },
   { id: "aparencia", rotulo: "Aparência", icone: Palette },
-  { id: "acessibilidade", rotulo: "Acessibilidade", icone: Accessibility },
+  { id: "acessibilidade", rotulo: "Acessibilidade", icone: IconeAcessibilidade },
   { id: "dados", rotulo: "Dados", icone: Database },
 ];
 
