@@ -27,7 +27,7 @@ const TELAS: { id: string; rotulo: string; pronta: (p: Page) => Locator }[] = [
  *
  * Antes de fotografar, repinta a barra lateral. Os itens dela ficam em posição
  * fracionária: acima deles estão o gatilho do curso, com 17,84 px de altura de
- * linha, e o atalho "Gerenciar cursos", com 26,66 px. Em parte das execuções a
+ * linha, e (antes de ir para o pé) o atalho de cursos, com 26,66 px. Em parte das execuções a
  * camada da barra fica com os ícones rasterizados de um desenho anterior (1 a
  * 5 níveis de cor em alguns pixels de três ícones), e isso não se corrige
  * sozinho: fica igual por quanto tempo se espere. Reservar a altura da caixa

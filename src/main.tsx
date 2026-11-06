@@ -1,4 +1,5 @@
 import "./estilos/tema.css";
+import { iniciarPreferencias } from "./preferencias";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
@@ -59,6 +60,9 @@ function mostrarFalhaGlobal(o: unknown) {
 
 window.addEventListener("error", (e) => mostrarFalhaGlobal(e.error ?? e.message));
 window.addEventListener("unhandledrejection", (e) => mostrarFalhaGlobal(e.reason));
+
+// Antes do primeiro desenho: o tema e o tamanho do texto já valem na primeira tela.
+iniciarPreferencias();
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

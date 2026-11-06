@@ -1,6 +1,7 @@
 import Database from "@tauri-apps/plugin-sql";
 import { invoke } from "@tauri-apps/api/core";
 import type { Motor } from "../db";
+import type { Resumo } from "./trabalhador";
 
 /**
  * O banco do desktop. Leituras vão pela pool do plugin; escritas vão pelo
@@ -35,4 +36,18 @@ export const motorTauri: Motor = {
   },
   // O arquivo do desktop sempre fica no disco.
   emMemoria: async () => false,
+};
+
+/**
+ * O banco do desktop como arquivo (página Dados). Exportar grava uma cópia na
+ * pasta Downloads e devolve o caminho. Importar é em duas metades: `conferir`
+ * grava o arquivo ao lado do banco e diz o que ele tem, sem tocar no atual;
+ * `aplicar` põe o conferido no lugar, guarda o atual como
+ * `distribuicao.db.anterior` e reinicia o app.
+ */
+export const arquivoDoDesktop = {
+  exportar: (nome: string) => invoke<string>("exportar_banco", { nome }),
+  // O corpo do invoke vai em bytes, sem passar por JSON.
+  conferir: (bytes: Uint8Array) => invoke<Resumo>("conferir_importacao", bytes),
+  aplicar: () => invoke<void>("aplicar_importacao"),
 };

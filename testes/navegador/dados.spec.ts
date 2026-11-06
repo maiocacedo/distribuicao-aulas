@@ -7,7 +7,7 @@ import { irPara } from "../e2e/paginas";
 import { cadastrarProfessor, noBanco } from "./apoio";
 
 /**
- * A página "Dados do navegador": exportar, importar, exemplo, vazio. Toda
+ * A página Dados, no navegador: exportar, importar, exemplo, vazio. Toda
  * troca de banco termina recarregando o app; os testes marcam a página antes
  * (`__antes`) e conferem que a marca sumiu.
  */
@@ -35,13 +35,13 @@ async function confirmarERecarregar(page: Page, botao: string) {
   await expect(page.getByRole("navigation")).toBeVisible();
 }
 
-const dados = (page: Page) => irPara(page, "Dados do navegador");
+const dados = (page: Page) => irPara(page, "Dados");
 const arquivo = (page: Page) => page.getByLabel("Arquivo do banco a importar");
 
 test("a página diz onde os dados ficam", async ({ page }) => {
   await page.goto("/");
   await dados(page);
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Dados do navegador");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Dados");
   await expect(page.getByText("O banco fica neste navegador, nesta máquina.", { exact: false })).toBeVisible();
   await expect(page.getByText(/numa janela anônima somem ao fechar a janela/)).toBeVisible();
 });

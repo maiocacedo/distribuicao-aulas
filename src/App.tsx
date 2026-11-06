@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ComponentType } from "react";
 import {
   BookOpen,
   CalendarCog,
@@ -8,24 +8,28 @@ import {
   DoorOpen,
   GraduationCap,
   Layers,
+  Palette,
   Sparkles,
   Tags,
   Users,
-  type LucideIcon,
 } from "lucide-react";
 import { Alerta } from "@/componentes/alerta";
+import { LogoUtfpr } from "@/componentes/logo-utfpr";
+import { Sobre } from "@/componentes/sobre";
 import { Seletor } from "@/componentes/seletor";
 import { Toaster } from "@/componentes/ui/sonner";
 import { TooltipProvider } from "@/componentes/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { bancoEmMemoria, consultar, noNavegador } from "./db";
+import { bancoEmMemoria, consultar } from "./db";
 import { historico } from "./grade";
 import type { Curso } from "./tipos";
-import Cursos from "./paginas/Cursos";
-import DadosDoNavegador from "./paginas/DadosDoNavegador";
 import Disciplinas from "./paginas/disciplinas";
 import GradeAutomatica from "./paginas/GradeAutomatica";
 import GradeManual from "./paginas/grade-manual";
+import Cursos from "./paginas/Cursos";
+import { Acessibilidade, Aparencia } from "./paginas/Aparencia";
+import Dados from "./paginas/Dados";
+import { IconeAcessibilidade } from "@/componentes/icone-acessibilidade";
 import Indisponibilidades from "./paginas/Indisponibilidades";
 import Instituicao from "./paginas/Instituicao";
 import Periodos from "./paginas/Periodos";
@@ -33,12 +37,16 @@ import Professores from "./paginas/Professores";
 import Salas from "./paginas/Salas";
 import Tipos from "./paginas/Tipos";
 
-type Props = { cursoId: number; aoMudarCursos: () => void; aoNavegar: (id: string) => void };
+type Props = {
+  cursoId: number;
+  aoMudarCursos: () => void;
+  aoNavegar: (id: string) => void;
+};
 
 type Pagina = {
   id: string;
   rotulo: string;
-  icone: LucideIcon;
+  icone: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
   componente: (p: Props) => React.ReactNode;
   /** Abre mesmo sem curso: não é página de um curso. */
   semCurso?: boolean;
@@ -121,6 +129,12 @@ const GRUPOS: { titulo: string; paginas: Pagina[] }[] = [
   },
 ];
 
+/**
+ * O pé da barra: o que não é de um curso nem da grade — os cursos em si, as
+ * preferências do aparelho (aparência e acessibilidade) e os dados (exportar
+ * e importar). Cada um é um item próprio, sem página intermediária: um clique
+ * leva ao que se quer. Todos abrem sem curso.
+ */
 const PAGINA_CURSOS: Pagina = {
   id: "cursos",
   rotulo: "Gerenciar cursos",
@@ -129,20 +143,20 @@ const PAGINA_CURSOS: Pagina = {
   semCurso: true,
 };
 
-/**
- * Só no navegador, onde o banco não é um arquivo que o usuário vê: é a página
- * que diz onde os dados ficam e que os exporta e troca. No desktop o item nem
- * existe.
- */
-const PAGINA_DADOS: Pagina = {
-  id: "dados-navegador",
-  rotulo: "Dados do navegador",
-  icone: Database,
-  componente: () => <DadosDoNavegador />,
-  semCurso: true,
-};
+const PE: Pagina[] = [
+  PAGINA_CURSOS,
+  { id: "aparencia", rotulo: "Aparência", icone: Palette, componente: () => <Aparencia />, semCurso: true },
+  {
+    id: "acessibilidade",
+    rotulo: "Acessibilidade",
+    icone: IconeAcessibilidade,
+    componente: () => <Acessibilidade />,
+    semCurso: true,
+  },
+  { id: "dados", rotulo: "Dados", icone: Database, componente: () => <Dados />, semCurso: true },
+];
 
-const TODAS = [...GRUPOS.flatMap((g) => g.paginas), PAGINA_CURSOS, PAGINA_DADOS];
+const TODAS = [...GRUPOS.flatMap((g) => g.paginas), ...PE];
 
 function App() {
   const [cursos, setCursos] = useState<Curso[]>([]);
@@ -204,6 +218,8 @@ function App() {
     aoNavegar: setPagina,
   });
 
+  const abrirCursos = () => setPagina("cursos");
+
   const item = (p: Pagina, extra?: string) => (
     <button
       key={p.id}
@@ -224,7 +240,9 @@ function App() {
   return (
     <TooltipProvider delayDuration={400}>
       <div className="grid min-h-screen grid-cols-[216px_1fr]">
-        <nav className="flex flex-col gap-px border-r border-line bg-panel px-2.5 py-3">
+        {/* Presa à altura da janela, com rolagem própria: o pé da barra (cursos,
+            Sobre e o logo) fica sempre à vista, por mais longa que seja a página. */}
+        <nav className="sticky top-0 flex h-[calc(100dvh/var(--zoom,1))] flex-col gap-px overflow-y-auto border-r border-line bg-panel px-2.5 py-3">
           <strong className="px-2.5 pb-2.5 pt-0.5 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-tx3">
             Distribuição de Aulas
           </strong>
@@ -250,13 +268,6 @@ function App() {
               desabilitado={cursos.length === 0}
             />
           </div>
-          {/* Atalho discreto: menor e em cinza, sem o fundo de item, com a
-              altura de linha de 1,3333. */}
-          {item(
-            PAGINA_CURSOS,
-            "mx-0.5 h-auto w-[calc(100%-4px)] px-2 pb-[7px] pt-[5px] text-xs leading-[1.3333] text-tx3",
-          )}
-
           {GRUPOS.map((g) => (
             <div key={g.titulo} className="flex flex-col gap-px">
               <div className="px-2.5 pb-1 pt-4 text-[10px] uppercase tracking-[0.08em] text-tx3">
@@ -266,12 +277,12 @@ function App() {
             </div>
           ))}
 
-          {noNavegador() && (
-            <div className="flex flex-col gap-px">
-              <div className="px-2.5 pb-1 pt-4 text-[10px] uppercase tracking-[0.08em] text-tx3">este navegador</div>
-              {item(PAGINA_DADOS)}
-            </div>
-          )}
+          {/* O pé: empurrado para baixo pelo `mt-auto`, separado por um fio. */}
+          <div className="mt-auto flex flex-col gap-px border-t border-line pt-3">
+            {PE.map((p) => item(p))}
+            <Sobre />
+            <LogoUtfpr className="mx-2.5 mt-3 w-36" />
+          </div>
         </nav>
 
         {/* `min-w-0`: sem ele a coluna `1fr` não encolhe abaixo do conteúdo e
@@ -285,7 +296,13 @@ function App() {
           {semCurso && !atual.semCurso ? (
             <>
               <h1 className="text-xl font-bold">Nenhum curso</h1>
-              <p className="mt-2 text-tx2">Crie um curso em "Gerenciar cursos" para começar.</p>
+              <p className="mt-2 text-tx2">
+                Crie um curso em{" "}
+                <button type="button" className="text-primary underline underline-offset-2" onClick={abrirCursos}>
+                  Gerenciar cursos
+                </button>{" "}
+                para começar.
+              </p>
             </>
           ) : (
             conteudo

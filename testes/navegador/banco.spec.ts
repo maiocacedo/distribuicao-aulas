@@ -92,7 +92,7 @@ test("sem armazenamento de origem, o banco fica em memória e o aviso fica à vi
   await expect(page.getByText(AVISO_MEMORIA)).toBeVisible();
 
   // Em memória, importar e o exemplo sumiriam na recarga que termina a troca.
-  await irPara(page, "Dados do navegador");
+  await irPara(page, "Dados");
   await expect(page.getByRole("button", { name: "Importar banco…" })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Carregar dados de exemplo" })).toBeDisabled();
   await expect(page.getByText(/o banco trocado sumiria na recarga/)).toBeVisible();

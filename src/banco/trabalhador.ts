@@ -19,13 +19,13 @@ import { consultar, transacao } from "./sqlite";
  * ou `{ id, ok: false, erro }`, com `erro` sendo a mensagem do SQLite como ele
  * a deu (é nela que `mensagemErro` reconhece "FOREIGN KEY constraint failed").
  *
- * Trocar o banco (página "Dados do navegador") também acontece aqui, e só
+ * Trocar o banco (página Dados) também acontece aqui, e só
  * aqui: este worker tem a trava e os arquivos do VFS, e qualquer outra
  * conexão seria recusada. Depois da troca ele não atende mais nada; a página
  * recarrega, e o worker novo abre o banco novo.
  */
 
-/** Com o que a página "Dados do navegador" substitui o banco. */
+/** Com o que a página Dados substitui o banco. */
 export type Substituto = { por: "arquivo"; bytes: Uint8Array } | { por: "exemplo" } | { por: "vazio" };
 
 export type Pedido =
@@ -192,7 +192,8 @@ async function substituir(a: Aberto, s: Substituto): Promise<void> {
   else if (s.por === "exemplo") {
     // Import dinâmico: os dados de exemplo só são baixados por quem os pede.
     const massa = (await import("../../testes/massa/engenharia_v9.sql?raw")).default;
-    novo = await montarExemplo(a.sqlite3, massa);
+    const segundoCurso = (await import("./exemplo-segundo-curso.sql?raw")).default;
+    novo = await montarExemplo(a.sqlite3, massa, segundoCurso);
   } else if (a.persistente) novo = await montarVazio(a.sqlite3);
 
   const imagem = novo ? exportar(a.sqlite3, novo) : null;
