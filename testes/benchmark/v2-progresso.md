@@ -224,3 +224,47 @@ ajuda: nenhuma fatia com sala permite sábado. Pelo menos 5 aulas não cabem. O 
 capacidade) e deixa de fora exatamente 5 aulas (Introdução à Ciência da Computação, 3; Libras 1, 2); o v1 deixa 4
 fatias. A meta do spec para esse cenário ("0 faltantes, ou o mínimo, com a inviabilidade explicada") está
 cumprida pelo v2 sem IFS.
+
+## Task 9 — vizinhanças N3 e N4
+
+Medição comparativa nas sementes 1–6 (custo médio / faltantes médias / tempo médio por execução; 0 violações e `custo === custoTotal` em todas as execuções):
+
+| Variante | Rodadas | Massa real | 6 salas + 1 dia | 3 salas + 1 dia |
+|---|---|---|---|---|
+| **atual (N1 + N2, 0,32)** | **6060** | **607,7 / 0,0 / 3436 ms** | **632,3 / 0,0 / 3695 ms** | **1244,7 / 2,0 / 2524 ms** |
+| +N3 (0,10, só quando há sala aceitável) | 6060 | 607,7 / 0,0 / 3436 ms | 632,3 / 0,0 / 3695 ms | 1244,7 / 2,0 / 2524 ms |
+| +N3 (0,10, sorteio fixo c/ fallback) | 6060 | 588,3 / 0,0 / 4564 ms | 625,0 / 0,0 / 3866 ms | 1309,0 / 2,3 / 2383 ms |
+| +N3 (0,10, sorteio fixo s/ fallback) | 6557 | 590,3 / 0,0 / 3720 ms | 652,0 / 0,0 / 3878 ms | 1213,0 / 2,2 / 2638 ms |
+| +N4 (0,15, orçamento de 8000 fatias) | 5178 | 618,7 / 0,0 / 4241 ms | 691,7 / 0,0 / 3881 ms | 1217,3 / 2,7 / 3025 ms |
+| +N4 (0,15, tempo igual em ms) | 4600 | 640,3 / 0,0 / 4100 ms | 660,3 / 0,0 / 3751 ms | 1211,3 / 2,3 / 2630 ms |
+| +N3+N4 (0,10 + 0,15, orçamento de 8000 fatias) | 5178 | 615,3 / 0,0 / 5125 ms | 656,3 / 0,0 / 4542 ms | 1217,3 / 2,3 / 3236 ms |
+| +N3+N4 (0,10 + 0,15, tempo igual em ms) | 5000 | 673,0 / 0,0 / 4347 ms | 655,3 / 0,0 / 3920 ms | 1258,7 / 2,5 / 2691 ms |
+
+| solver | cenário | semente | completo | faltantes | custo | violações | buracos prof. | buracos turma (obrig.) | fora do turno (obrig.) | ms |
+|---|---|---|---|---|---|---|---|---|---|---|
+| atual | massa real | 1 | sim | 0 | 652 | 0 | 3 | 1 | 18 | 1098 |
+| atual | massa real | 2 | sim | 0 | 620 | 0 | 0 | 0 | 18 | 1652 |
+| atual | massa real | 3 | sim | 0 | 620 | 0 | 0 | 0 | 18 | 3915 |
+| atual | 6 salas + 1 dia indisponível | 1 | sim | 0 | 928 | 0 | 10 | 6 | 24 | 3081 |
+| atual | 6 salas + 1 dia indisponível | 2 | sim | 0 | 928 | 0 | 10 | 6 | 24 | 3097 |
+| atual | 6 salas + 1 dia indisponível | 3 | sim | 0 | 896 | 0 | 10 | 2 | 24 | 3281 |
+| atual | 3 salas + 1 dia indisponível | 1 | não | 4 | 1536 | 0 | 27 | 30 | 32 | 2066 |
+| atual | 3 salas + 1 dia indisponível | 2 | não | 4 | 1504 | 0 | 24 | 29 | 32 | 2244 |
+| atual | 3 salas + 1 dia indisponível | 3 | não | 4 | 1504 | 0 | 23 | 30 | 32 | 1978 |
+| v2 | massa real | 1 | sim | 0 | 608 | 0 | 9 | 7 | 14 | 4437 |
+| v2 | massa real | 2 | sim | 0 | 576 | 0 | 13 | 9 | 12 | 4260 |
+| v2 | massa real | 3 | sim | 0 | 632 | 0 | 9 | 10 | 14 | 4362 |
+| v2 | 6 salas + 1 dia indisponível | 1 | sim | 0 | 664 | 0 | 17 | 6 | 14 | 3801 |
+| v2 | 6 salas + 1 dia indisponível | 2 | sim | 0 | 556 | 0 | 8 | 9 | 12 | 3230 |
+| v2 | 6 salas + 1 dia indisponível | 3 | sim | 0 | 654 | 0 | 5 | 8 | 15 | 3288 |
+| v2 | 3 salas + 1 dia indisponível | 1 | não | 2 | 1188 | 0 | 15 | 11 | 30 | 2520 |
+| v2 | 3 salas + 1 dia indisponível | 2 | não | 2 | 1310 | 0 | 18 | 17 | 31 | 2503 |
+| v2 | 3 salas + 1 dia indisponível | 3 | não | 2 | 1200 | 0 | 9 | 16 | 30 | 2420 |
+
+Ficou a combinação atual (**N1 + N2 com 32% de chance de par e 6060 rodadas**), descartando N3 e N4 sem alterar `src/solver/v2/solver.ts`. Na massa anonimizada (`engenharia_v9.sql`), `disciplina_salas` está vazia (`f.salas` é `[]` nas 58 fatias), de modo que nenhum bloco cai em sala apenas aceitável (`preferencia === 2`): N3 nunca executa troca ou mudança de sala no benchmark — se só sorteia quando há candidato, é idêntica ao solver atual; se consome sorteio em toda rodada, apenas desloca a sequência pseudoaleatória e piora as faltantes no cenário de 3 salas (2,0 → 2,2–2,3). Já N4 (destruir e refazer 2–3 fatias de período ou professor com buraco ou contraturno) custa ~2,5× N1 por rodada e reduz o total de rodadas a tempo igual, piorando a média na massa real (607,7 → 618,7 / 640,3), no cenário de 6 salas (632,3 → 691,7 / 660,3) e nas faltantes do cenário de 3 salas (2,0 → 2,3–2,7), tanto isoladamente quanto combinada com N3.
+
+Segunda revisão (controlador): confirmado que nenhuma das 58 fatias da massa tem lista de salas
+(`f.salas` vazia), então o N3 nunca age aqui. A variante "N3 com fallback", que só consome sorteios a mais,
+moveu a massa real de 607,7 para 588,3 sem mudar o algoritmo: o ruído entre configurações, com 6 sementes, é da
+ordem de ±20 pontos. Isso vale também para a escolha entre 30% e 32% de par (Task 6c), que fica dentro do ruído.
+O N3 pode valer numa base que cadastre salas aceitáveis; fica como ideia para depois.
