@@ -116,9 +116,12 @@ export function* resolverEmPassos(
 ): Generator<Progresso, Resultado, Comando> {
   const pesos = opcoes.pesos ?? PESOS_PADRAO;
   const maxPassos = opcoes.maxPassos ?? 300_000;
-  // A tempo igual, mais rodadas de uma fatia só rendem mais que menos rodadas
-  // de duas fatias por vez (medido na massa real, sementes 1 a 6).
-  const rodadas = opcoes.rodadasDeMelhoria ?? 8000;
+  // Mistura de N1 (uma fatia) e N2 (par) sorteada a cada rodada: o par custa
+  // cerca de o dobro, então 5900 rodadas com um terço de pares gastam o tempo de
+  // 8000 de uma fatia só. Com poucos pares a massa real fica igual à de uma
+  // fatia por vez; com muitos, os cenários apertados ganham mais, mas a massa
+  // real e o cenário de 6 salas pioram — um terço foi o ponto de equilíbrio.
+  const rodadas = opcoes.rodadasDeMelhoria ?? 5900;
   const comeco = Date.now();
 
   const turnoDaHora = new Map(problema.horarios.map((h) => [h.indice, h.turno]));
@@ -459,6 +462,7 @@ export function* resolverEmPassos(
 
   const TOP_K = 5;
   const CHANCE_DE_FALTANTE = 0.1;
+  const CHANCE_DE_PAR = 0.35;
   const RODADAS_SEM_MELHORA = 600;
   // Janela do LAHC: curta demais vira subida pura, longa demais aceita lixo.
   const L = Math.max(50, Math.min(250, Math.floor(rodadas / 8)));
@@ -510,27 +514,43 @@ export function* resolverEmPassos(
           semMelhora = 0;
         }
       } else {
-        const g = colocadas[Math.floor(sorteio() * colocadas.length)];
-        const anteriores = estado.colocados.get(idDe(g))!;
-        const aulasAnteriores = aulasDe(g, anteriores);
-        retirarFatia(estado, g);
-        custo.remover(aulasAnteriores);
-        let aulasNovas: Alocacao[] | null = null;
-        if (colocarFatia(estado, g, TOP_K, anteriores)) {
-          aulasNovas = aulasDe(g, estado.colocados.get(idDe(g))!);
-          custo.adicionar(aulasNovas);
-        }
-        // Devolve a fatia exatamente onde estava (na falha ou na rejeição).
-        const desfazer = () => {
-          if (aulasNovas) {
-            custo.remover(aulasNovas);
-            retirarFatia(estado, g);
+        // N1 recoloca uma fatia; N2, duas do mesmo período de uma vez. Sozinha, a
+        // fatia que está no contraturno não tem como entrar no turno porque quem
+        // o ocupa (uma optativa, outra obrigatória) também está parada: tirar as
+        // duas e recolocá-las em ordem sorteada é o passo que desfaz isso. Período
+        // com uma fatia só cai no movimento simples.
+        const grupo = [colocadas[Math.floor(sorteio() * colocadas.length)]];
+        if (sorteio() < CHANCE_DE_PAR) {
+          const vizinhas = colocadas.filter((g) => g !== grupo[0] && g.periodo === grupo[0].periodo);
+          if (vizinhas.length > 0) {
+            grupo.push(vizinhas[Math.floor(sorteio() * vizinhas.length)]);
+            if (sorteio() < 0.5) grupo.reverse();
           }
-          for (const b of anteriores) ocupar(estado, g, b, true);
-          estado.colocados.set(idDe(g), anteriores);
-          custo.adicionar(aulasAnteriores);
+        }
+        const anteriores = grupo.map((g) => estado.colocados.get(idDe(g))!);
+        const aulasAnteriores = grupo.map((g, k) => aulasDe(g, anteriores[k]));
+        for (const g of grupo) retirarFatia(estado, g);
+        for (const aulas of aulasAnteriores) custo.remover(aulas);
+        const aulasNovas: Alocacao[][] = [];
+        let recolocou = true;
+        for (let k = 0; k < grupo.length && recolocou; k++) {
+          recolocou = colocarFatia(estado, grupo[k], TOP_K, anteriores[k]);
+          if (recolocou) {
+            aulasNovas.push(aulasDe(grupo[k], estado.colocados.get(idDe(grupo[k]))!));
+            custo.adicionar(aulasNovas[k]);
+          }
+        }
+        // Devolve o grupo exatamente onde estava (na falha ou na rejeição).
+        const desfazer = () => {
+          for (let k = aulasNovas.length - 1; k >= 0; k--) custo.remover(aulasNovas[k]);
+          for (const g of grupo) retirarFatia(estado, g);
+          grupo.forEach((g, k) => {
+            for (const b of anteriores[k]) ocupar(estado, g, b, true);
+            estado.colocados.set(idDe(g), anteriores[k]);
+            custo.adicionar(aulasAnteriores[k]);
+          });
         };
-        if (!aulasNovas) {
+        if (!recolocou) {
           desfazer();
         } else {
           const agora = custo.total();

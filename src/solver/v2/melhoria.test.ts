@@ -77,4 +77,14 @@ describe("solver v2 — Fase 2 com Top-K e LAHC", () => {
       if (!faltando.has(k)) expect(aulasPorFatia.get(k) ?? 0).toBe(f.aulas);
     }
   });
+
+  it("no cenário de 3 salas a Fase 2 recoloca faltantes, e nenhuma faltante tem aula na grade", async () => {
+    const p = indisponivelUmDia(comSalas(await problemaDaMassa(), 3), 77);
+    const sem = resolver(p, { semente: 1, rodadasDeMelhoria: 0 });
+    const com = resolver(p, { semente: 1, rodadasDeMelhoria: 3000 });
+    expect(com.faltantes.length).toBeLessThan(sem.faltantes.length);
+    const comAula = new Set(com.alocacoes.map((a) => `${a.disciplinaId}:${a.professorId}`));
+    for (const x of com.faltantes) expect(comAula.has(`${x.fatia.disciplinaId}:${x.fatia.professorId}`)).toBe(false);
+    expect(com.custo).toBe(custoTotal(p, com.alocacoes, PESOS_PADRAO));
+  });
 });

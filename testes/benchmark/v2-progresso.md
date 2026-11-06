@@ -131,3 +131,39 @@ Custo, faltantes, violações e as demais colunas idênticos aos da Task 4 em to
 
 Fase 2 com uma fatia por rodada e 8000 rodadas (padrão do v2). Custo médio (sementes 1 a 3), v1 → v2: massa real 630,7 → 650,7; 6 salas 917,3 → 805,3; 3 salas 1514,7 → 1500,0, com 5 faltantes em vez de 4 (o v2 não recoloca nenhuma faltante nesse cenário). Violações: 0 em todos. Tempo do v2 em relação ao v1 na mesma execução: massa real 1,35×, 6 salas 1,07×, 3 salas 1,24×. A meta do spec (massa real < 631) segue não atingida na média, mas a semente 2 chegou a 544. O par de fatias do mesmo período foi testado e fica adiado para a Task 9 (vizinhança N2): a tempo igual perdeu na massa real, 688,7 contra 620,7 (sementes 1 a 6, par com 4000 rodadas contra uma fatia com 8000). Contra o par, esta versão perde no cenário de 3 salas, onde o par chegava a 2 faltantes.
 
+
+## Task 6b — N1 + N2 sorteados
+
+| solver | cenário | semente | completo | faltantes | custo | violações | buracos prof. | buracos turma (obrig.) | fora do turno (obrig.) | ms |
+|---|---|---|---|---|---|---|---|---|---|---|
+| atual | massa real | 1 | sim | 0 | 652 | 0 | 3 | 1 | 18 | 2088 |
+| atual | massa real | 2 | sim | 0 | 620 | 0 | 0 | 0 | 18 | 4607 |
+| atual | massa real | 3 | sim | 0 | 620 | 0 | 0 | 0 | 18 | 4105 |
+| atual | 6 salas + 1 dia indisponível | 1 | sim | 0 | 928 | 0 | 10 | 6 | 24 | 3629 |
+| atual | 6 salas + 1 dia indisponível | 2 | sim | 0 | 928 | 0 | 10 | 6 | 24 | 3566 |
+| atual | 6 salas + 1 dia indisponível | 3 | sim | 0 | 896 | 0 | 10 | 2 | 24 | 3611 |
+| atual | 3 salas + 1 dia indisponível | 1 | não | 4 | 1536 | 0 | 27 | 30 | 32 | 2612 |
+| atual | 3 salas + 1 dia indisponível | 2 | não | 4 | 1504 | 0 | 24 | 29 | 32 | 2504 |
+| atual | 3 salas + 1 dia indisponível | 3 | não | 4 | 1504 | 0 | 23 | 30 | 32 | 2515 |
+| v2 | massa real | 1 | sim | 0 | 694 | 0 | 16 | 7 | 15 | 5695 |
+| v2 | massa real | 2 | sim | 0 | 694 | 0 | 15 | 8 | 15 | 5225 |
+| v2 | massa real | 3 | sim | 0 | 576 | 0 | 13 | 9 | 12 | 4843 |
+| v2 | 6 salas + 1 dia indisponível | 1 | sim | 0 | 614 | 0 | 15 | 3 | 13 | 4301 |
+| v2 | 6 salas + 1 dia indisponível | 2 | sim | 0 | 608 | 0 | 11 | 10 | 12 | 4250 |
+| v2 | 6 salas + 1 dia indisponível | 3 | sim | 0 | 672 | 0 | 6 | 8 | 16 | 4219 |
+| v2 | 3 salas + 1 dia indisponível | 1 | não | 2 | 1254 | 0 | 13 | 15 | 31 | 2781 |
+| v2 | 3 salas + 1 dia indisponível | 2 | não | 2 | 1050 | 0 | 15 | 10 | 25 | 2851 |
+| v2 | 3 salas + 1 dia indisponível | 3 | não | 2 | 1208 | 0 | 24 | 12 | 28 | 2877 |
+
+Varredura da chance de par (p) e das rodadas, a tempo comparável (N2 custa cerca de 2× o N1, então rodadas ≈ 8000 / (1 + p)). Custo médio / faltantes médias / tempo relativo ao v1 na mesma execução; massa real com sementes 1 a 6 (v1: 695,0), os outros dois com sementes 1 a 3 (v1: 917,3 e 1514,7 com 4 faltantes).
+
+| p | rodadas | massa real | 6 salas | 3 salas |
+|---|---|---|---|---|
+| 0 (só N1) | 8000 | 620,7 / 0 / 1,21× | 802,7 / 0 / 1,25× | 1500,0 / 5,0 / 1,18× |
+| 0,25 | 6400 | 600,7 / 0 / 1,19× | 660,0 / 0 / 1,07× | 1201,3 / 2,3 / 1,30× |
+| 0,35 | 5900 | 627,0 / 0 / 1,18× | 631,3 / 0 / 1,26× | 1170,7 / 2,0 / 1,16× |
+| 0,4 | 5700 | 659,0 / 0 / 1,16× | 704,7 / 0 / 1,21× | 1294,0 / 2,0 / 1,12× |
+| 0,5 | 5333 | 642,7 / 0 / 1,24× | 637,3 / 0 / 1,11× | 1250,7 / 2,0 / 1,18× |
+| 0,75 | 4571 | 647,3 / 0 / 1,25× | 643,3 / 0 / 1,15× | 1297,3 / 2,3 / 1,21× |
+
+Padrão do v2: N1 com probabilidade 0,65 e N2 com 0,35, 5900 rodadas. Custo médio (sementes 1 a 3), v1 → v2: massa real 630,7 → 654,7 (com as sementes 1 a 6 da varredura, 695,0 → 627,0); 6 salas 917,3 → 631,3; 3 salas 1514,7 → 1170,7, com 2 faltantes em vez de 4. Violações: 0 em todos. Tempo do v2 em relação ao v1 na mesma execução: massa real 1,46× (a semente 1 do v1 foi atípica, 2,1 s), 6 salas 1,18×, 3 salas 1,12×. Por que p = 0,35 e 5900 rodadas: faltantes primeiro, o 3 salas fica em 2 faltantes a partir de p = 0,35 (com 0,25 sobra 2,3); entre os que chegam a 2, 0,35 tem o menor custo nesse cenário e no de 6 salas, e na massa real empata com uma fatia só (627,0 contra 620,7, diferença dentro do ruído entre sementes, que passa de 100). Acima disso a massa real e o 6 salas pioram, o que sugere que muitos pares tiram rodadas demais da exploração de uma fatia. A varredura é ruidosa (poucas sementes); 0,25 e 0,5 ficam muito próximos.
