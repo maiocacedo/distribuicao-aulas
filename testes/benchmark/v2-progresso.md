@@ -30,6 +30,7 @@ Idêntico ao v1 em custo, faltantes e violações. Os tempos desta máquina (~3 
 ## Task 2 — execução em passos
 
 | solver | cenário | semente | completo | faltantes | custo | violações | buracos prof. | buracos turma | fora do turno | ms |
+|---|---|---|---|---|---|---|---|---|---|---|
 | atual | massa real | 1 | sim | 0 | 652 | 0 | 3 | 1 | 38 | 2775 |
 | atual | massa real | 2 | sim | 0 | 620 | 0 | 0 | 2 | 38 | 2878 |
 | atual | massa real | 3 | sim | 0 | 620 | 0 | 0 | 0 | 38 | 2654 |
