@@ -54,7 +54,7 @@ Idêntico ao v1 em custo, faltantes e violações: `resolver` agora só esgota `
 
 ## Task 4 — nota marginal
 
-A partir daqui as colunas  e  contam só as obrigatórias, como o custo: antes contavam as optativas também, que o custo isenta de propósito (as seções anteriores e a  estão na contagem antiga).
+A partir daqui as colunas `buracos turma` e `fora do turno` contam só as obrigatórias, como o custo: antes contavam as optativas também, que o custo isenta de propósito (as seções anteriores e a `linha-de-base.md` estão na contagem antiga).
 
 | solver | cenário | semente | completo | faltantes | custo | violações | buracos prof. | buracos turma (obrig.) | fora do turno (obrig.) | ms |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -79,4 +79,4 @@ A partir daqui as colunas  e  contam só as obrigatórias, como o custo: antes c
 
 Custo médio (sementes 1 a 3), v1 → v2: massa real 630,7 → 815,3 (pior); 6 salas 917,3 → 842,7 (melhor); 3 salas 1514,7 → 1500,0, mas com 5 faltantes em vez de 4. Violações: 0 em todos.
 
-Leitura (conferida pela revisão): a nota está exata — em 2.914 candidatos da construção na massa real, a nota de cada obrigatória bate com o Δ real de  em todas as parcelas. A piora na massa real vem do **contraturno**: 18 aulas obrigatórias fora do turno no v1 contra 21–27 no v2 (e  de 40 para 60), compensado só em parte por  de 40 para 0. Buraco de turma das obrigatórias fica no mesmo nível (0–2). Com a nota exata, o contraturno a mais é miopia do guloso — hipótese ainda não confirmada: com as optativas agora preferindo o turno, as horas do turno faltam para as obrigatórias que vêm depois. A Fase 2 (Task 6) é quem deve recuperar; esta tarefa só alinha a régua.
+Leitura (conferida pela revisão): a nota está exata — em 2.914 candidatos da construção na massa real, a nota de cada obrigatória bate com o Δ real de `custoTotal` em todas as parcelas. A piora na massa real vem do **contraturno**: 18 aulas obrigatórias fora do turno no v1 contra 21–27 no v2 (e `excessoContraturno` de 40 para 60), compensado só em parte por `optativaSemTurno` de 40 para 0. Buraco de turma das obrigatórias fica no mesmo nível (0–2). Com a nota exata, o contraturno a mais é miopia do guloso — hipótese ainda não confirmada: com as optativas agora preferindo o turno, as horas do turno faltam para as obrigatórias que vêm depois. A Fase 2 (Task 6) é quem deve recuperar; esta tarefa só alinha a régua.
