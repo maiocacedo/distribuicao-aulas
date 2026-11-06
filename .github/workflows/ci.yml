@@ -63,6 +63,10 @@ jobs:
     # https://github.com/actions/runner-images/issues/14738
     # https://github.com/MicrosoftEdge/WebView2Feedback/issues/5415
     # Na máquina de desenvolvimento o smoke passa com o WebView2 156.
+    #
+    # Por isso o smoke NÃO BLOQUEIA o PR: se falhar, o job fica verde com um
+    # aviso no resumo da execução. Antes do merge, rode-o localmente
+    # (README, "Smoke"). Volte a bloquear quando o upstream corrigir.
     runs-on: windows-2022
     timeout-minutes: 45
     steps:
@@ -80,4 +84,13 @@ jobs:
       - run: cargo install --git https://github.com/chippers/msedgedriver-tool --rev 8c4b34f51b45f5cf08013366d703de464ab871d1
       - run: msedgedriver-tool
       - run: npm run tauri build -- --debug --no-bundle
-      - run: npm run test:smoke
+      - id: smoke
+        run: npm run test:smoke
+        continue-on-error: true
+      - if: steps.smoke.outcome == 'failure'
+        shell: bash
+        run: |
+          msg="Smoke falhou no CI (regressão conhecida do WebView2 nos runners Windows). Não bloqueia o PR: rode npm run test:smoke localmente antes do merge."
+          echo "::warning title=Smoke não verificado no CI::$msg"
+          echo "### ⚠️ Smoke não verificado no CI" >> "$GITHUB_STEP_SUMMARY"
+          echo "$msg" >> "$GITHUB_STEP_SUMMARY"

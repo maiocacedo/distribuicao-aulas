@@ -175,6 +175,11 @@ npm run bench:solver   # compara solvers em cenários × sementes
   esse arquivo no lugar do seu. Um binário compilado antes desse suporte abriria
   o banco real, por isso o smoke recusa o binário mais antigo que
   `src-tauri/src/lib.rs` e confere o banco em uso antes de gravar.
+- **Smoke no CI não bloqueia.** Nos runners Windows do GitHub o msedgedriver
+  não abre o WebView2 (regressão do WebView2 a partir da versão 133,
+  [runner-images#14738](https://github.com/actions/runner-images/issues/14738)).
+  O job roda, mas uma falha vira só um aviso no resumo da execução. **Antes de
+  fazer merge na `main`, rode o smoke localmente**, onde ele funciona.
 - **Falha esperada.** Todos os bugs conhecidos do subprojeto de regras e
   integridade foram corrigidos: não restam testes marcados com `it.fails` ou
   `test.fail`. Ao descobrir um bug novo, a convenção é escrever o teste com essa
