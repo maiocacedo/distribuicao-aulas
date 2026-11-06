@@ -194,3 +194,17 @@ Custo médio, sementes 1–6 (faltantes médios entre parênteses):
 Por que 32%: melhor no cenário de 6 salas, segundo na massa real (dentro do ruído do 30%) cumprindo a meta
 nas sementes 1–3, e 2,0 faltantes no cenário de 3 salas (o 30% fica com 2,2). A curva não é lisa (27% saiu
 pior que 30%): com 6 sementes, diferenças de ~15 pontos ainda são ruído.
+
+## Task 7 — troca de sala na Fase 1 (descartada)
+
+Implementada (troca de profundidade 1: o bloco que ocupa a sala muda para outra sala livre dele no mesmo
+horário), revisada como correta, e **descartada por decisão do usuário (2026-11-06)**: no cenário
+"3 salas + 1 dia indisponível", sementes 1–6, o v2 com a troca terminou com 3 faltantes em todas as sementes
+(custos 1336, 1352, 1398, 1394, 1364, 1310; média 1359), contra 2 faltantes (média 1244,7) sem ela. Massa real
+e 6 salas não mudaram (a troca nunca é acionada neles).
+
+A troca reduz as faltantes da construção (5 → 4), mas ficou desligada na Fase 2: ligá-la exigiria sincronizar o
+`CustoIncremental`, a cópia da melhor grade e o desfazer do LAHC com o bloco movido de outra fatia. A grade
+inicial diferente levou a Fase 2 a fechar pior de forma sistemática. O IFS + CBS (Task 8) ataca as faltantes
+de forma mais geral; a troca pode voltar depois, ligada também na Fase 2. O patch ficou guardado fora do git
+(`.superpowers/sdd/sp3/task-7-troca-de-sala.patch`).
