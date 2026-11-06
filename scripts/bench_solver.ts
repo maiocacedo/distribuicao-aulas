@@ -35,6 +35,16 @@ function argumento(nome: string): string | undefined {
   return i >= 0 ? process.argv[i + 1] : undefined;
 }
 
+/**
+ * Só as aulas obrigatórias, como o custo conta: buraco e contraturno que uma
+ * optativa abre não são da turma inteira, e o custo os isenta de propósito.
+ * Contá-los aqui fazia o benchmark apontar para um problema que o custo não tem.
+ */
+function obrigatorias(p: Problema, alocacoes: Alocacao[]): Alocacao[] {
+  const optativa = new Set(p.fatias.filter((f) => f.optativa).map((f) => f.disciplinaId));
+  return alocacoes.filter((a) => !optativa.has(a.disciplinaId));
+}
+
 function foraDoTurno(p: Problema, alocacoes: Alocacao[]): number {
   const turnoDaHora = new Map(p.horarios.map((h) => [h.indice, h.turno]));
   const turnoDoPeriodo = new Map(p.periodos.map((x) => [x.numero, x.turno]));
@@ -54,7 +64,7 @@ const banco = arquivo ? new DatabaseSync(arquivo, { readOnly: true }) : criarBan
 const base = await carregarProblema(Number(argumento("--curso") ?? 1), lerDe(banco));
 
 const linhas = [
-  "| solver | cenário | semente | completo | faltantes | custo | violações | buracos prof. | buracos turma | fora do turno | ms |",
+  "| solver | cenário | semente | completo | faltantes | custo | violações | buracos prof. | buracos turma (obrig.) | fora do turno (obrig.) | ms |",
   "|---|---|---|---|---|---|---|---|---|---|---|",
 ];
 for (const solver of SOLVERS) {
@@ -65,8 +75,8 @@ for (const solver of SOLVERS) {
       linhas.push(
         `| ${solver.nome} | ${cenario.nome} | ${semente} | ${r.completo ? "sim" : "não"} | ${r.faltantes.length} | ` +
           `${r.custo} | ${conferir(p, r.alocacoes).length} | ` +
-          `${buracos(p, r.alocacoes, (a) => `p${a.professorId}`)} | ${buracos(p, r.alocacoes, (a) => `t${a.periodo}`)} | ` +
-          `${foraDoTurno(p, r.alocacoes)} | ${r.milissegundos} |`,
+          `${buracos(p, r.alocacoes, (a) => `p${a.professorId}`)} | ${buracos(p, obrigatorias(p, r.alocacoes), (a) => `t${a.periodo}`)} | ` +
+          `${foraDoTurno(p, obrigatorias(p, r.alocacoes))} | ${r.milissegundos} |`,
       );
     }
   }

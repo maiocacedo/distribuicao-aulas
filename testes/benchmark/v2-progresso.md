@@ -54,27 +54,29 @@ Idêntico ao v1 em custo, faltantes e violações: `resolver` agora só esgota `
 
 ## Task 4 — nota marginal
 
-| solver | cenário | semente | completo | faltantes | custo | violações | buracos prof. | buracos turma | fora do turno | ms |
+A partir daqui as colunas  e  contam só as obrigatórias, como o custo: antes contavam as optativas também, que o custo isenta de propósito (as seções anteriores e a  estão na contagem antiga).
+
+| solver | cenário | semente | completo | faltantes | custo | violações | buracos prof. | buracos turma (obrig.) | fora do turno (obrig.) | ms |
 |---|---|---|---|---|---|---|---|---|---|---|
-| atual | massa real | 1 | sim | 0 | 652 | 0 | 3 | 1 | 38 | 3669 |
-| atual | massa real | 2 | sim | 0 | 620 | 0 | 0 | 2 | 38 | 4278 |
-| atual | massa real | 3 | sim | 0 | 620 | 0 | 0 | 0 | 38 | 3241 |
-| atual | 6 salas + 1 dia indisponível | 1 | sim | 0 | 928 | 0 | 10 | 6 | 46 | 3898 |
-| atual | 6 salas + 1 dia indisponível | 2 | sim | 0 | 928 | 0 | 10 | 6 | 46 | 3906 |
-| atual | 6 salas + 1 dia indisponível | 3 | sim | 0 | 896 | 0 | 10 | 6 | 46 | 3757 |
-| atual | 3 salas + 1 dia indisponível | 1 | não | 4 | 1536 | 0 | 27 | 44 | 40 | 3188 |
-| atual | 3 salas + 1 dia indisponível | 2 | não | 4 | 1504 | 0 | 24 | 42 | 38 | 3180 |
-| atual | 3 salas + 1 dia indisponível | 3 | não | 4 | 1504 | 0 | 23 | 42 | 40 | 3385 |
-| v2 | massa real | 1 | sim | 0 | 690 | 0 | 0 | 14 | 37 | 4102 |
-| v2 | massa real | 2 | sim | 0 | 870 | 0 | 0 | 18 | 41 | 4345 |
-| v2 | massa real | 3 | sim | 0 | 886 | 0 | 0 | 18 | 41 | 4095 |
-| v2 | 6 salas + 1 dia indisponível | 1 | sim | 0 | 840 | 0 | 8 | 7 | 40 | 4221 |
-| v2 | 6 salas + 1 dia indisponível | 2 | sim | 0 | 832 | 0 | 7 | 7 | 40 | 3767 |
-| v2 | 6 salas + 1 dia indisponível | 3 | sim | 0 | 856 | 0 | 10 | 9 | 40 | 3558 |
-| v2 | 3 salas + 1 dia indisponível | 1 | não | 5 | 1500 | 0 | 30 | 30 | 35 | 2961 |
-| v2 | 3 salas + 1 dia indisponível | 2 | não | 5 | 1500 | 0 | 30 | 30 | 35 | 3065 |
-| v2 | 3 salas + 1 dia indisponível | 3 | não | 5 | 1500 | 0 | 30 | 30 | 35 | 2831 |
+| atual | massa real | 1 | sim | 0 | 652 | 0 | 3 | 1 | 18 | 3801 |
+| atual | massa real | 2 | sim | 0 | 620 | 0 | 0 | 0 | 18 | 3577 |
+| atual | massa real | 3 | sim | 0 | 620 | 0 | 0 | 0 | 18 | 3765 |
+| atual | 6 salas + 1 dia indisponível | 1 | sim | 0 | 928 | 0 | 10 | 6 | 24 | 3228 |
+| atual | 6 salas + 1 dia indisponível | 2 | sim | 0 | 928 | 0 | 10 | 6 | 24 | 3160 |
+| atual | 6 salas + 1 dia indisponível | 3 | sim | 0 | 896 | 0 | 10 | 2 | 24 | 2988 |
+| atual | 3 salas + 1 dia indisponível | 1 | não | 4 | 1536 | 0 | 27 | 30 | 32 | 2325 |
+| atual | 3 salas + 1 dia indisponível | 2 | não | 4 | 1504 | 0 | 24 | 29 | 32 | 2095 |
+| atual | 3 salas + 1 dia indisponível | 3 | não | 4 | 1504 | 0 | 23 | 30 | 32 | 2157 |
+| v2 | massa real | 1 | sim | 0 | 690 | 0 | 0 | 0 | 21 | 3263 |
+| v2 | massa real | 2 | sim | 0 | 870 | 0 | 0 | 0 | 27 | 3091 |
+| v2 | massa real | 3 | sim | 0 | 886 | 0 | 0 | 2 | 27 | 3269 |
+| v2 | 6 salas + 1 dia indisponível | 1 | sim | 0 | 840 | 0 | 8 | 2 | 24 | 2816 |
+| v2 | 6 salas + 1 dia indisponível | 2 | sim | 0 | 832 | 0 | 7 | 2 | 24 | 2905 |
+| v2 | 6 salas + 1 dia indisponível | 3 | sim | 0 | 856 | 0 | 10 | 2 | 24 | 3088 |
+| v2 | 3 salas + 1 dia indisponível | 1 | não | 5 | 1500 | 0 | 30 | 15 | 34 | 2517 |
+| v2 | 3 salas + 1 dia indisponível | 2 | não | 5 | 1500 | 0 | 30 | 15 | 34 | 2570 |
+| v2 | 3 salas + 1 dia indisponível | 3 | não | 5 | 1500 | 0 | 30 | 15 | 34 | 2434 |
 
-Custo médio (sementes 1 a 3), v1 → v2: massa real 630,7 → 815,3 (pior); 6 salas 917,3 → 842,7 (melhor); 3 salas 1514,7 → 1500,0 (melhor, mas com 5 faltantes em vez de 4). Violações: 0 em todos. Tempos inflados por outro agente rodando testes na máquina.
+Custo médio (sementes 1 a 3), v1 → v2: massa real 630,7 → 815,3 (pior); 6 salas 917,3 → 842,7 (melhor); 3 salas 1514,7 → 1500,0, mas com 5 faltantes em vez de 4. Violações: 0 em todos.
 
-Leitura: a nota marginal sozinha piorou a massa real (a meta é ficar abaixo de 631) e deixou uma fatia a mais de fora no cenário de 3 salas; o plano aceita isso. Na massa real os buracos do professor foram a 0, mas os da turma subiram de 0–2 para 14–18: a nota agora cobra a variação de buracos pelo peso inteiro, e o guloso corre atrás de fechar buracos do professor e de evitar o contraturno sem enxergar o efeito nos buracos da turma (que a descida da Fase 2, sempre em `candidatos[0]` e só aceitando `<=`, não consegue desfazer). Os ganhos nos cenários de 6 e 3 salas vêm de menos fora do turno (46 → 40, 40 → 35) e de mais folga para a turma. A busca em si (Fase 2, Top-K + LAHC) é quem deve recuperar a massa real; esta tarefa só alinha a régua.
+Leitura (conferida pela revisão): a nota está exata — em 2.914 candidatos da construção na massa real, a nota de cada obrigatória bate com o Δ real de  em todas as parcelas. A piora na massa real vem do **contraturno**: 18 aulas obrigatórias fora do turno no v1 contra 21–27 no v2 (e  de 40 para 60), compensado só em parte por  de 40 para 0. Buraco de turma das obrigatórias fica no mesmo nível (0–2). Com a nota exata, o contraturno a mais é miopia do guloso — hipótese ainda não confirmada: com as optativas agora preferindo o turno, as horas do turno faltam para as obrigatórias que vêm depois. A Fase 2 (Task 6) é quem deve recuperar; esta tarefa só alinha a régua.
