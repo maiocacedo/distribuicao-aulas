@@ -270,7 +270,7 @@ function App() {
           <div className="mt-auto flex flex-col gap-px border-t border-line pt-3">
             {item(PAGINA_GERAL)}
             <Sobre />
-            <LogoUtfpr className="mx-2.5 mt-3 w-24" />
+            <LogoUtfpr className="mx-2.5 mt-3 w-36" />
           </div>
         </nav>
 
