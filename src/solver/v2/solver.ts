@@ -52,6 +52,31 @@ class Estado {
   }
 }
 
+/** Horários vagos entre a primeira e a última aula; hora repetida conta uma vez. */
+export function buracosNaLista(horas: number[]): number {
+  if (horas.length === 0) return 0;
+  const distintas = new Set(horas);
+  return Math.max(...distintas) - Math.min(...distintas) + 1 - distintas.size;
+}
+
+/** Buracos que o bloco acrescenta (ou fecha, se negativo) a um dia que já tem `dia`. */
+export function variacaoDeBuracos(dia: number[], bloco: number[]): number {
+  return buracosNaLista([...dia, ...bloco]) - buracosNaLista(dia);
+}
+
+interface SituacaoDoTurno {
+  /** Obrigatórias do período que já têm aula fora do turno dele. */
+  obrigatoriasFora: Set<number>;
+  /** Optativas do período com aula já posta -> todas no turno até agora. */
+  optativasDoPeriodo: Map<number, boolean>;
+}
+
+/** Horas do dia já ocupadas, antes do bloco: a base da nota marginal. */
+interface BaseDoDia {
+  horasPeriodo: number[];
+  horasProfessor: number[];
+}
+
 const idDe = (f: Fatia) => `${f.disciplinaId}:${f.professorId}`;
 
 /**
@@ -103,6 +128,16 @@ export function* resolverEmPassos(
     problema.fatias.map((f) => [idDe(f), new Set(f.salas.filter((s) => s.preferencia === 2).map((s) => s.id))]),
   );
 
+  const optativas = new Set(problema.fatias.filter((f) => f.optativa).map((f) => f.disciplinaId));
+  const optativasPorPeriodo = new Map<number, number[]>();
+  for (const f of problema.fatias) {
+    if (!f.optativa) continue;
+    const ids = optativasPorPeriodo.get(f.periodo) ?? [];
+    if (!ids.includes(f.disciplinaId)) ids.push(f.disciplinaId);
+    optativasPorPeriodo.set(f.periodo, ids);
+  }
+  const maxContraturnoDe = new Map(problema.periodos.map((p) => [p.numero, p.maxContraturno]));
+
   /**
    * A sala em que o bloco inteiro cabe, `null` se a fatia não usa sala, ou
    * `undefined` se o bloco não pode ir ali. As regras de horário são as do
@@ -123,39 +158,96 @@ export function* resolverEmPassos(
     return undefined;
   }
 
-  /**
-   * Quantos horários vagos existem entre a primeira e a última aula do dia.
-   *
-   * B6, conhecido e deixado para o solver v2: a mesma `chave` é procurada como
-   * período E como professor, então o professor 3 enxerga as aulas do 3º
-   * período e vice-versa. Corrigir só isto piorou o custo médio do benchmark
-   * (619 → 838): a nota local está desalinhada do objetivo, e o conserto de
-   * verdade é reescrever a busca (subprojeto 3).
-   */
-  function buracosDoDia(e: Estado, chave: number, dia: number, extras: number[]): number {
-    const horas: number[] = [...extras];
+  /** Horas do dia ocupadas por aulas que contam como da turma (as obrigatórias). */
+  function horasDoPeriodo(e: Estado, periodo: number, dia: number): number[] {
+    const horas: number[] = [];
     for (const h of problema.horarios) {
-      if (e.oc.noPeriodo(chave, dia, h.indice) || e.oc.doProfessor(chave, dia, h.indice)) horas.push(h.indice);
+      const a = e.oc.noPeriodo(periodo, dia, h.indice);
+      if (a && !optativas.has(a.disciplinaId)) horas.push(h.indice);
     }
-    if (horas.length === 0) return 0;
-    horas.sort((a, b) => a - b);
-    return horas[horas.length - 1] - horas[0] + 1 - horas.length;
+    return horas;
   }
 
-  /** Custo local aproximado: serve só para ordenar candidatos, não para decidir. */
-  function pontuar(e: Estado, f: Fatia, dia: number, h0: number, tam: number, sala: number | null): number {
+  function horasDoProfessor(e: Estado, professorId: number, dia: number): number[] {
+    const horas: number[] = [];
+    for (const h of problema.horarios) if (e.oc.doProfessor(professorId, dia, h.indice)) horas.push(h.indice);
+    return horas;
+  }
+
+  /**
+   * O que a grade em andamento já diz sobre o turno do período da fatia: quais
+   * obrigatórias já escaparam dele e como estão as optativas. Calculado uma vez
+   * por bloco a colocar — o estado não muda enquanto os candidatos são
+   * pontuados. Conta as fixadas, os blocos de outras fatias e os já postos
+   * desta (`saida`).
+   */
+  function situacaoDoTurno(e: Estado, f: Fatia, saida: Bloco[]): SituacaoDoTurno {
+    const turnoP = turnoDoPeriodo.get(f.periodo);
+    const obrigatoriasFora = new Set<number>();
+    const optativasDoPeriodo = new Map<number, boolean>();
+    const ver = (periodo: number, disciplinaId: number, hora: number) => {
+      if (periodo !== f.periodo) return;
+      const fora = turnoDaHora.get(hora) !== turnoP;
+      if (optativas.has(disciplinaId)) {
+        optativasDoPeriodo.set(disciplinaId, (optativasDoPeriodo.get(disciplinaId) ?? true) && !fora);
+      } else if (fora) obrigatoriasFora.add(disciplinaId);
+    };
+    const verBlocos = (g: Fatia, blocos: Bloco[]) => {
+      for (const b of blocos)
+        for (let i = 0; i < b.tamanho; i++) ver(g.periodo, g.disciplinaId, problema.horarios[b.horaInicio + i].indice);
+    };
+    for (const a of problema.fixadas) ver(a.periodo, a.disciplinaId, a.hora);
+    for (const [id, blocos] of e.colocados) verBlocos(fatiasEfetivas.get(id)!, blocos);
+    verBlocos(f, saida);
+    return { obrigatoriasFora, optativasDoPeriodo };
+  }
+
+  /**
+   * Nota marginal do candidato: quanto o bloco piora (ou melhora) a grade, e
+   * não como o dia fica depois dele. Um dia que já tinha buraco não é punido
+   * por isso — e o bloco que fecha o buraco sai com nota negativa, que é o
+   * certo: a nota absoluta preferia o dia vazio e deixava o buraco aberto.
+   * Imita as parcelas de `custoTotal` que um bloco mede sozinho;
+   * `preferenciaDias` fica de fora porque depende dos dias todos do professor.
+   * Serve só para ordenar candidatos, não para decidir.
+   */
+  function pontuar(
+    f: Fatia,
+    h0: number,
+    tam: number,
+    sala: number | null,
+    base: BaseDoDia,
+    situacao: SituacaoDoTurno,
+  ): number {
     const horas = Array.from({ length: tam }, (_, i) => problema.horarios[h0 + i].indice);
-    let p = 0;
+    let p = variacaoDeBuracos(base.horasProfessor, horas) * pesos.buracoProfessor;
+    const turnoP = turnoDoPeriodo.get(f.periodo);
+    const foraDoTurno = horas.some((h) => turnoDaHora.get(h) !== turnoP);
     // Optativa no contraturno não custa: quem cobra é `optativaSemTurno`, no
     // custo total. E o buraco que ela abre na turma não é de quem não a cursa.
     if (!f.optativa) {
-      const esperado = f.turno ?? turnoDoPeriodo.get(f.periodo);
+      const esperado = f.turno ?? turnoP;
       for (const h of horas) if (turnoDaHora.get(h) !== esperado) p += pesos.contraturno;
-      p += buracosDoDia(e, f.periodo, dia, horas) * pesos.buracoAluno;
+      p += variacaoDeBuracos(base.horasPeriodo, horas) * pesos.buracoAluno;
+      // A disciplina que ainda não estava fora e agora sai, com o período já
+      // no limite, é exatamente o que `excessoDeContraturno` passa a contar.
+      if (
+        foraDoTurno &&
+        !situacao.obrigatoriasFora.has(f.disciplinaId) &&
+        situacao.obrigatoriasFora.size >= maxContraturnoDe.get(f.periodo)!
+      ) {
+        p += pesos.excessoContraturno;
+      }
+    } else if (foraDoTurno && (situacao.optativasDoPeriodo.get(f.disciplinaId) ?? true)) {
+      // Tira do turno uma optativa que ainda estava inteira nele. Só custa se
+      // for a última: outra já no turno — ou ainda por colocar — segura a parcela.
+      const outraNoTurno = (optativasPorPeriodo.get(f.periodo) ?? []).some(
+        (id) => id !== f.disciplinaId && (situacao.optativasDoPeriodo.get(id) ?? true),
+      );
+      if (!outraNoTurno) p += pesos.optativaSemTurno;
     }
-    p += buracosDoDia(e, f.professorId, dia, horas) * pesos.buracoProfessor;
     if (sala != null && aceitaveis.get(idDe(f))!.has(sala)) p += tam * pesos.salaAceitavel;
-    return f.prioridade === 3 ? p * 0.3 : p;
+    return p;
   }
 
   function aulaDe(f: Fatia, b: Bloco, i: number): AulaOcupada {
@@ -189,10 +281,16 @@ export function* resolverEmPassos(
     const tam = partes[i];
     const proibidos = diasProibidos.get(idDe(f));
 
+    const situacao = situacaoDoTurno(e, f, saida);
     const candidatos: { b: Bloco; nota: number }[] = [];
     for (let dia = 0; dia < problema.dias; dia++) {
       if (usados.has(dia) || proibidos?.has(dia)) continue;
       if (dia === 5 && !f.permiteSabado) continue;
+      // A base do dia vale para todos os horários dele: só o bloco muda.
+      const base: BaseDoDia = {
+        horasPeriodo: horasDoPeriodo(e, f.periodo, dia),
+        horasProfessor: horasDoProfessor(e, f.professorId, dia),
+      };
       for (let h0 = 0; h0 < problema.horarios.length; h0++) {
         if (!blocoCabeNoDia(problema, h0, tam)) continue;
         // Sábado à tarde não existe: o bloco inteiro tem de cair num turno
@@ -204,7 +302,7 @@ export function* resolverEmPassos(
         if (sala === undefined) continue;
         candidatos.push({
           b: { dia, horaInicio: h0, tamanho: tam, salaId: sala },
-          nota: pontuar(e, f, dia, h0, tam, sala),
+          nota: pontuar(f, h0, tam, sala, base, situacao),
         });
       }
     }
