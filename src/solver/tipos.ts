@@ -120,4 +120,6 @@ export interface Resultado {
   custo: number;
   passos: number;
   milissegundos: number;
+  /** Parado pelo usuário antes do fim das rodadas; a grade é a melhor vista até ali. */
+  interrompido?: boolean;
 }

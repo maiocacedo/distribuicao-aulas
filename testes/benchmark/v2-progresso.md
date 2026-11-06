@@ -26,3 +26,27 @@ Cada tarefa do plano acrescenta uma seção com a saída do benchmark (`npm run 
 | v2 | 3 salas + 1 dia indisponível | 3 | não | 4 | 1504 | 0 | 23 | 42 | 40 | 3007 |
 
 Idêntico ao v1 em custo, faltantes e violações. Os tempos desta máquina (~3 s também no v1) estão acima dos ~1,2 s da linha de base de outubro: a meta de tempo compara com o v1 medido na mesma execução.
+
+## Task 2 — execução em passos
+
+| solver | cenário | semente | completo | faltantes | custo | violações | buracos prof. | buracos turma | fora do turno | ms |
+| atual | massa real | 1 | sim | 0 | 652 | 0 | 3 | 1 | 38 | 2775 |
+| atual | massa real | 2 | sim | 0 | 620 | 0 | 0 | 2 | 38 | 2878 |
+| atual | massa real | 3 | sim | 0 | 620 | 0 | 0 | 0 | 38 | 2654 |
+| atual | 6 salas + 1 dia indisponível | 1 | sim | 0 | 928 | 0 | 10 | 6 | 46 | 2617 |
+| atual | 6 salas + 1 dia indisponível | 2 | sim | 0 | 928 | 0 | 10 | 6 | 46 | 3020 |
+| atual | 6 salas + 1 dia indisponível | 3 | sim | 0 | 896 | 0 | 10 | 6 | 46 | 3077 |
+| atual | 3 salas + 1 dia indisponível | 1 | não | 4 | 1536 | 0 | 27 | 44 | 40 | 1837 |
+| atual | 3 salas + 1 dia indisponível | 2 | não | 4 | 1504 | 0 | 24 | 42 | 38 | 1853 |
+| atual | 3 salas + 1 dia indisponível | 3 | não | 4 | 1504 | 0 | 23 | 42 | 40 | 1839 |
+| v2 | massa real | 1 | sim | 0 | 652 | 0 | 3 | 1 | 38 | 3238 |
+| v2 | massa real | 2 | sim | 0 | 620 | 0 | 0 | 2 | 38 | 3011 |
+| v2 | massa real | 3 | sim | 0 | 620 | 0 | 0 | 0 | 38 | 3435 |
+| v2 | 6 salas + 1 dia indisponível | 1 | sim | 0 | 928 | 0 | 10 | 6 | 46 | 3174 |
+| v2 | 6 salas + 1 dia indisponível | 2 | sim | 0 | 928 | 0 | 10 | 6 | 46 | 3616 |
+| v2 | 6 salas + 1 dia indisponível | 3 | sim | 0 | 896 | 0 | 10 | 6 | 46 | 3608 |
+| v2 | 3 salas + 1 dia indisponível | 1 | não | 4 | 1536 | 0 | 27 | 44 | 40 | 2407 |
+| v2 | 3 salas + 1 dia indisponível | 2 | não | 4 | 1504 | 0 | 24 | 42 | 38 | 2358 |
+| v2 | 3 salas + 1 dia indisponível | 3 | não | 4 | 1504 | 0 | 23 | 42 | 40 | 2270 |
+
+Idêntico ao v1 em custo, faltantes e violações: `resolver` agora só esgota `resolverEmPassos`, sem mudar a ordem do sorteio.

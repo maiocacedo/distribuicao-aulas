@@ -60,6 +60,34 @@ const idDe = (f: Fatia) => `${f.disciplinaId}:${f.professorId}`;
  * mudam passo a passo, com benchmark a cada uma.
  */
 export function resolver(problema: Problema, opcoes: Opcoes = {}): Resultado {
+  const it = resolverEmPassos(problema, opcoes);
+  let passo = it.next();
+  while (!passo.done) passo = it.next();
+  return passo.value;
+}
+
+/** Andamento da busca, entregue a quem acompanha o gerador. */
+export interface Progresso {
+  fase: "construcao" | "melhoria";
+  /** 0 na construção. */
+  rodada: number;
+  /** Total previsto de rodadas de melhoria. */
+  rodadas: number;
+  melhorCusto: number;
+}
+
+/** O que quem acompanha pode mandar de volta a cada passo. */
+export type Comando = "parar" | undefined;
+
+/**
+ * Mesma busca de `resolver`, mas cede o controle ao fim da construção e a
+ * cada 100 rodadas de melhoria: um Web Worker mostra o progresso e, recebendo
+ * "parar", encerra devolvendo a melhor grade vista até ali.
+ */
+export function* resolverEmPassos(
+  problema: Problema,
+  opcoes: Opcoes = {},
+): Generator<Progresso, Resultado, Comando> {
   const pesos = opcoes.pesos ?? PESOS_PADRAO;
   const maxPassos = opcoes.maxPassos ?? 300_000;
   const rodadas = opcoes.rodadasDeMelhoria ?? 4000;
@@ -277,7 +305,13 @@ export function resolver(problema: Problema, opcoes: Opcoes = {}): Resultado {
   const colocadas = [...fatiasEfetivas.values()].filter((f) => estado.colocados.has(idDe(f)));
   let melhor = custoTotal(problema, materializar(estado, problema, fatiasEfetivas), pesos);
 
-  for (let r = 0; r < rodadas && colocadas.length > 0; r++) {
+  let interrompido = false;
+  // Fim da construção: a primeira grade completa já existe e pode ser vista.
+  if ((yield { fase: "construcao", rodada: 0, rodadas, melhorCusto: melhor }) === "parar") {
+    interrompido = true;
+  }
+
+  for (let r = 0; !interrompido && r < rodadas && colocadas.length > 0; r++) {
     const f = colocadas[Math.floor(sorteio() * colocadas.length)];
     const anterior = estado.colocados.get(idDe(f))!;
     retirarFatia(estado, f);
@@ -287,21 +321,28 @@ export function resolver(problema: Problema, opcoes: Opcoes = {}): Resultado {
         // Não recolocou: devolve exatamente onde estava.
         for (const b of anterior) ocupar(estado, f, b, true);
         estado.colocados.set(idDe(f), anterior);
-        continue;
-      }
-      const agora = custoTotal(problema, materializar(estado, problema, fatiasEfetivas), pesos);
-      if (agora <= melhor) {
-        melhor = agora;
       } else {
-        retirarFatia(estado, f);
-        for (const b of anterior) ocupar(estado, f, b, true);
-        estado.colocados.set(idDe(f), anterior);
+        const agora = custoTotal(problema, materializar(estado, problema, fatiasEfetivas), pesos);
+        if (agora <= melhor) {
+          melhor = agora;
+        } else {
+          retirarFatia(estado, f);
+          for (const b of anterior) ocupar(estado, f, b, true);
+          estado.colocados.set(idDe(f), anterior);
+        }
       }
     } finally {
       // A melhoria não consome o orçamento da busca — nem quando a rodada
       // falha (B7: antes, a falha deixava os passos somados e as rodadas
       // seguintes estouravam o teto em cascata).
       passos = antesDosPassos;
+    }
+    // O cede fica fora do try: a rodada já terminou e o estado é o melhor visto
+    // (só se aceita custo igual ou menor), então parar aqui devolve uma grade válida.
+    if ((r + 1) % 100 === 0) {
+      if ((yield { fase: "melhoria", rodada: r + 1, rodadas, melhorCusto: melhor }) === "parar") {
+        interrompido = true;
+      }
     }
   }
 
@@ -312,6 +353,7 @@ export function resolver(problema: Problema, opcoes: Opcoes = {}): Resultado {
     custo: melhor,
     passos,
     milissegundos: Date.now() - comeco,
+    ...(interrompido ? { interrompido: true } : {}),
   };
 }
 
