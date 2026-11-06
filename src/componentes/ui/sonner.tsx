@@ -2,7 +2,7 @@ import { Toaster as Sonner, type ToasterProps } from "sonner";
 import { modoResolvido, usePreferencias } from "@/preferencias";
 
 /**
- * Segue o tema do app (Geral › Aparência). A versão do CLI do shadcn depende
+ * Segue o tema do app (Aparência). A versão do CLI do shadcn depende
  * de `next-themes`, que aqui não entra: o tema vem de `src/preferencias.ts`.
  *
  * O botão de fechar (só o toast de erro tem) nasce com as cores do próprio

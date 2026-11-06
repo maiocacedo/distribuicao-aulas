@@ -4,9 +4,9 @@ import { useConfirmar } from "@/componentes/confirmacao";
 import { Secao } from "@/componentes/secao";
 import { avisar } from "@/componentes/toasts";
 import { Button } from "@/componentes/ui/button";
-import { arquivoDoBanco, bancoEmMemoria, noNavegador, type Resumo, type Substituto } from "../../db";
-import { arquivoDoDesktop } from "../../banco/tauri";
-import { historico } from "../../grade";
+import { arquivoDoBanco, bancoEmMemoria, noNavegador, type Resumo, type Substituto } from "../db";
+import { arquivoDoDesktop } from "../banco/tauri";
+import { historico } from "../grade";
 
 const MOTIVO = "motivo-trocar-banco";
 
@@ -39,7 +39,7 @@ function baixar(bytes: Uint8Array, nome: string) {
 }
 
 /**
- * Geral › Dados. Os dados vivem no banco; esta é a página que os leva para
+ * Dados (no pé da barra lateral). Os dados vivem no banco; esta é a página que os leva para
  * fora (exportar um `.db`) e os traz de volta (importar). O arquivo é o mesmo
  * nos dois modos: o exportado do navegador abre no executável, e o contrário.
  *

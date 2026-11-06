@@ -39,7 +39,7 @@ export const motorTauri: Motor = {
 };
 
 /**
- * O banco do desktop como arquivo (Geral › Dados). Exportar grava uma cópia na
+ * O banco do desktop como arquivo (página Dados). Exportar grava uma cópia na
  * pasta Downloads e devolve o caminho. Importar é em duas metades: `conferir`
  * grava o arquivo ao lado do banco e diz o que ele tem, sem tocar no atual;
  * `aplicar` põe o conferido no lugar, guarda o atual como

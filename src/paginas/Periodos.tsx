@@ -198,7 +198,7 @@ export default function Periodos({ cursoId }: { cursoId: number }) {
                   .map((t) => TURNOS.find((x) => x.valor === t)?.rotulo ?? t)
                   .join(" e ")}
               </strong>
-              ; para liberar outro turno, mude em <strong>Geral › Cursos</strong>.
+              ; para liberar outro turno, mude em <strong>Gerenciar cursos</strong>.
             </dd>
             <dt className="font-semibold whitespace-nowrap text-tx2">Máx. de obrigatórias no contraturno</dt>
             <dd className="text-tx3">

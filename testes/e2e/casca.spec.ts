@@ -9,12 +9,21 @@ test.describe("navegação", () => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Professores");
   });
 
-  test("Geral também é marcado quando ativo, e abre em Cursos", async ({ page }) => {
-    await irPara(page, "Geral");
-    const item = page.getByRole("navigation").getByRole("button", { name: "Geral", exact: true });
+  test("Gerenciar cursos é item próprio da barra, no pé, e é marcado quando ativo", async ({ page }) => {
+    await irPara(page, "Gerenciar cursos");
+    const item = page.getByRole("navigation").getByRole("button", { name: "Gerenciar cursos", exact: true });
     await expect(item).toHaveAttribute("aria-current", "page");
-    await expect(page.getByRole("tab", { name: "Cursos" })).toHaveAttribute("aria-selected", "true");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Cursos");
+  });
+
+  test("o pé da barra tem cada item à parte, sem página Geral", async ({ page }) => {
+    const barra = page.getByRole("navigation");
+    for (const rotulo of ["Gerenciar cursos", "Aparência", "Acessibilidade", "Dados", "Sobre"])
+      await expect(barra.getByRole("button", { name: rotulo, exact: true })).toBeVisible();
+    expect(await barra.getByRole("button", { name: "Geral", exact: true }).count()).toBe(0);
+    await irPara(page, "Acessibilidade");
+    await expect(barra.getByRole("button", { name: "Acessibilidade", exact: true })).toHaveAttribute("aria-current", "page");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Acessibilidade");
   });
 
   test("no desktop, Dados exporta e importa, sem exemplo nem banco vazio", async ({ page }) => {

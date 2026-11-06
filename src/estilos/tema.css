@@ -79,8 +79,8 @@
 }
 
 /* Escuro: pelo sistema operacional enquanto o tema é "sistema" (é o que vale
-   também no primeiro desenho, antes do script), ou por escolha em Geral ›
-   Aparência. `data-modo` é escrito por `src/preferencias.ts`. */
+   também no primeiro desenho, antes do script), ou por escolha em Aparência,
+   na barra lateral. `data-modo` é escrito por `src/preferencias.ts`. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-modo="claro"]) {
     --bg: #121316;
@@ -288,7 +288,7 @@
   }
 }
 
-/* Reduzir animações: pela escolha em Geral › Acessibilidade ou pelo sistema
+/* Reduzir animações: pela escolha em Acessibilidade ou pelo sistema
    operacional. Duração quase zero, e não `none`, para que quem espera o fim
    de uma animação (Radix, Sonner) continue recebendo o evento. */
 @media (prefers-reduced-motion: reduce) {

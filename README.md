@@ -46,8 +46,8 @@ bloco. Leia o cabeçalho dele antes de mexer em estilo. O spec do desenho é
   mesmo botão. O histórico é de um curso e dura a sessão: trocar de curso, ou gravar
   qualquer coisa fora da grade (professor, sala, disciplina, indisponibilidade,
   regra), o zera.
-- **Geral** (no pé da barra lateral) junta o que não é de um curso: **Cursos**
-  (criar, renomear, turnos), **Aparência** (tema do sistema, claro ou escuro e
+- **No pé da barra lateral**, cada um como item próprio: **Gerenciar cursos**
+  (criar, renomear, remover e definir os turnos de cada curso), **Aparência** (tema do sistema, claro ou escuro e
   cor de destaque), **Acessibilidade** (tamanho do texto e dos controles de 100%
   a 150%, alto contraste, reduzir animações, foco reforçado e a lista de atalhos
   de teclado) e **Dados** (exportar e importar o banco). Aparência e
@@ -79,7 +79,7 @@ usuários: para levar os dados, exporte e importe.
 publica `dist-web/` no GitHub Pages a cada push na `main`. O site é estático:
 cada pessoa tem o próprio banco, no navegador dela.
 
-## Exportar e importar (Geral › Dados)
+## Exportar e importar (página Dados)
 
 O arquivo é o mesmo `.db` nos dois modos, com o mesmo registro de migrações:
 o que um exporta, o outro importa.

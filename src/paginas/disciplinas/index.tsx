@@ -50,7 +50,7 @@ export default function Disciplinas({ cursoId }: { cursoId: number }) {
   const [salas, setSalas] = useState<Sala[]>([]);
   const [tipos, setTipos] = useState<TipoDisciplina[]>([]);
   const [aulasComPadrao, setAulasComPadrao] = useState<Set<number>>(new Set());
-  // Conversão currículo → grade, definida em Geral › Cursos.
+  // Conversão currículo → grade, definida em Gerenciar cursos.
   const [horasPorAula, setHorasPorAula] = useState(15);
   const [turnosDoCurso, setTurnosDoCurso] = useState<string[]>(["manha", "tarde"]);
   const [edicao, setEdicao] = useState<Rascunho | null>(null);

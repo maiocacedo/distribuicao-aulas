@@ -16,7 +16,10 @@ const TELAS = [
   "Regras",
   "Manual",
   "Automática",
-  "Geral",
+  "Gerenciar cursos",
+  "Aparência",
+  "Acessibilidade",
+  "Dados",
 ];
 
 test("todas as telas abrem num banco vazio sem erro", async ({ page }) => {

@@ -19,13 +19,13 @@ import { consultar, transacao } from "./sqlite";
  * ou `{ id, ok: false, erro }`, com `erro` sendo a mensagem do SQLite como ele
  * a deu (é nela que `mensagemErro` reconhece "FOREIGN KEY constraint failed").
  *
- * Trocar o banco (aba Geral › Dados) também acontece aqui, e só
+ * Trocar o banco (página Dados) também acontece aqui, e só
  * aqui: este worker tem a trava e os arquivos do VFS, e qualquer outra
  * conexão seria recusada. Depois da troca ele não atende mais nada; a página
  * recarrega, e o worker novo abre o banco novo.
  */
 
-/** Com o que a aba Geral › Dados substitui o banco. */
+/** Com o que a página Dados substitui o banco. */
 export type Substituto = { por: "arquivo"; bytes: Uint8Array } | { por: "exemplo" } | { por: "vazio" };
 
 export type Pedido =

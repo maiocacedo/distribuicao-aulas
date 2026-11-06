@@ -7,7 +7,7 @@ import { irPara } from "../e2e/paginas";
 import { cadastrarProfessor, noBanco } from "./apoio";
 
 /**
- * A aba Geral › Dados, no navegador: exportar, importar, exemplo, vazio. Toda
+ * A página Dados, no navegador: exportar, importar, exemplo, vazio. Toda
  * troca de banco termina recarregando o app; os testes marcam a página antes
  * (`__antes`) e conferem que a marca sumiu.
  */

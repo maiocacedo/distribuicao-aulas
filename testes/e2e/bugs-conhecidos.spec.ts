@@ -6,7 +6,7 @@ test.describe("B2", () => {
 
   test("B2: excluir curso com disciplinas remove tudo junto", async ({ page, banco }) => {
     await responderConfirmacoes(page);
-    await irPara(page, "Cursos");
+    await irPara(page, "Gerenciar cursos");
     const linha = page.getByRole("row", { name: /Engenharia/ });
     await expect(linha).toBeVisible();
     expect(contar(banco, "SELECT COUNT(*) FROM disciplinas WHERE curso_id = 1")).toBeGreaterThan(0);

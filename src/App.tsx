@@ -1,16 +1,17 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ComponentType } from "react";
 import {
   BookOpen,
   CalendarCog,
   CalendarRange,
   CalendarX,
+  Database,
   DoorOpen,
+  GraduationCap,
   Layers,
-  Settings,
+  Palette,
   Sparkles,
   Tags,
   Users,
-  type LucideIcon,
 } from "lucide-react";
 import { Alerta } from "@/componentes/alerta";
 import { LogoUtfpr } from "@/componentes/logo-utfpr";
@@ -25,7 +26,10 @@ import type { Curso } from "./tipos";
 import Disciplinas from "./paginas/disciplinas";
 import GradeAutomatica from "./paginas/GradeAutomatica";
 import GradeManual from "./paginas/grade-manual";
-import Geral, { type Aba } from "./paginas/geral";
+import Cursos from "./paginas/Cursos";
+import { Acessibilidade, Aparencia } from "./paginas/Aparencia";
+import Dados from "./paginas/Dados";
+import { IconeAcessibilidade } from "@/componentes/icone-acessibilidade";
 import Indisponibilidades from "./paginas/Indisponibilidades";
 import Instituicao from "./paginas/Instituicao";
 import Periodos from "./paginas/Periodos";
@@ -37,14 +41,12 @@ type Props = {
   cursoId: number;
   aoMudarCursos: () => void;
   aoNavegar: (id: string) => void;
-  aba: Aba;
-  aoMudarAba: (a: Aba) => void;
 };
 
 type Pagina = {
   id: string;
   rotulo: string;
-  icone: LucideIcon;
+  icone: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
   componente: (p: Props) => React.ReactNode;
   /** Abre mesmo sem curso: não é página de um curso. */
   semCurso?: boolean;
@@ -128,18 +130,33 @@ const GRUPOS: { titulo: string; paginas: Pagina[] }[] = [
 ];
 
 /**
- * Geral fica no pé da barra: cursos, aparência, acessibilidade e dados
- * (exportar e importar o banco). Não é de um curso, por isso abre sem curso.
+ * O pé da barra: o que não é de um curso nem da grade — os cursos em si, as
+ * preferências do aparelho (aparência e acessibilidade) e os dados (exportar
+ * e importar). Cada um é um item próprio, sem página intermediária: um clique
+ * leva ao que se quer. Todos abrem sem curso.
  */
-const PAGINA_GERAL: Pagina = {
-  id: "geral",
-  rotulo: "Geral",
-  icone: Settings,
-  componente: (p) => <Geral aba={p.aba} aoMudarAba={p.aoMudarAba} aoMudarCursos={p.aoMudarCursos} />,
+const PAGINA_CURSOS: Pagina = {
+  id: "cursos",
+  rotulo: "Gerenciar cursos",
+  icone: GraduationCap,
+  componente: (p) => <Cursos aoMudarLista={p.aoMudarCursos} />,
   semCurso: true,
 };
 
-const TODAS = [...GRUPOS.flatMap((g) => g.paginas), PAGINA_GERAL];
+const PE: Pagina[] = [
+  PAGINA_CURSOS,
+  { id: "aparencia", rotulo: "Aparência", icone: Palette, componente: () => <Aparencia />, semCurso: true },
+  {
+    id: "acessibilidade",
+    rotulo: "Acessibilidade",
+    icone: IconeAcessibilidade,
+    componente: () => <Acessibilidade />,
+    semCurso: true,
+  },
+  { id: "dados", rotulo: "Dados", icone: Database, componente: () => <Dados />, semCurso: true },
+];
+
+const TODAS = [...GRUPOS.flatMap((g) => g.paginas), ...PE];
 
 function App() {
   const [cursos, setCursos] = useState<Curso[]>([]);
@@ -148,7 +165,6 @@ function App() {
   const [cursosLidos, setCursosLidos] = useState(false);
   const [cursoId, setCursoId] = useState<number | null>(null);
   const [pagina, setPagina] = useState<string>("periodos");
-  const [aba, setAba] = useState<Aba>("cursos");
   const [erro, setErro] = useState<string | null>(null);
   // Só o banco do navegador pode estar em memória (janela anônima, navegador
   // sem armazenamento de origem): aí o aviso fica à vista o tempo todo, porque
@@ -200,14 +216,9 @@ function App() {
     cursoId: cursoId ?? 0,
     aoMudarCursos: carregarCursos,
     aoNavegar: setPagina,
-    aba,
-    aoMudarAba: setAba,
   });
 
-  const abrirCursos = () => {
-    setAba("cursos");
-    setPagina("geral");
-  };
+  const abrirCursos = () => setPagina("cursos");
 
   const item = (p: Pagina, extra?: string) => (
     <button
@@ -229,7 +240,7 @@ function App() {
   return (
     <TooltipProvider delayDuration={400}>
       <div className="grid min-h-screen grid-cols-[216px_1fr]">
-        {/* Presa à altura da janela, com rolagem própria: o pé da barra (Geral,
+        {/* Presa à altura da janela, com rolagem própria: o pé da barra (cursos,
             Sobre e o logo) fica sempre à vista, por mais longa que seja a página. */}
         <nav className="sticky top-0 flex h-[calc(100dvh/var(--zoom,1))] flex-col gap-px overflow-y-auto border-r border-line bg-panel px-2.5 py-3">
           <strong className="px-2.5 pb-2.5 pt-0.5 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-tx3">
@@ -268,7 +279,7 @@ function App() {
 
           {/* O pé: empurrado para baixo pelo `mt-auto`, separado por um fio. */}
           <div className="mt-auto flex flex-col gap-px border-t border-line pt-3">
-            {item(PAGINA_GERAL)}
+            {PE.map((p) => item(p))}
             <Sobre />
             <LogoUtfpr className="mx-2.5 mt-3 w-36" />
           </div>
@@ -288,7 +299,7 @@ function App() {
               <p className="mt-2 text-tx2">
                 Crie um curso em{" "}
                 <button type="button" className="text-primary underline underline-offset-2" onClick={abrirCursos}>
-                  Geral › Cursos
+                  Gerenciar cursos
                 </button>{" "}
                 para começar.
               </p>

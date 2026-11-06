@@ -82,7 +82,7 @@ export const motorNavegador: Motor = {
 };
 
 /**
- * O que só o banco do navegador faz: a aba Geral › Dados baixa o
+ * O que só o banco do navegador faz: a página Dados baixa o
  * banco, confere um arquivo antes de pedir confirmação e troca o banco. A
  * troca acontece dentro do worker, que tem a trava; quem chama recarrega a
  * página em seguida.

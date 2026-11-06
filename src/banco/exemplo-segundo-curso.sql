@@ -1,4 +1,4 @@
--- Segundo curso dos dados de exemplo (Geral › Dados › Carregar dados de exemplo).
+-- Segundo curso dos dados de exemplo (Dados › Carregar dados de exemplo).
 --
 -- Roda DEPOIS de todas as migrações, sobre a massa já no esquema de hoje: ao
 -- contrário da massa, este arquivo é escrito à mão e segue o esquema atual.
@@ -6,7 +6,7 @@
 -- `src/banco/arquivo.test.ts` acusa).
 --
 -- Existe para experimentar o que só aparece com mais de um curso: trocar de
--- curso, Geral › Cursos, e professores e salas da instituição disputados pelos
+-- curso, Gerenciar cursos, e professores e salas da instituição disputados pelos
 -- dois. Os professores são os da massa — alguns com pouca carga, outros já
 -- cheios na Engenharia —, e a grade começa vazia, para a grade automática ter
 -- o que gerar.

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Pencil, Trash2 } from "lucide-react";
-import { consultar, executar, transacao, type Instrucao } from "../../db";
-import { TURNOS, type Curso } from "../../tipos";
+import { consultar, executar, transacao, type Instrucao } from "../db";
+import { TURNOS, type Curso } from "../tipos";
 import { Alerta } from "@/componentes/alerta";
 import { BotaoIcone } from "@/componentes/botao-icone";
 import { CabecalhoPagina } from "@/componentes/cabecalho-pagina";
