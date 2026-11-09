@@ -16,9 +16,9 @@ import { CustoIncremental } from "./custoIncremental";
 
 export interface Opcoes {
   pesos?: Pesos;
-  /** Teto de tentativas de posicionamento antes de desistir da busca exata. */
+  /** Teto de tentativas da construção (não limita as rodadas de melhoria). */
   maxPassos?: number;
-  /** Rodadas de melhoria depois de achar uma solução viável. */
+  /** Rodadas de melhoria depois de achar uma solução viável (padrão: 6060, mistura N1/N2). */
   rodadasDeMelhoria?: number;
   semente?: number;
 }
@@ -37,6 +37,17 @@ interface Bloco {
   horaInicio: number;
   tamanho: number;
   salaId: number | null;
+}
+
+function alocacoesDaFatia(f: Fatia, blocos: Bloco[], problema: Problema): Alocacao[] {
+  return blocos.flatMap((b) => Array.from({ length: b.tamanho }, (_, i) => ({
+    periodo: f.periodo,
+    dia: b.dia,
+    hora: problema.horarios[b.horaInicio + i].indice,
+    disciplinaId: f.disciplinaId,
+    professorId: f.professorId,
+    salaId: b.salaId,
+  })));
 }
 
 /**
@@ -74,17 +85,27 @@ interface SituacaoDoTurno {
 
 /** Horas do dia já ocupadas, antes do bloco: a base da nota marginal. */
 interface BaseDoDia {
-  horasPeriodo: number[];
-  horasProfessor: number[];
+  periodo: ResumoDia;
+  professor: ResumoDia;
+}
+
+interface ResumoDia { min: number; max: number; qtd: number; mask: number; buracos: number }
+
+function popcount32(x: number): number {
+  x -= (x >>> 1) & 0x55555555;
+  x = (x & 0x33333333) + ((x >>> 2) & 0x33333333);
+  return (((x + (x >>> 4)) & 0x0f0f0f0f) * 0x01010101) >>> 24;
+}
+
+function variacaoRapida(r: ResumoDia, hMin: number, hMax: number, tam: number, mask: number): number {
+  if (r.qtd === 0) return hMax - hMin + 1 - tam;
+  const novas = tam - popcount32(r.mask & mask);
+  return Math.max(r.max, hMax) - Math.min(r.min, hMin) + 1 - r.qtd - novas - r.buracos;
 }
 
 const idDe = (f: Fatia) => `${f.disciplinaId}:${f.professorId}`;
 
-/**
- * Solver v2 (subprojeto 3). Nasceu como cópia exata do v1 (`../solver.ts`);
- * as tarefas do plano `docs/superpowers/plans/2026-11-06-solver-v2.md` o
- * mudam passo a passo, com benchmark a cada uma.
- */
+/** Solver v2: nota marginal, Top-K e LAHC com movimentos N1/N2; ver spec do solver v2. */
 export function resolver(problema: Problema, opcoes: Opcoes = {}): Resultado {
   const it = resolverEmPassos(problema, opcoes);
   let passo = it.next();
@@ -165,19 +186,20 @@ export function* resolverEmPassos(
   }
 
   /** Horas do dia ocupadas por aulas que contam como da turma (as obrigatórias). */
-  function horasDoPeriodo(e: Estado, periodo: number, dia: number): number[] {
-    const horas: number[] = [];
-    for (const h of problema.horarios) {
-      const a = e.oc.noPeriodo(periodo, dia, h.indice);
-      if (a && !optativas.has(a.disciplinaId)) horas.push(h.indice);
+  function resumoDia(ocupada: (hora: number) => boolean): ResumoDia {
+    let min = 1e9, max = -1e9, qtd = 0, mask = 0;
+    for (const h of problema.horarios) if (ocupada(h.indice)) {
+      const bit = 1 << h.indice;
+      if ((mask & bit) === 0) { mask |= bit; qtd++; min = Math.min(min, h.indice); max = Math.max(max, h.indice); }
     }
-    return horas;
+    return qtd === 0 ? { min: 0, max: 0, qtd: 0, mask: 0, buracos: 0 } : { min, max, qtd, mask, buracos: max - min + 1 - qtd };
   }
-
-  function horasDoProfessor(e: Estado, professorId: number, dia: number): number[] {
-    const horas: number[] = [];
-    for (const h of problema.horarios) if (e.oc.doProfessor(professorId, dia, h.indice)) horas.push(h.indice);
-    return horas;
+  function resumoDoPeriodo(e: Estado, periodo: number, dia: number): ResumoDia {
+    return resumoDia((hora) => { const a = e.oc.noPeriodo(periodo, dia, hora); return Boolean(a && !optativas.has(a.disciplinaId)); });
+  }
+  function resumoDoProfessor(e: Estado, professorId: number, dia: number): ResumoDia {
+    // Inclui aulas externas de propósito: esta nota só ordena candidatos.
+    return resumoDia((hora) => Boolean(e.oc.doProfessor(professorId, dia, hora)));
   }
 
   /**
@@ -225,16 +247,19 @@ export function* resolverEmPassos(
     base: BaseDoDia,
     situacao: SituacaoDoTurno,
   ): number {
-    const horas = Array.from({ length: tam }, (_, i) => problema.horarios[h0 + i].indice);
-    let p = variacaoDeBuracos(base.horasProfessor, horas) * pesos.buracoProfessor;
+    const hMin = problema.horarios[h0].indice;
+    const hMax = problema.horarios[h0 + tam - 1].indice;
+    const maskBloco = ((1 << tam) - 1) << hMin;
+    let p = variacaoRapida(base.professor, hMin, hMax, tam, maskBloco) * pesos.buracoProfessor;
     const turnoP = turnoDoPeriodo.get(f.periodo);
-    const foraDoTurno = horas.some((h) => turnoDaHora.get(h) !== turnoP);
+    const turnoBloco = problema.horarios[h0].turno;
+    const foraDoTurno = turnoBloco !== turnoP;
     // Optativa no contraturno não custa: quem cobra é `optativaSemTurno`, no
     // custo total. E o buraco que ela abre na turma não é de quem não a cursa.
     if (!f.optativa) {
       const esperado = f.turno ?? turnoP;
-      for (const h of horas) if (turnoDaHora.get(h) !== esperado) p += pesos.contraturno;
-      p += variacaoDeBuracos(base.horasPeriodo, horas) * pesos.buracoAluno;
+      if (turnoBloco !== esperado) p += tam * pesos.contraturno;
+      p += variacaoRapida(base.periodo, hMin, hMax, tam, maskBloco) * pesos.buracoAluno;
       // A disciplina que ainda não estava fora e agora sai, com o período já
       // no limite, é exatamente o que `excessoDeContraturno` passa a contar.
       if (
@@ -245,8 +270,8 @@ export function* resolverEmPassos(
         p += pesos.excessoContraturno;
       }
     } else if (foraDoTurno && (situacao.optativasDoPeriodo.get(f.disciplinaId) ?? true)) {
-      // Tira do turno uma optativa que ainda estava inteira nele. Só custa se
-      // for a última: outra já no turno — ou ainda por colocar — segura a parcela.
+      // Tira do turno uma optativa que ainda estava inteira nele. Outra ainda
+      // não colocada é tratada com otimismo como possível proteção da parcela.
       const outraNoTurno = (optativasPorPeriodo.get(f.periodo) ?? []).some(
         (id) => id !== f.disciplinaId && (situacao.optativasDoPeriodo.get(id) ?? true),
       );
@@ -305,8 +330,8 @@ export function* resolverEmPassos(
       if (dia === 5 && !f.permiteSabado) continue;
       // A base do dia vale para todos os horários dele: só o bloco muda.
       const base: BaseDoDia = {
-        horasPeriodo: horasDoPeriodo(e, f.periodo, dia),
-        horasProfessor: horasDoProfessor(e, f.professorId, dia),
+        periodo: resumoDoPeriodo(e, f.periodo, dia),
+        professor: resumoDoProfessor(e, f.professorId, dia),
       };
       for (let h0 = 0; h0 < problema.horarios.length; h0++) {
         if (!blocoCabeNoDia(problema, h0, tam)) continue;
@@ -337,7 +362,13 @@ export function* resolverEmPassos(
           evitar.some((a) => a.dia === c.b.dia && a.horaInicio === c.b.horaInicio && a.tamanho === c.b.tamanho);
         candidatos.sort((a, b) => Number(igual(a)) - Number(igual(b)));
       }
-      const k = Math.min(topK, candidatos.length);
+      let k = Math.min(topK, candidatos.length);
+      if (k > 1) {
+        const limiteNota = candidatos[0].nota + 16;
+        let kBons = 1;
+        while (kBons < k && candidatos[kBons].nota <= limiteNota) kBons++;
+        k = kBons;
+      }
       const [escolhido] = candidatos.splice(Math.floor(sorteio() * k), 1);
       candidatos.unshift(escolhido);
     }
@@ -356,7 +387,30 @@ export function* resolverEmPassos(
   }
 
   function colocarFatia(e: Estado, f: Fatia, topK = 1, evitar?: Bloco[]): boolean {
-    for (const padrao of padroesDe(f, problema)) {
+    const padroes = padroesDe(f, problema);
+    if (f.blocosLivres && faltantes.length === 0 && padroes.length > 1) {
+      let melhorSaida: Bloco[] | undefined;
+      let menorFora = Infinity;
+      for (const padrao of padroes) {
+        if (melhorSaida && padrao.partes.length > 3) continue;
+        const saida: Bloco[] = [];
+        if (colocarBlocos(e, f, padrao.partes, 0, new Set(), saida, topK, evitar)) {
+          const esperado = f.turno ?? turnoDoPeriodo.get(f.periodo);
+          const fora = f.optativa ? 0 : saida.reduce((n, b) => n + (problema.horarios[b.horaInicio].turno === esperado ? 0 : b.tamanho), 0);
+          if (fora === 0) { e.colocados.set(idDe(f), saida); return true; }
+          for (const b of saida) ocupar(e, f, b, false);
+          if (fora < menorFora) { menorFora = fora; melhorSaida = saida; }
+        }
+        if (passos > maxPassos) break;
+      }
+      if (melhorSaida) {
+        for (const b of melhorSaida) ocupar(e, f, b, true);
+        e.colocados.set(idDe(f), melhorSaida);
+        return true;
+      }
+      return false;
+    }
+    for (const padrao of padroes) {
       const saida: Bloco[] = [];
       if (colocarBlocos(e, f, padrao.partes, 0, new Set(), saida, topK, evitar)) {
         e.colocados.set(idDe(f), saida);
@@ -432,22 +486,9 @@ export function* resolverEmPassos(
     }
   }
 
-  // ---- melhoria: tira uma fatia e recoloca, ficando com o que baratear ----
+  // ---- melhoria: tira uma ou duas fatias, ou recupera faltantes, guiada pelo custo ----
   function aulasDe(f: Fatia, blocos: Bloco[]): Alocacao[] {
-    const saida: Alocacao[] = [];
-    for (const b of blocos) {
-      for (let i = 0; i < b.tamanho; i++) {
-        saida.push({
-          periodo: f.periodo,
-          dia: b.dia,
-          hora: problema.horarios[b.horaInicio + i].indice,
-          disciplinaId: f.disciplinaId,
-          professorId: f.professorId,
-          salaId: b.salaId,
-        });
-      }
-    }
-    return saida;
+    return alocacoesDaFatia(f, blocos, problema);
   }
 
   let colocadas = [...fatiasEfetivas.values()].filter((f) => estado.colocados.has(idDe(f)));
@@ -512,6 +553,35 @@ export function* resolverEmPassos(
           melhorFaltantes = [...faltantes];
           historico.fill(atual);
           semMelhora = 0;
+        } else if (tentaveis.length >= 2) {
+          const outro = tentaveis.find((x) => x !== alvo && alvo.fatia.aulas + x.fatia.aulas >= 5 && alvo.fatia.aulas + x.fatia.aulas <= 6);
+          const soma = outro ? alvo.fatia.aulas + outro.fatia.aulas : 0;
+          const grandes = outro ? colocadas.filter((g) => g.exigeSala === alvo.fatia.exigeSala && g.aulas >= soma) : [];
+          if (outro && grandes.length > 0) {
+            const grande = grandes[Math.floor(sorteio() * grandes.length)];
+            const blocosGrandes = estado.colocados.get(idDe(grande))!;
+            const aulasGrandes = aulasDe(grande, blocosGrandes);
+            retirarFatia(estado, grande);
+            custo.remover(aulasGrandes);
+            let postoAlvo = colocarFatia(estado, alvo.fatia, TOP_K);
+            let aulasAlvo: Alocacao[] = [];
+            if (postoAlvo) { aulasAlvo = aulasDe(alvo.fatia, estado.colocados.get(idDe(alvo.fatia))!); custo.adicionar(aulasAlvo); }
+            const postoOutro = postoAlvo && colocarFatia(estado, outro.fatia, TOP_K);
+            if (postoOutro) {
+              custo.adicionar(aulasDe(outro.fatia, estado.colocados.get(idDe(outro.fatia))!));
+              faltantes.splice(faltantes.indexOf(alvo), 1);
+              faltantes.splice(faltantes.indexOf(outro), 1);
+              faltantes.push({ fatia: grande, motivo: "trocada por duas menores" });
+              colocadas.splice(colocadas.indexOf(grande), 1, alvo.fatia, outro.fatia);
+              atual = custo.total(); melhor = atual; melhorColocados = new Map(estado.colocados);
+              melhorFaltantes = [...faltantes]; historico.fill(atual); semMelhora = 0;
+            } else {
+              if (postoAlvo) { custo.remover(aulasAlvo); retirarFatia(estado, alvo.fatia); }
+              for (const b of blocosGrandes) ocupar(estado, grande, b, true);
+              estado.colocados.set(idDe(grande), blocosGrandes);
+              custo.adicionar(aulasGrandes);
+            }
+          }
         }
       } else {
         // N1 recoloca uma fatia; N2, duas do mesmo período de uma vez. Sozinha, a
@@ -609,18 +679,7 @@ function materializar(
   const saida: Alocacao[] = [...problema.fixadas];
   for (const [id, blocos] of e.colocados) {
     const f = porId.get(id)!;
-    for (const b of blocos) {
-      for (let i = 0; i < b.tamanho; i++) {
-        saida.push({
-          periodo: f.periodo,
-          dia: b.dia,
-          hora: problema.horarios[b.horaInicio + i].indice,
-          disciplinaId: f.disciplinaId,
-          professorId: f.professorId,
-          salaId: b.salaId,
-        });
-      }
-    }
+    saida.push(...alocacoesDaFatia(f, blocos, problema));
   }
   return saida;
 }

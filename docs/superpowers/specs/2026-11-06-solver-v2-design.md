@@ -61,7 +61,11 @@ os dias do professor e não de um bloco.
    nos cenários apertados e o par em toda rodada perdia na massa real; ficou o sorteio, com **32% de par e
    6060 rodadas**, escolhido por intervalos cada vez menores (25–50%, depois 30/35/40%, depois 27/32%).
    Método e tabela em `testes/benchmark/v2-progresso.md`, Task 6c.
-8. **Execução por SDD**, delegando ao agy (Argon) as tarefas de contrato fechado e a subagentes
+8. **Projeto Integrador pode ser dividido (2026-11-09):** as disciplinas de blocos livres, como o
+   Projeto Integrador, são trabalho em grupo com reuniões que se ajustam aos alunos e professores; o
+   horário na grade é referência. Dividir em 2 ou 3 blocos para caber no turno é aceitável, e o
+   custo não pune a divisão. Isso libera a melhoria M2 (melhor partição) da revisão de 2026-11-09.
+9. **Execução por SDD**, delegando ao agy (Argon) as tarefas de contrato fechado e a subagentes
    Claude as de algoritmo.
 
 ## Desenho

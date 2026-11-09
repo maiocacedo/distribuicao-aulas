@@ -33,7 +33,7 @@ function buracosDaLista(horas: number[]): number {
  * aulas, recalculando apenas as chaves (professor+dia, período+dia, período,
  * professor e disciplina optativa) tocadas em cada operação.
  *
- * Na Fase 2 do solver v2, cada rodada mexe em uma única fatia (2 a 4 aulas)
+ * Na Fase 2 do solver v2, cada rodada mexe em uma ou duas fatias (2 a 4 aulas cada)
  * de uma grade com mais de 200: atualizar só o que mudou evita reconstruir e
  * varrer a grade inteira a cada tentativa.
  */

@@ -19,6 +19,22 @@ describe("solver v2 — Fase 2 com Top-K e LAHC", () => {
     expect(b.faltantes.length).toBe(a.faltantes.length);
   });
 
+  it("sementes diferentes podem variar a grade e cada semente é reproduzível", async () => {
+    const p = await problemaDaMassa();
+    const a = resolver(p, { semente: 1, rodadasDeMelhoria: 300 });
+    const b = resolver(p, { semente: 2, rodadasDeMelhoria: 300 });
+    const aRepetida = resolver(p, { semente: 1, rodadasDeMelhoria: 300 });
+    expect(a.alocacoes).not.toEqual(b.alocacoes);
+    expect(aRepetida.alocacoes).toEqual(a.alocacoes);
+  });
+
+  it("N2 pode desfazer um par sem desalinhar o custo incremental", async () => {
+    const p = await problemaDaMassa();
+    const r = resolver(p, { semente: 19, rodadasDeMelhoria: 80 });
+    expect(r.custo).toBe(custoTotal(p, r.alocacoes, PESOS_PADRAO));
+    expect(conferir(p, r.alocacoes)).toEqual([]);
+  });
+
   it("a melhoria nunca piora o custo da construção, e a grade segue válida", async () => {
     const p = await problemaDaMassa();
     const sem = resolver(p, { semente: 2, rodadasDeMelhoria: 0 });
@@ -32,7 +48,7 @@ describe("solver v2 — Fase 2 com Top-K e LAHC", () => {
   it("baixa o custo da massa real com as rodadas padrão do v2 (a construção sozinha ficava em 870)", async () => {
     const p = await problemaDaMassa();
     const r = resolver(p, { semente: 2 });
-    expect(r.custo).toBeLessThan(800);
+    expect(r.custo).toBeLessThan(320);
   });
 
   it("parar no meio devolve a melhor grade vista, não a corrente do LAHC", async () => {
@@ -86,5 +102,12 @@ describe("solver v2 — Fase 2 com Top-K e LAHC", () => {
     const comAula = new Set(com.alocacoes.map((a) => `${a.disciplinaId}:${a.professorId}`));
     for (const x of com.faltantes) expect(comAula.has(`${x.fatia.disciplinaId}:${x.fatia.professorId}`)).toBe(false);
     expect(com.custo).toBe(custoTotal(p, com.alocacoes, PESOS_PADRAO));
+  });
+
+  it("M4 troca uma fatia por duas menores e deixa no máximo uma faltante", async () => {
+    const p = indisponivelUmDia(comSalas(await problemaDaMassa(), 3), 77);
+    const r = resolver(p, { semente: 1 });
+    expect(r.faltantes.length).toBeLessThanOrEqual(1);
+    expect(r.custo).toBe(custoTotal(p, r.alocacoes, PESOS_PADRAO));
   });
 });
