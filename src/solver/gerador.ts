@@ -43,17 +43,19 @@ function obterTrabalhador(): Worker {
     if (r.tipo === "fim") p.resolver(r.resultado);
     else p.rejeitar(new Error(r.erro));
   };
-  // Erro antes da primeira resposta significa que o worker nem chegou a
-  // carregar: rejeita quem espera e limpa a referência para a próxima tentativa
-  // criar outro.
+  // Qualquer falha não tratada no worker invalida a instância: rejeita todos os
+  // pedidos pendentes, encerra o worker e limpa a referência para a próxima
+  // geração criar outro.
   w.onerror = (e) => {
-    if (carregou) {
-      console.error("worker do gerador:", e.message);
-      return;
-    }
     e.preventDefault();
-    trabalhador = null;
-    const erro = new Error(`O gerador não carregou: ${e.message || "erro no worker"}`);
+    w.terminate();
+    if (trabalhador === w) trabalhador = null;
+    const detalhe = e.message || "erro no worker";
+    const erro = new Error(
+      carregou
+        ? `O gerador falhou durante a execução: ${detalhe}`
+        : `O gerador não carregou: ${detalhe}`,
+    );
     pendentes.forEach((p) => p.rejeitar(erro));
     pendentes.clear();
   };

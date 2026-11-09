@@ -23,6 +23,7 @@ const escopo = self as unknown as {
   postMessage: (r: RespostaGerador) => void;
 };
 
+const ativos = new Set<number>();
 const parados = new Set<number>();
 
 async function gerar(pedido: Extract<PedidoGerador, { tipo: "gerar" }>): Promise<void> {
@@ -46,6 +47,7 @@ async function gerar(pedido: Extract<PedidoGerador, { tipo: "gerar" }>): Promise
   } catch (e) {
     escopo.postMessage({ tipo: "erro", id: pedido.id, erro: String(e) });
   } finally {
+    ativos.delete(pedido.id);
     parados.delete(pedido.id);
   }
 }
@@ -54,11 +56,13 @@ let fila: Promise<void> = Promise.resolve();
 escopo.onmessage = (e) => {
   const pedido = e.data;
   // O pedido de parada não entra na fila: precisa marcar a geração em andamento
-  // durante a pausa entre um passo e outro da própria execução na fila.
+  // durante a pausa entre um passo e outro da própria execução na fila. Pedidos
+  // para ids já encerrados ou desconhecidos são ignorados para não acumular.
   if (pedido.tipo === "parar") {
-    parados.add(pedido.id);
+    if (ativos.has(pedido.id)) parados.add(pedido.id);
     return;
   }
+  ativos.add(pedido.id);
   fila = fila
     .then(() => gerar(pedido))
     .catch((erro) => console.error("worker do gerador: pedido sem resposta", erro));

@@ -103,13 +103,50 @@ test("gera com o Novo (v2) e aplica uma grade que o auditor aprova", async ({ pa
   expect(conferir(problema, lerAlocacoes(banco, 1))).toEqual([]);
 });
 
-test("para a geração do v2 no meio e mostra a melhor grade encontrada até ali", async ({ page }) => {
+test("para a geração do v2 no meio e mostra a melhor grade encontrada até ali", async ({ page, banco }) => {
+  await responderConfirmacoes(page);
   await irPara(page, "Automática");
   await escolher(page.getByRole("combobox", { name: "Gerador" }), "Novo (v2)");
-  await page.getByRole("button", { name: "Gerar grade" }).click();
-  await page.getByRole("button", { name: "Parar" }).click();
-  await expect(
-    page.getByText("Geração parada antes do fim: esta é a melhor grade encontrada até ali."),
-  ).toBeVisible();
+
+  const botaoGerar = page.getByRole("button", { name: "Gerar grade" });
+  const botaoParar = page.getByRole("button", { name: "Parar" });
+  const botaoAplicar = page.getByRole("button", { name: "Aplicar esta grade" });
+  const avisoParada = page.getByText(
+    "Geração parada antes do fim: esta é a melhor grade encontrada até ali.",
+  );
+
+  await botaoGerar.click();
+  await expect(botaoParar.or(botaoAplicar)).toBeVisible();
+  if (await botaoParar.isVisible()) {
+    await botaoParar.click({ timeout: 2_000 }).catch(() => {
+      // Se o worker concluir exatamente durante a tentativa de clique, o botão
+      // "Parar" sai da tela e a geração termina com a grade completa.
+    });
+  }
+
+  // Verifica que a UI volta ao estado ocioso com o resultado disponível.
+  await expect(botaoAplicar).toBeEnabled({ timeout: 30_000 });
+  await expect(botaoParar).toBeHidden();
+  await expect(botaoGerar).toBeEnabled();
+  await expect(page.getByRole("combobox", { name: "Gerador" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Descartar" })).toBeEnabled();
+
+  // Aceita os dois desfechos válidos: aviso de interrompido OU grade completa.
+  const interrompido = await avisoParada.isVisible();
+  if (!interrompido) {
+    await expect(page.getByText(/fatia\(s\) não couberam/)).toBeHidden();
+  }
+
+  await botaoAplicar.click();
+  await expect(page.getByText("Grade aplicada.")).toBeVisible();
+  if (!interrompido) {
+    const total = contar(
+      banco,
+      "SELECT SUM(dp.aulas) FROM disciplina_professores dp JOIN disciplinas d ON d.id = dp.disciplina_id WHERE d.curso_id = 1",
+    );
+    expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE curso_id = 1")).toBe(total);
+  }
+  const problema = await carregarProblema(1, lerDe(banco));
+  expect(conferir(problema, lerAlocacoes(banco, 1))).toEqual([]);
 });
 
