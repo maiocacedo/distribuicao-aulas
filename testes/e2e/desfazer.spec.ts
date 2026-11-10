@@ -514,10 +514,12 @@ test.describe("grade gerada", () => {
     await expect(page.getByRole("button", { name: "Aplicar esta grade" })).toBeEnabled({ timeout: 30_000 });
     const durante = await page.evaluate(() => (window as unknown as { __durante: unknown[] }).__durante);
     expect(durante.length).toBeGreaterThan(0);
+    // O v2, padrão, mostra o próprio progresso como motivo.
+    const progressoDoV2 = /^(Montando a grade…|Melhorando: rodada \d+ de \d+, custo \d+)$/;
     for (const amostra of durante)
-      expect(amostra).toEqual({ resultado: true, aplicar: true, descartar: true, motivo: "Gerando a grade…" });
+      expect(amostra).toEqual({ resultado: true, aplicar: true, descartar: true, motivo: expect.stringMatching(progressoDoV2) });
     // Terminada a geração, o motivo sai.
-    expect(await page.getByText("Gerando a grade…").count()).toBe(0);
+    await expect(page.locator("#motivo-grade-automatica")).toHaveCount(0);
   });
 
   test("enquanto aplica, os botões ficam parados e dizem por quê; terminando, um Ctrl+Z desfaz tudo", async ({ page, banco }) => {
