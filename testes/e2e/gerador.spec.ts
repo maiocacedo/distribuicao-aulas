@@ -125,10 +125,10 @@ test("indisponibilidade marcada por arrasto é respeitada pelo gerador", async (
   expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE professor_id = ? AND dia = ? AND hora <= 2", id, dia)).toBe(0);
 });
 
-test("gera com o Novo (v2) e aplica uma grade que o auditor aprova", async ({ page, banco }) => {
+test("gera com o Anterior (v1) e aplica uma grade que o auditor aprova", async ({ page, banco }) => {
   await responderConfirmacoes(page);
   await irPara(page, "Automática");
-  await escolher(page.getByRole("combobox", { name: "Gerador" }), "Novo (v2)");
+  await escolher(page.getByRole("combobox", { name: "Gerador" }), "Anterior (v1)");
   await gerarEAplicar(page);
   const total = contar(
     banco,

@@ -21,8 +21,8 @@ import { desfazerEAvisar } from "../grade/desfazer";
 import { useHistorico } from "../grade/useHistorico";
 
 const OPCOES_DE_GERADOR: { valor: VersaoGerador; rotulo: string }[] = [
-  { valor: "v1", rotulo: "Atual (v1)" },
   { valor: "v2", rotulo: "Novo (v2)" },
+  { valor: "v1", rotulo: "Anterior (v1)" },
 ];
 
 interface Medidas {
@@ -111,7 +111,7 @@ export default function GradeAutomatica({
   const [lido, setLido] = useState<Carga | null>(null);
   const [gerado, setGerado] = useState<Gerado | null>(null);
   const [gerando, setGerando] = useState(false);
-  const [versaoGerador, setVersaoGerador] = useState<VersaoGerador>("v1");
+  const [versaoGerador, setVersaoGerador] = useState<VersaoGerador>("v2");
   const [progresso, setProgresso] = useState<Progresso | null>(null);
   const [aplicando, setAplicando] = useState(false);
   const [aplicadoEm, setAplicadoEm] = useState<number | null>(null);

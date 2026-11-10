@@ -104,7 +104,7 @@ Cede o controle uma vez ao fim da construção e a cada 100 rodadas de melhoria.
   `{ tipo: "erro", id, erro }`.
 - `src/solver/gerador.ts`: o lado da página. `gerarGrade(problema, versao, aoProgredir)` devolve
   `{ resultado: Promise<Resultado>, parar(): void }`.
-- `GradeAutomatica.tsx`: seletor "Gerador" (v1 padrão até o v2 bater a meta), texto de progresso
+- `GradeAutomatica.tsx`: seletor "Gerador" (v2 padrão desde 2026-11-10; v1 segue como "Anterior (v1)"), texto de progresso
   ("Melhorando: rodada X de Y, custo Z") e botão "Parar" enquanto gera. O `setTimeout` de 30 ms sai.
 
 ### Algoritmo (v2)
