@@ -30,4 +30,8 @@ export const CENARIOS: Cenario[] = [
   { nome: "massa real", montar: (p) => p },
   { nome: "6 salas + 1 dia indisponível", montar: (p) => indisponivelUmDia(comSalas(p, 6), 77) },
   { nome: "3 salas + 1 dia indisponível", montar: (p) => indisponivelUmDia(comSalas(p, 3), 77) },
+  {
+    nome: "massa real, PI fora do gerador",
+    montar: (p) => ({ ...p, fatias: p.fatias.filter((f) => !f.nome.includes("Projeto Integrador")) }),
+  },
 ];

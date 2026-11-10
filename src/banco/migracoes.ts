@@ -36,6 +36,7 @@ export const DESCRICOES: Record<number, string> = {
   8: "horarios fixos da instituicao, turnos por curso",
   9: "sabado so de manha",
   10: "regras e integridade",
+  11: "fora do gerador",
 };
 
 export interface Migracao {

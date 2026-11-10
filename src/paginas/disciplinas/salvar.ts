@@ -49,6 +49,7 @@ export const novo = (cursoId: number, periodo: number): Rascunho => ({
   turno: null,
   optativa: 0,
   ofertada: 1,
+  fora_do_gerador: 0,
   exige_sala: 1,
   tipo_sala: null,
   blocos_livres: 0,
@@ -428,6 +429,7 @@ export function montarInstrucoes(
     d.turno,
     d.optativa,
     d.ofertada,
+    d.fora_do_gerador,
     d.exige_sala,
     d.tipo_sala,
     d.blocos_livres,
@@ -443,7 +445,7 @@ export function montarInstrucoes(
       ? {
           sql: `UPDATE disciplinas SET curso_id = ?, nome = ?, abreviacao = ?,
                            tipo_id = ?, periodo = ?, aulas_semanais = ?,
-                           permite_sabado = ?, turno = ?, optativa = ?, ofertada = ?,
+                           permite_sabado = ?, turno = ?, optativa = ?, ofertada = ?, fora_do_gerador = ?,
                            exige_sala = ?, tipo_sala = ?, blocos_livres = ?,
                            prioridade = ?, observacao = ?
                       WHERE id = ?`,
@@ -452,9 +454,9 @@ export function montarInstrucoes(
       : {
           sql: `INSERT INTO disciplinas (curso_id, nome, abreviacao, tipo_id,
                            periodo, aulas_semanais, permite_sabado, turno,
-                           optativa, ofertada, exige_sala, tipo_sala, blocos_livres,
+                           optativa, ofertada, fora_do_gerador, exige_sala, tipo_sala, blocos_livres,
                            prioridade, observacao, id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           params: [...campos, id],
         },
 

@@ -4,7 +4,7 @@ import { conferir } from "../../src/solver/conferir";
 import { DIAS } from "../../src/tipos";
 import { lerAlocacoes, lerDe } from "../suporte/banco";
 import { expect, test } from "./fixtures";
-import { celula, contar, escolher, gerarEAplicar, irPara, responderConfirmacoes } from "./paginas";
+import { celula, contar, escolher, gerarEAplicar, irPara, linhaCom, responderConfirmacoes } from "./paginas";
 
 const umaLinha = <T,>(banco: DatabaseSync, sql: string, ...params: (number | string)[]) => {
   const linha = banco.prepare(sql).get(...params);
@@ -52,6 +52,42 @@ test("aula fixada com o botão direito sobrevive à geração", async ({ page, b
     ),
   ).toBe(1);
   expect(conferir(await carregarProblema(1, lerDe(banco)), lerAlocacoes(banco, 1))).toEqual([]);
+});
+
+test.describe("disciplina fora do gerador", () => {
+  test.use({
+    semMassa: true,
+    semente: `
+      INSERT INTO periodos (curso_id, numero, turno) VALUES (1, 1, 'manha');
+      INSERT INTO professores (id, nome) VALUES (1, 'Ana Souza'), (2, 'Bruno Lima');
+      INSERT INTO disciplinas (id, curso_id, nome, periodo, aulas_semanais, exige_sala) VALUES
+        (1, 1, 'Projeto', 1, 2, 0), (2, 1, 'Cálculo', 1, 2, 0);
+      INSERT INTO disciplina_professores (disciplina_id, professor_id, aulas) VALUES (1, 1, 2), (2, 2, 2);`,
+  });
+
+  test("a aula manual fica no mesmo lugar ao gerar e aplicar", async ({ page, banco }) => {
+    await responderConfirmacoes(page);
+    await irPara(page, "Disciplinas");
+    await linhaCom(page, "Projeto").getByRole("button", { name: "Editar" }).click();
+    await page.getByRole("checkbox", { name: /Fora do gerador automático/ }).check();
+    await page.getByRole("button", { name: "Salvar" }).click();
+    await expect.poll(() => contar(banco, "SELECT fora_do_gerador FROM disciplinas WHERE id = 1")).toBe(1);
+
+    await irPara(page, "Manual");
+    await page.getByRole("button", { name: /Projeto/ }).click();
+    await celula(page, "Segunda", "M1").click();
+    await expect.poll(() => contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE disciplina_id = 1")).toBe(1);
+    const aulaAntes = umaLinha<{ dia: number; hora: number; fixada: number }>(
+      banco,
+      "SELECT dia, hora, fixada FROM alocacoes WHERE disciplina_id = 1",
+    );
+
+    await irPara(page, "Automática");
+    await gerarEAplicar(page);
+    expect(umaLinha(banco, "SELECT dia, hora, fixada FROM alocacoes WHERE disciplina_id = 1")).toEqual(aulaAntes);
+    expect(contar(banco, "SELECT COUNT(*) FROM alocacoes WHERE disciplina_id = 1")).toBe(1);
+    expect(conferir(await carregarProblema(1, lerDe(banco)), lerAlocacoes(banco, 1))).toEqual([]);
+  });
 });
 
 test("indisponibilidade marcada por arrasto é respeitada pelo gerador", async ({ page, banco }) => {

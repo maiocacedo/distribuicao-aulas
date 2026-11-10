@@ -117,6 +117,14 @@ describe("conferir", () => {
     expect(conferir(p, fixadas)).toEqual([]);
   });
 
+  it("só aceita aula sem fatia quando a disciplina está marcada fora da geração", () => {
+    const alocada = aula(0, 0, { disciplinaId: 9 });
+    expect(tipos(conferir(problemaMinimo({ fixadas: [alocada] }), [alocada]))).toEqual(["contagem"]);
+    expect(
+      conferir(problemaMinimo({ fixadas: [alocada], foraDoGerador: [9] }), [alocada]),
+    ).toEqual([]);
+  });
+
   it("não acusa fatia sem nenhuma aula (completude é do Resultado)", () => {
     expect(conferir(problemaMinimo({ fatias: [fatia()] }), [])).toEqual([]);
   });

@@ -312,6 +312,13 @@ export function EditorDisciplina({
         aoMudar={() => aoMudar({ ...valor, ofertada: valor.ofertada ? 0 : 1 })}
       />
 
+      <Marcador
+        rotulo="Fora do gerador automático"
+        descricao="O gerador não distribui estas aulas; o horário é combinado à parte e pode ser posto na grade manual."
+        marcado={!!valor.fora_do_gerador}
+        aoMudar={() => aoMudar({ ...valor, fora_do_gerador: valor.fora_do_gerador ? 0 : 1 })}
+      />
+
       <PropriedadesDisciplina valor={valor} aoMudar={(v) => aoMudar({ ...valor, ...v })} />
 
       <Campo

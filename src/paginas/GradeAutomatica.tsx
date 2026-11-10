@@ -235,7 +235,7 @@ export default function GradeAutomatica({
           titulo: "Substituir a grade atual pela gerada?",
           descricao:
             `${carga.atual.length} aula(s) hoje → ${resultado.alocacoes.length} aula(s).` +
-            (fixadas ? ` As ${fixadas} aula(s) fixadas são preservadas.` : ""),
+            (fixadas ? ` As ${fixadas} aula(s) protegidas pela grade atual são preservadas.` : ""),
           confirmar: "Aplicar a grade",
         }))
       )
@@ -247,8 +247,9 @@ export default function GradeAutomatica({
         // As fixadas ficam: elas já constam do resultado e apagá-las junto
         // faria o INSERT seguinte recriá-las, perdendo a marca de fixada.
         {
-          sql: "DELETE FROM alocacoes WHERE curso_id = ? AND fixada = 0",
-          params: [cursoId],
+          sql: `DELETE FROM alocacoes WHERE curso_id = ? AND fixada = 0
+                AND disciplina_id NOT IN (SELECT id FROM disciplinas WHERE curso_id = ? AND fora_do_gerador = 1)`,
+          params: [cursoId, cursoId],
         },
         ...resultado.alocacoes
           .filter(

@@ -20,6 +20,18 @@ describe("carregarProblema", () => {
     expect(p.fatias.every((f) => f.ofertada)).toBe(true);
   });
 
+  it("deixa fora as fatias marcadas e trata suas aulas existentes como fixadas", async () => {
+    const db = criarBanco();
+    const d = db.prepare("SELECT id FROM disciplinas WHERE curso_id = 1 ORDER BY id LIMIT 1").get() as { id: number };
+    const fatia = db.prepare("SELECT professor_id FROM disciplina_professores WHERE disciplina_id = ?").get(d.id) as { professor_id: number };
+    db.prepare("UPDATE disciplinas SET fora_do_gerador = 1 WHERE id = ?").run(d.id);
+    db.prepare(`INSERT INTO alocacoes (curso_id, periodo, dia, hora, disciplina_id, professor_id, fixada)
+      VALUES (1, 1, 0, 0, ?, ?, 0)`).run(d.id, fatia.professor_id);
+    const p = await carregarProblema(1, lerDe(db));
+    expect(p.fatias.some((f) => f.disciplinaId === d.id)).toBe(false);
+    expect(p.fixadas).toContainEqual({ periodo: 1, dia: 0, hora: 0, disciplinaId: d.id, professorId: fatia.professor_id, salaId: null });
+  });
+
   it("traz as aulas dos outros cursos e a preferência de sala", async () => {
     const db = criarBanco();
     const { id: d } = db.prepare("SELECT id FROM disciplinas WHERE curso_id = 1 AND exige_sala = 1 ORDER BY id LIMIT 1").get() as {
