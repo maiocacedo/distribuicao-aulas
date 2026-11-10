@@ -88,6 +88,8 @@ export interface Disciplina {
   optativa: number;
   /** 0 = não ofertada neste semestre: fica fora da grade e do gerador (D16). */
   ofertada: number;
+    /** 1 = fica fora da distribuição automática, mas pode ser alocada manualmente. */
+    fora_do_gerador: number;
   exige_sala: number;
   tipo_sala: string | null;
   blocos_livres: number;

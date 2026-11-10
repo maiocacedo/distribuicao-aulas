@@ -26,7 +26,7 @@ test("abre num banco vazio, já migrado, com o curso que a migração 005 cria",
     page,
     "SELECT version, success, length(checksum) AS n FROM _sqlx_migrations ORDER BY version",
   );
-  expect(migracoes).toEqual(Array.from({ length: 10 }, (_, i) => ({ version: i + 1, success: 1, n: 48 })));
+  expect(migracoes).toEqual(Array.from({ length: 11 }, (_, i) => ({ version: i + 1, success: 1, n: 48 })));
   await expect(noBanco(page, "SELECT id, nome FROM cursos")).resolves.toEqual([{ id: 1, nome: "Curso" }]);
 });
 

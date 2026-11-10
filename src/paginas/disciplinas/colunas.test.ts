@@ -22,18 +22,19 @@ describe("marcasDe", () => {
 
   // O texto é a chave de ordenação da coluna: a ordem das marcas é o que põe
   // juntas as disciplinas com o mesmo comportamento.
-  it("as marcas saem sempre na mesma ordem: oferta, sala, blocos, sábado, turno, prioridade", () => {
+  it("as marcas saem sempre na mesma ordem: oferta, sala, blocos, gerador, sábado, turno, prioridade", () => {
     const todas = linha({
       ofertada: 0,
       exige_sala: 0,
       tipo_sala: "Laboratório",
       n_salas: 2,
       blocos_livres: 1,
+      fora_do_gerador: 1,
       permite_sabado: 1,
       turno: "tarde",
       prioridade: 1,
     });
-    expect(marcasDe(todas)).toBe("não ofertada · sem sala · só Laboratório · 2 sala(s) · livre · sábado · tarde · prio. alta");
+    expect(marcasDe(todas)).toBe("não ofertada · sem sala · só Laboratório · 2 sala(s) · livre · fora do gerador · sábado · tarde · prio. alta");
     expect(marcasDe(linha({ prioridade: 3, permite_sabado: 1 }))).toBe("sábado · prio. baixa");
   });
 });

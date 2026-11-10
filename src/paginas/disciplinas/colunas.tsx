@@ -13,6 +13,7 @@ function marcas(l: Linha): { texto: string }[] {
     { texto: l.tipo_sala ? `só ${l.tipo_sala}` : "" },
     { texto: l.n_salas > 0 ? `${l.n_salas} sala(s)` : "" },
     { texto: l.blocos_livres ? "livre" : "" },
+    { texto: l.fora_do_gerador ? "fora do gerador" : "" },
     { texto: l.permite_sabado ? "sábado" : "" },
     { texto: l.turno ?? "" },
     { texto: l.prioridade !== 2 ? `prio. ${l.prioridade === 1 ? "alta" : "baixa"}` : "" },

@@ -75,6 +75,12 @@ fn migracoes() -> Vec<Migration> {
             sql: include_str!("../../scripts/migracoes/010_regras_e_integridade.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 11,
+            description: "fora do gerador",
+            sql: include_str!("../../scripts/migracoes/011_fora_do_gerador.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

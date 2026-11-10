@@ -51,7 +51,7 @@ export async function carregarProblema(cursoId: number, ler: Leitor = consultar)
               d.prioridade, d.blocos_livres
          FROM disciplina_professores dp
          JOIN disciplinas d ON d.id = dp.disciplina_id
-        WHERE d.curso_id = ? AND d.ofertada = 1`,
+        WHERE d.curso_id = ? AND d.ofertada = 1 AND d.fora_do_gerador = 0`,
       [cursoId],
     )
   ).map((r) => ({
@@ -109,7 +109,10 @@ export async function carregarProblema(cursoId: number, ler: Leitor = consultar)
 
   const externas = (await ler<Linha>(`SELECT ${colunas} FROM alocacoes WHERE curso_id <> ?`, [cursoId])).map(aula);
   const fixadas: Alocacao[] = (
-    await ler<Linha>(`SELECT ${colunas} FROM alocacoes WHERE curso_id = ? AND fixada = 1`, [cursoId])
+    await ler<Linha>(`SELECT ${colunas} FROM alocacoes a
+      WHERE curso_id = ? AND (fixada = 1 OR disciplina_id IN (
+        SELECT id FROM disciplinas WHERE curso_id = ? AND fora_do_gerador = 1
+      ))`, [cursoId, cursoId])
   ).map((a) => ({
     periodo: a.periodo,
     dia: a.dia,
@@ -118,6 +121,13 @@ export async function carregarProblema(cursoId: number, ler: Leitor = consultar)
     professorId: a.professor_id,
     salaId: a.sala_id,
   }));
+
+  const foraDoGerador = (
+    await ler<{ id: number }>(
+      "SELECT id FROM disciplinas WHERE curso_id = ? AND fora_do_gerador = 1",
+      [cursoId],
+    )
+  ).map((d) => d.id);
 
   return {
     cursoId,
@@ -133,5 +143,6 @@ export async function carregarProblema(cursoId: number, ler: Leitor = consultar)
     turnosDoCurso: ctx.turnosDoCurso,
     externas,
     fixadas,
+    foraDoGerador,
   };
 }

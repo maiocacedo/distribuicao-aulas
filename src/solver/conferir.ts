@@ -93,6 +93,10 @@ export function conferir(problema: Problema, alocacoes: Alocacao[]): Violacao[] 
       add("indisponivel", `professor ${a.professorId} indisponível em ${a.dia}:${a.hora}`);
     const f = fatias.get(chaveFatia(a));
     if (!f) {
+      // A aula marcada para fora do gerador fica em `fixadas` mesmo sem fatia
+      // no problema. Ainda conferimos choques e ocupações acima, mas não há
+      // carga automática nem requisito de bloco a auditar para ela.
+      if (problema.foraDoGerador.includes(a.disciplinaId)) continue;
       add("contagem", `aula sem fatia correspondente (${chaveFatia(a)})`);
       continue;
     }

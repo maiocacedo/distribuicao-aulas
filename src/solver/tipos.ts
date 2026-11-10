@@ -69,6 +69,8 @@ export interface Problema {
   externas: AulaOcupada[];
   /** Aulas que o gerador não pode mexer. */
   fixadas: Alocacao[];
+  /** IDs das disciplinas que não entram na geração por escolha no cadastro. */
+  foraDoGerador: number[];
 }
 
 export interface Alocacao {
@@ -120,4 +122,6 @@ export interface Resultado {
   custo: number;
   passos: number;
   milissegundos: number;
+  /** Parado pelo usuário antes do fim das rodadas; a grade é a melhor vista até ali. */
+  interrompido?: boolean;
 }

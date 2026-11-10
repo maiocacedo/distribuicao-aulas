@@ -31,6 +31,7 @@ export function problemaMinimo(extra: Partial<Problema> = {}): Problema {
     turnosDoCurso: ["manha", "tarde"],
     externas: [],
     fixadas: [],
+    foraDoGerador: [],
     ...extra,
   };
 }
