@@ -47,7 +47,7 @@ os dias do professor e não de um bloco.
    | Custo médio na massa real | abaixo de 631 (v1: 652, 620, 620) |
    | Custo nos cenários de 6 e de 3 salas | abaixo da linha de base de cada um |
    | Violações no `conferir` | 0 em todos |
-   | Tempo por execução no benchmark | até ~2 s |
+   | Tempo por execução no benchmark | até ~1,5× o do v1 (revisado em 2026-11-06; antes "até ~2 s") |
    | Determinismo | mesma semente, mesma grade |
 
 3. **Web Worker nesta branch**, com progresso e botão de parar.

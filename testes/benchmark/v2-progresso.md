@@ -268,3 +268,27 @@ Segunda revisão (controlador): confirmado que nenhuma das 58 fatias da massa te
 moveu a massa real de 607,7 para 588,3 sem mudar o algoritmo: o ruído entre configurações, com 6 sementes, é da
 ordem de ±20 pontos. Isso vale também para a escolha entre 30% e 32% de par (Task 6c), que fica dentro do ruído.
 O N3 pode valer numa base que cadastre salas aceitáveis; fica como ideia para depois.
+
+## Revisão final e Tasks 10–12 (2026-11-09)
+
+Revisão da branch em quatro lentes (Codex: algoritmo e Worker; Claude: testes/docs e qualidade/desempenho),
+sem achado crítico. Pesquisa de melhorias com Argon (no código) e Opus (literatura de CB-CTT). As melhorias
+do Argon foram reexecutadas em 10 sementes, com o custo recalculado por `custoTotal` e o `conferir` em todas.
+
+Custo médio, sementes 1–10:
+
+| Cenário | v1 | v2 (a77d0f5) | v2 + M1–M4 (178a639) |
+|---|---|---|---|
+| massa real | 690,2 | 622,8 | 276,6 |
+| 6 salas + 1 dia indisponível | 908,8 | 658,6 | 355,2 |
+| 3 salas + 1 dia indisponível | 1502,4 (4,0 falt.) | 1235,0 (2,1 falt.) | 1153,2 (1,2 falt.) |
+
+- **Task 10 (M1–M4):** nota sem alocações (mesmas grades, 18–33% mais rápido); melhor partição para fatias
+  de blocos livres quando o bloco inteiro cai no contraturno; janela de 16 pontos no sorteio do Top-K; troca de
+  uma fatia grande por duas faltantes menores. M5 (horário órfão na borda) medida e não adotada.
+- O cenário "3 salas" admite **1** faltante, não 2: tirando uma das duas fatias de 6 aulas, o resto cabe em 180 vagas.
+- **Diagnóstico da massa real:** 69% do custo era contraturno, quase todo de Projetos Integradores postos inteiros
+  na manhã de períodos da tarde.
+- **Task 11:** worker que cai no meio da geração rejeita o pedido; "parar" sem vazamento; e2e do Parar sem corrida.
+- **Task 12:** marca "fora do gerador automático" por disciplina. Cenário novo "massa real, PI fora do gerador"
+  (sementes 1–3): v1 190/166/88, v2 32/24/32, sem violações; o v2 fica mais rápido que o v1 (~830 ms contra ~1100 ms).
